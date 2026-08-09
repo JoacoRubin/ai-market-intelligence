@@ -23,9 +23,11 @@ dependencies = [
 
 [project.optional-dependencies]
 # Fase 4 — forecast, anomalías y experiment tracking.
+# pandas queda fijado a <3: mlflow todavía no soporta pandas 3.x. Es la
+# restricción real del ecosistema, no una preferencia. Revisar al actualizar mlflow.
 ml = [
     "scikit-learn>=1.9",
-    "pandas>=3.0",
+    "pandas>=2.2,<3",
     "numpy>=2.5",
     "mlflow>=3.15",
 ]
@@ -37,10 +39,11 @@ rag = [
     "pypdf>=6.0",
 ]
 # Fase 1 — generación del dataset sintético con seed reproducible.
+# Mismo pin de pandas que el grupo ml, para que ambos grupos convivan.
 seed = [
     "faker>=37.0",
     "numpy>=2.5",
-    "pandas>=3.0",
+    "pandas>=2.2,<3",
 ]
 
 [dependency-groups]
@@ -54,6 +57,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-q --strict-markers"
 markers = [
@@ -79,4 +83,5 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agent", "rag", "ml"]
+# Se agregan a medida que existen. Declarar paquetes inexistentes rompe el build.
+packages = ["seeds"]
