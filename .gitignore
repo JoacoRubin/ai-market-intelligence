@@ -1,0 +1,42 @@
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Entorno virtual. OJO: este proyecto vive dentro de OneDrive.
+# El venv NO debe crearse acá adentro — ver UV_PROJECT_ENVIRONMENT en el README.
+.venv/
+venv/
+
+# --- Datos y artefactos pesados ---------------------------------------------
+# Nada de esto va al repo, y menos aún debería sincronizarse a la nube.
+mlruns/
+mlartifacts/
+data/raw/
+data/public/cache/
+*.faiss
+*.index
+models/
+*.pkl
+*.joblib
+
+# --- Secretos ---------------------------------------------------------------
+.env
+.env.local
+*.pem
+
+# --- Node / frontend --------------------------------------------------------
+node_modules/
+dist/
+.vite/
+
+# --- SO / editor ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
