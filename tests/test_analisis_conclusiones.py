@@ -14,7 +14,7 @@ from datetime import datetime
 
 import pytest
 
-from apps.api.analisis import _alertas_de_devolucion, _conclusiones
+from core.conclusiones import _alertas_de_devolucion, _conclusiones
 from core.kpis import FUENTE
 from core.report import MetricaProducto
 

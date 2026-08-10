@@ -147,6 +147,11 @@ switch ($Tarea.ToLower()) {
         & $UV run uvicorn apps.api.main:app --reload --port 8000
     }
 
+    "agente" {
+        Titulo "Agente completo con el modelo real (lento: minutos en CPU)"
+        & $UV run python -m agent.demo $args[1]
+    }
+
     "eval" {
         Titulo "Evaluacion del router contra el golden set (modelo real, lento)"
         & $UV run pytest -m llm -v -s

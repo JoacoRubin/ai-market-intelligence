@@ -93,6 +93,9 @@ class AnalysisState(BaseModel):
 
     # --- ejecución ---
     plan: list[PasoPlan] = Field(default_factory=list)
+    # Lo pone el ejecutor. Es lo que le permite al planificador saber si
+    # está armando el primer plan o corrigiendo uno que no encontró datos.
+    ya_ejecutado: bool = False
     resultados_tools: dict[str, Any] = Field(default_factory=dict)
     evidencia: list[dict[str, Any]] = Field(default_factory=list)
 
