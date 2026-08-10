@@ -17,6 +17,7 @@ from pathlib import Path
 from agent.graph import analizar
 from agent.llm import ClienteOllama
 from core.report_pdf import render_pdf
+from rag.build import cargar_indice
 
 if os.name == "nt":
     os.system("")
@@ -49,7 +50,11 @@ def main() -> int:
     print(f"\n  {AZUL}Consulta:{FIN} {consulta}\n")
     print(f"  {GRIS}Ejecutando el grafo... (puede tardar en CPU){FIN}\n")
 
-    estado = analizar(consulta, cliente, request_id="demo-001", hoy=HOY)
+    indice = cargar_indice()
+    if indice is None:
+        print(f"  {AMARILLO}Sin indice documental: corre .\tasks.ps1 rag-build{FIN}")
+    estado = analizar(consulta, cliente, request_id="demo-001", hoy=HOY,
+                      indice=indice)
 
     print(f"  {AZUL}Interpretación{FIN}")
     print(f"    intención  : {estado.intencion.value if estado.intencion else '—'}")

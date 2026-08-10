@@ -265,3 +265,67 @@ def test_groundedness_de_un_informe_sin_numeros_es_uno():
     ])
     resultado = validar_informe(informe, {"product_metrics": {"P001": _metrica()}})
     assert resultado.groundedness == 1.0
+
+
+# --- Formatos numéricos mezclados --------------------------------------------
+
+@pytest.mark.parametrize("texto, esperado", [
+    # Formato español: punto de miles, coma decimal.
+    ("Vendió 1.243 unidades", 1243.0),
+    ("El margen fue 31,2%", 31.2),
+    ("Facturó 87.010,50", 87010.50),
+    # Formato inglés: coma de miles, punto decimal. El modelo lo produce, y
+    # leerlo como español convertía 62.461,52 en 62,46 — y el validador
+    # descartaba una afirmación CORRECTA por no saber leer el número.
+    ("La recaudación fue de 62,461.52 dólares", 62461.52),
+    ("Vendió 1,243 unidades", 1243.0),
+    ("Total de 1,234,567.89", 1234567.89),
+    # Sin separadores.
+    ("Fueron 423 unidades", 423.0),
+    ("El valor es 0.5", 0.5),
+])
+def test_interpreta_numeros_en_ambos_formatos(texto, esperado):
+    assert esperado in extraer_numeros_de_negocio(texto)
+
+
+def test_no_descarta_una_afirmacion_por_el_formato_del_numero():
+    """El caso real: el modelo escribió en formato inglés y el validador la
+    eliminó. Un falso positivo del validador borra información correcta."""
+    informe = _informe([
+        Afirmacion(texto="La recaudación total fue de 62,461.52 dólares",
+                   tipo="hecho", fuentes=[FUENTE_SQL])
+    ])
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica(revenue=62461.52)}}
+    )
+    assert resultado.aprobado, resultado.afirmaciones_rechazadas
+
+
+def test_ignora_identificadores_alfanumericos_de_cualquier_tipo():
+    """`L1829` es un número de lote, no una magnitud.
+
+    Es el mismo falso positivo que tenían `doc_112` y `§3.2`, con otro prefijo.
+    En vez de agregar un patrón por cada tipo que aparezca, se generaliza: una
+    letra pegada a dígitos es un identificador, no una cantidad.
+    """
+    assert extraer_numeros_de_negocio(
+        "defectos detectados en el lote L1829 del proveedor"
+    ) == set()
+
+
+def test_una_afirmacion_con_un_numero_de_lote_no_se_descarta():
+    informe = _informe([
+        Afirmacion(texto="Las devoluciones se relacionan con defectos "
+                         "detectados en el lote L1829", tipo="hecho",
+                   fuentes=[FUENTE_SQL])
+    ])
+    resultado = validar_informe(informe, {"product_metrics": {"P001": _metrica()}})
+    assert resultado.aprobado, resultado.afirmaciones_rechazadas
+
+
+def test_sigue_detectando_magnitudes_junto_a_identificadores():
+    """Contraprueba: generalizar el filtro no puede cegar al validador."""
+    numeros = extraer_numeros_de_negocio(
+        "El lote L1829 del P002 acumuló 1.243 devoluciones"
+    )
+    assert numeros == {1243.0}

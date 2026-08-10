@@ -43,6 +43,7 @@ from apps.api.schemas import (
 from apps.api.store import almacen
 from core.db import cursor_lectura, hay_base_disponible
 from core.report_pdf import render_pdf
+from rag.build import cargar_indice
 
 VERSION = "0.1.0"
 
@@ -193,7 +194,8 @@ def _procesar(analysis_id: str, cliente: ClienteLLM) -> None:
     almacen.guardar(registro)
 
     try:
-        estado = ejecutar_grafo(_estado_inicial(registro), cliente)
+        estado = ejecutar_grafo(_estado_inicial(registro), cliente,
+                                indice=cargar_indice())
 
         registro.informe = estado.informe
         registro.intencion = estado.intencion.value if estado.intencion else None

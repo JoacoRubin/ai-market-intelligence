@@ -13,16 +13,23 @@ from agent.tools.product_metrics import (
     EntradaProductMetrics,
     ejecutar_product_metrics,
 )
+from agent.tools.search_documents import (
+    EntradaSearchDocuments,
+    ejecutar_search_documents,
+)
 
-NOMBRE_A_TOOL = {"product_metrics": (EntradaProductMetrics, ejecutar_product_metrics)}
+NOMBRE_A_TOOL = {
+    "product_metrics": EntradaProductMetrics,
+    "search_documents": EntradaSearchDocuments,
+}
 
 
-def ejecutar_plan(estado: AnalysisState) -> AnalysisState:
+def ejecutar_plan(estado: AnalysisState, indice=None) -> AnalysisState:
     estado.ya_ejecutado = True
 
     for paso in estado.plan:
-        entrada_cls, ejecutar = NOMBRE_A_TOOL.get(paso.tool, (None, None))
-        if entrada_cls is None:
+        entrada_cls = NOMBRE_A_TOOL.get(paso.tool)
+        if entrada_cls is None or (paso.tool == "search_documents" and indice is None):
             estado._advertir(
                 f"El plan pedía la herramienta '{paso.tool}', que no está "
                 "disponible en esta versión."
@@ -40,6 +47,9 @@ def ejecutar_plan(estado: AnalysisState) -> AnalysisState:
             )
             continue
 
-        ejecutar(entrada, estado)
+        if paso.tool == "search_documents":
+            ejecutar_search_documents(entrada, estado, indice)
+        else:
+            ejecutar_product_metrics(entrada, estado)
 
     return estado

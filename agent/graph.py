@@ -39,6 +39,7 @@ def construir_grafo(
     cliente: ClienteLLM,
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
+    indice=None,
 ):
     """Arma el grafo con el cliente de modelo ya inyectado."""
 
@@ -57,10 +58,11 @@ def construir_grafo(
         replan = estado.ya_ejecutado
         if replan:
             estado.registrar_reintento()
-        return planificar(estado, replanificando=replan)
+        return planificar(estado, replanificando=replan,
+                          con_rag=indice is not None)
 
     def nodo_ejecutor(estado: AnalysisState) -> AnalysisState:
-        return ejecutar_plan(estado)
+        return ejecutar_plan(estado, indice=indice)
 
     def nodo_synthesizer(estado: AnalysisState) -> AnalysisState:
         return sintetizar(estado, cliente, ahora=ahora)
@@ -132,13 +134,14 @@ def ejecutar(
     cliente: ClienteLLM,
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
+    indice=None,
 ) -> AnalysisState:
     """Corre el grafo sobre un estado ya construido.
 
     Permite entrar con la interpretación resuelta —cuando la solicitud llegó
     estructurada— y que el router se saltee solo.
     """
-    grafo = construir_grafo(cliente, hoy=hoy, ahora=ahora)
+    grafo = construir_grafo(cliente, hoy=hoy, ahora=ahora, indice=indice)
     resultado = grafo.invoke(estado)
     # LangGraph puede devolver un dict con el estado; se normaliza a modelo.
     return (resultado if isinstance(resultado, AnalysisState)
@@ -151,9 +154,10 @@ def analizar(
     request_id: str = "req-local",
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
+    indice=None,
 ) -> AnalysisState:
     """Ejecuta el análisis desde una consulta en lenguaje natural."""
     return ejecutar(
         AnalysisState(request_id=request_id, consulta=consulta),
-        cliente, hoy=hoy, ahora=ahora,
+        cliente, hoy=hoy, ahora=ahora, indice=indice,
     )

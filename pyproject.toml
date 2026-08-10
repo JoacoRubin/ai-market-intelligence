@@ -79,6 +79,7 @@ markers = [
     "db: requieren SQL Server levantado",
     "eval: corren contra el golden set",
     "llm: invocan al modelo de lenguaje real (lentos: minutos en CPU)",
+    "rag: cargan el modelo de embeddings y calculan vectores (~20s)",
 ]
 
 [tool.ruff]

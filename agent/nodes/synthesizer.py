@@ -32,7 +32,17 @@ ESQUEMA = {
     "properties": {
         "conclusiones": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+                "type": "object",
+                "properties": {
+                    "texto": {"type": "string"},
+                    # El modelo declara de qué documento salió cada afirmación.
+                    # Una cita que no se puede abrir es decoración: parece rigor
+                    # y no lo es.
+                    "fuente": {"type": "string"},
+                },
+                "required": ["texto"],
+            },
         }
     },
     "required": ["conclusiones"],
@@ -50,8 +60,20 @@ REGLAS INNEGOCIABLES:
 4. Escribí entre 2 y 5 conclusiones.
 5. Los porcentajes usan coma decimal (31,2%) y los miles, punto (1.243).
 
+6. Si el bloque incluye "Evidencia documental disponible", AL MENOS UNA de tus
+   conclusiones tiene que explicar POR QUÉ pasó lo que muestran los números,
+   usando esa evidencia, y poner el identificador del documento en "fuente"
+   (por ejemplo "doc_prov_009").
+7. Las conclusiones que salen de las métricas llevan "fuente" vacío.
+8. NUNCA inventes un identificador de documento: usá solo los que aparecen
+   entre corchetes en la evidencia.
+
+Los números dicen QUÉ pasó. Los documentos dicen POR QUÉ. Un informe que solo
+repite métricas no es un análisis.
+
 Un ejemplo de conclusión correcta:
-  "Alfa lidera en unidades con 1.243, frente a las 981 de Beta"
+  {"texto": "Alfa lidera en unidades con 1.243, frente a las 981 de Beta", "fuente": ""}
+  {"texto": "El proveedor reportó defectos de costura en el lote", "fuente": "doc_prov_009"}
 
 Ejemplos de conclusiones INCORRECTAS:
   "Alfa vendió aproximadamente 1.300 unidades"   (redondeó: inventó un número)
@@ -76,6 +98,38 @@ def _datos_para_el_modelo(metricas: list[MetricaProducto]) -> str:
             partes.append(f"devoluciones: {m.tasa_devolucion_pct:.1f}%")
         lineas.append(" | ".join(partes))
     return "\n".join(lineas)
+
+
+def _evidencia_para_el_modelo(evidencia: list[dict]) -> str:
+    """Pasajes recuperados, cada uno con su identificador a la vista.
+
+    El identificador va pegado al texto para que el modelo pueda citarlo sin
+    inventarlo. Un prompt que muestra el contenido sin la referencia obliga al
+    modelo a recordar de dónde salió, y ahí es donde se equivoca.
+    """
+    if not evidencia:
+        return ""
+    return "\n\n".join(
+        f"[{e['doc_id']} {e['seccion']} - {e['fecha']}] {e['texto']}"
+        for e in evidencia
+    )
+
+
+def _fuentes_documentales(evidencia: list[dict], ahora: datetime) -> list[Fuente]:
+    """Declara cada documento recuperado como fuente citable del informe.
+
+    El modelo `Report` rechaza toda cita a una fuente no declarada, así que esto
+    es lo que hace válidas las citas del texto — y lo que garantiza que el
+    lector pueda rastrear cada una.
+    """
+    vistos: dict[str, Fuente] = {}
+    for e in evidencia:
+        if e["doc_id"] not in vistos:
+            vistos[e["doc_id"]] = Fuente(
+                id=e["doc_id"], tipo="documento", referencia=e["titulo"],
+                seccion=e["seccion"], consultada_en=ahora,
+            )
+    return list(vistos.values())
 
 
 def _metricas_del_estado(estado: AnalysisState) -> list[MetricaProducto]:
@@ -108,16 +162,44 @@ def sintetizar(
     conclusiones: list[Afirmacion] = []
     modelo_usado = cliente.nombre
 
+    docs_validos = {e["doc_id"] for e in estado.evidencia}
+    bloque = _datos_para_el_modelo(metricas)
+    if estado.evidencia:
+        bloque += ("\n\nEvidencia documental disponible:\n"
+                   + _evidencia_para_el_modelo(estado.evidencia))
+
     try:
-        respuesta = cliente.estructurado(
-            SISTEMA, _datos_para_el_modelo(metricas), ESQUEMA
-        )
-        textos = respuesta.get("conclusiones", []) if isinstance(respuesta, dict) else []
-        conclusiones = [
-            Afirmacion(texto=str(t).strip(), tipo="hecho", fuentes=[FUENTE])
-            for t in textos[:MAX_CONCLUSIONES]
-            if str(t).strip()
-        ]
+        respuesta = cliente.estructurado(SISTEMA, bloque, ESQUEMA)
+        crudas = respuesta.get("conclusiones", []) if isinstance(respuesta, dict) else []
+        for c in crudas[:MAX_CONCLUSIONES]:
+            if isinstance(c, dict):
+                texto = str(c.get("texto", "")).strip()
+                fuente = str(c.get("fuente", "")).strip()
+            else:
+                texto, fuente = str(c).strip(), ""
+            if not texto:
+                continue
+            # El modelo suele copiar el encabezado entero del pasaje
+            # ("doc_prov_011 §1.1 - 2026-03-12") en vez del identificador solo.
+            # Rescatar el id de ahí adentro recupera una cita válida que si no
+            # se descartaría por un problema de formato, no de veracidad.
+            if fuente and fuente not in docs_validos:
+                fuente = next(
+                    (d for d in docs_validos if d in fuente), fuente
+                )
+
+            # Citar un documento que no se recuperó es una alucinación de
+            # referencia: se descarta la cita, no la afirmación.
+            if fuente and fuente not in docs_validos:
+                estado._advertir(
+                    f"El modelo citó un documento inexistente ({fuente}). La "
+                    "afirmación se conserva atribuida a los datos."
+                )
+                fuente = ""
+            conclusiones.append(Afirmacion(
+                texto=texto, tipo="hecho",
+                fuentes=[fuente] if fuente else [FUENTE],
+            ))
     except Exception as e:
         estado.error = f"{type(e).__name__}: {e}"
 
@@ -140,11 +222,14 @@ def sintetizar(
         consulta=estado.consulta,
         generado_en=ahora,
         modelo_llm=modelo_usado,
-        fuentes=[Fuente(
-            id=FUENTE, tipo="sql",
-            referencia="dbo.order_items JOIN dbo.orders JOIN dbo.products",
-            consultada_en=ahora,
-        )],
+        fuentes=[
+            Fuente(
+                id=FUENTE, tipo="sql",
+                referencia="dbo.order_items JOIN dbo.orders JOIN dbo.products",
+                consultada_en=ahora,
+            ),
+            *_fuentes_documentales(estado.evidencia, ahora),
+        ],
         resumen_ejecutivo=conclusiones,
         metricas=metricas,
         advertencias=list(estado.advertencias) + _alertas_de_devolucion(metricas),

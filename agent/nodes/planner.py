@@ -63,7 +63,11 @@ def _ampliar_periodo(estado: AnalysisState) -> None:
     )
 
 
-def planificar(estado: AnalysisState, replanificando: bool = False) -> AnalysisState:
+def planificar(
+    estado: AnalysisState,
+    replanificando: bool = False,
+    con_rag: bool = False,
+) -> AnalysisState:
     """Construye el plan de ejecución a partir del estado ya interpretado."""
     inicio = time.perf_counter()
     estado.plan = []
@@ -109,13 +113,27 @@ def planificar(estado: AnalysisState, replanificando: bool = False) -> AnalysisS
             ),
         ))
 
-    if estado.intencion == Intencion.HYBRID:
-        # La consulta pedía contexto externo y todavía no se puede dar. Se
-        # entrega la mitad útil y se advierte, en vez de fallar entero.
+    # Evidencia documental: se busca SIEMPRE que haya productos, no solo en
+    # consultas híbridas. Cuesta milisegundos —no interviene el LLM— y es lo
+    # único que puede explicar POR QUÉ pasó lo que los números muestran.
+    if con_rag and estado.entidades and estado.puede_llamar_tool():
+        estado.plan.append(PasoPlan(
+            tool="search_documents",
+            argumentos={
+                "consulta": estado.consulta,
+                "product_id": estado.entidades[0],
+                "top_k": 4,
+            },
+            razon=(
+                "Buscar evidencia documental que explique el comportamiento "
+                f"observado en {estado.entidades[0]}."
+            ),
+        ))
+
+    if estado.intencion == Intencion.HYBRID and not con_rag:
         estado._advertir(
-            "La consulta pedía contexto externo de mercado, que esta versión "
-            "todavía no puede recuperar. El análisis se limita a los datos "
-            "internos."
+            "La consulta pedía contexto externo y la búsqueda documental no "
+            "está disponible. El análisis se limita a los datos internos."
         )
 
     estado.registrar_paso("planner", int((time.perf_counter() - inicio) * 1000))

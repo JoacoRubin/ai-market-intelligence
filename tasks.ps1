@@ -152,6 +152,11 @@ switch ($Tarea.ToLower()) {
         & $UV run python -m agent.demo $args[1]
     }
 
+    "rag-build" {
+        Titulo "Construyendo el indice documental (embeddings en CPU)"
+        & $UV run python -m rag.build
+    }
+
     "eval" {
         Titulo "Evaluacion del router contra el golden set (modelo real, lento)"
         & $UV run pytest -m llm -v -s

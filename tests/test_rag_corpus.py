@@ -1,0 +1,152 @@
+"""Tests del corpus documental sintético.
+
+El corpus no es decorativo: cada documento **explica un evento que el dataset ya
+contiene**. El `ground_truth` sabe que P002 tuvo un pico de devoluciones por un
+lote defectuoso; el corpus incluye la comunicación del proveedor que lo reporta.
+
+Eso es lo que hace que el RAG aporte algo real. SQL puede mostrar QUÉ pasó — las
+devoluciones se dispararon el 18 de enero. Solo los documentos pueden decir POR
+QUÉ. Un informe que junta las dos cosas es un análisis; uno que solo tiene
+números es una tabla con prosa alrededor.
+
+Y como se sabe qué documento explica qué evento, el retrieval queda **evaluable**:
+hay un ground truth de recuperación, no solo de detección.
+
+**Los distractores son obligatorios.** Si todos los documentos explicaran algún
+evento, cualquier búsqueda acertaría por descarte y la métrica de retrieval no
+mediría nada.
+"""
+
+import pytest
+
+from rag.corpus import ROLES_DISTRACTOR, generar_corpus
+from seeds.generate import DatasetConfig, generar_dataset
+
+
+@pytest.fixture(scope="module")
+def dataset():
+    return generar_dataset(DatasetConfig())
+
+
+@pytest.fixture(scope="module")
+def corpus(dataset):
+    return generar_corpus(dataset, seed=42)
+
+
+# --- Reproducibilidad --------------------------------------------------------
+
+def test_el_corpus_es_reproducible(dataset):
+    a = generar_corpus(dataset, seed=42)
+    b = generar_corpus(dataset, seed=42)
+    assert [d.id for d in a.documentos] == [d.id for d in b.documentos]
+    assert [d.texto for d in a.documentos] == [d.texto for d in b.documentos]
+
+
+def test_semillas_distintas_producen_corpus_distintos(dataset):
+    a = generar_corpus(dataset, seed=42)
+    b = generar_corpus(dataset, seed=99)
+    assert [d.texto for d in a.documentos] != [d.texto for d in b.documentos]
+
+
+# --- Cobertura de los eventos ------------------------------------------------
+
+def test_cada_evento_del_ground_truth_tiene_su_documento(dataset, corpus):
+    """Sin esto, el RAG no puede explicar nada de lo que el SQL detecta."""
+    eventos = len(dataset["ground_truth"])
+    explicados = {e.evento_idx for e in corpus.explicaciones}
+    assert len(explicados) == eventos, (
+        f"{eventos - len(explicados)} eventos del ground truth quedaron sin "
+        "documento que los explique"
+    )
+
+
+def test_cada_explicacion_apunta_a_un_documento_existente(corpus):
+    ids = {d.id for d in corpus.documentos}
+    huerfanas = [e.doc_id for e in corpus.explicaciones if e.doc_id not in ids]
+    assert not huerfanas, f"explicaciones que apuntan a documentos inexistentes: {huerfanas}"
+
+
+def test_el_documento_menciona_el_producto_que_explica(dataset, corpus):
+    """Un documento que explica un evento de P002 tiene que nombrar a P002.
+
+    Si no, el retrieval por producto nunca lo encontraría y la explicación sería
+    inalcanzable en la práctica.
+    """
+    por_id = {d.id: d for d in corpus.documentos}
+    for e in corpus.explicaciones:
+        doc = por_id[e.doc_id]
+        assert doc.product_id == e.product_id
+        assert e.product_id in doc.texto, (
+            f"{doc.id} explica un evento de {e.product_id} pero no lo menciona"
+        )
+
+
+def test_la_fecha_del_documento_es_coherente_con_el_evento(dataset, corpus):
+    """Un reporte fechado dos meses después del evento no lo explica: lo
+    recuerda. La cercanía temporal es parte de la evidencia."""
+    gt = dataset["ground_truth"]
+    por_id = {d.id: d for d in corpus.documentos}
+    for e in corpus.explicaciones:
+        doc = por_id[e.doc_id]
+        fecha_evento = gt.iloc[e.evento_idx]["fecha"]
+        assert abs((doc.fecha - fecha_evento).days) <= 30, (
+            f"{doc.id} está fechado {doc.fecha}, muy lejos del evento "
+            f"{fecha_evento}"
+        )
+
+
+# --- Distractores ------------------------------------------------------------
+
+def test_hay_documentos_que_no_explican_nada(corpus):
+    """Sin ruido, cualquier búsqueda acierta por descarte.
+
+    Un corpus donde todo documento es relevante no mide la calidad del
+    retrieval: mide que el índice devuelve algo.
+    """
+    explicativos = {e.doc_id for e in corpus.explicaciones}
+    distractores = [d for d in corpus.documentos if d.id not in explicativos]
+    assert len(distractores) >= len(explicativos), (
+        "el corpus tiene menos distractores que documentos explicativos: "
+        "el retrieval sería trivial"
+    )
+
+
+def test_los_distractores_son_verosimiles(corpus):
+    """Un distractor obvio tampoco sirve: tiene que ser el tipo de documento
+    que un buscador semántico podría confundir."""
+    explicativos = {e.doc_id for e in corpus.explicaciones}
+    distractores = [d for d in corpus.documentos if d.id not in explicativos]
+    assert {d.tipo for d in distractores} & set(ROLES_DISTRACTOR)
+    assert all(len(d.texto) > 200 for d in distractores)
+
+
+# --- Estructura de los documentos --------------------------------------------
+
+def test_todo_documento_tiene_metadata_completa(corpus):
+    for d in corpus.documentos:
+        assert d.id and d.tipo and d.titulo and d.texto
+        assert d.fecha is not None
+        assert d.seccion
+
+
+def test_los_identificadores_son_unicos(corpus):
+    ids = [d.id for d in corpus.documentos]
+    assert len(ids) == len(set(ids))
+
+
+def test_los_documentos_tienen_longitud_util(corpus):
+    """Ni tan cortos que no aporten contexto ni tan largos que un chunk pierda
+    el hilo."""
+    for d in corpus.documentos:
+        assert 200 <= len(d.texto) <= 4000, f"{d.id}: {len(d.texto)} caracteres"
+
+
+def test_el_corpus_tiene_volumen_suficiente(corpus):
+    assert len(corpus.documentos) >= 30
+
+
+def test_incluye_documentos_de_politica_general(corpus):
+    """Políticas y fichas: son los que responden preguntas que no son sobre un
+    evento puntual."""
+    tipos = {d.tipo for d in corpus.documentos}
+    assert "politica" in tipos
