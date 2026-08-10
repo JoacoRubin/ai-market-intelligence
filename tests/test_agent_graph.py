@@ -156,7 +156,7 @@ def test_una_cifra_inventada_por_el_modelo_no_llega_al_informe():
 
     texto = " ".join(a.texto for a in estado.informe.resumen_ejecutivo)
     assert "999.999" not in texto
-    assert any("respaldad" in w.lower() or "descart" in w.lower()
+    assert any("respaldo" in w.lower() or "descart" in w.lower()
                for w in estado.informe.advertencias), estado.informe.advertencias
 
 

@@ -22,64 +22,15 @@ las cifras.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
-from core.report import Afirmacion, MetricaProducto, Report
-
-# Patrones que se eliminan del texto ANTES de buscar números, porque contienen
-# dígitos que no son magnitudes de negocio.
-REFERENCIAS = re.compile(
-    r"""
-      doc_\d+                  # identificadores de documento
-    | §\s*\d+(?:\.\d+)*        # números de sección
-    | \bP\d{1,6}\b             # identificadores de producto
-    | \b\w+_v\d+\b             # versiones de modelo (sales_v3)
-    | \b[a-z]+\d+(?:\.\d+)*:\S+  # nombres de modelo (llama3.2:3b)
-    | \bsql:\S+ | \bml:\S+     # identificadores de fuente
-    """,
-    re.VERBOSE | re.IGNORECASE,
+from agent.nodes.comparaciones import Veredicto, explicar, verificar_comparacion
+from agent.nodes.numeros import (
+    TOLERANCIA_ABSOLUTA,
+    TOLERANCIA_RELATIVA,
+    extraer_numeros_de_negocio,
 )
-
-NUMERO = re.compile(r"-?\d[\d.,]*")
-
-# Tolerancia relativa para diferencias de redondeo: el modelo puede escribir
-# 31,2% donde la métrica dice 31,23%. Eso es redondeo, no invención, y
-# rechazarlo vaciaría informes correctos.
-TOLERANCIA_RELATIVA = 0.02
-TOLERANCIA_ABSOLUTA = 0.5
-
-
-def _a_float(token: str) -> float | None:
-    """Interpreta un número en formato español (1.243 -> 1243 ; 31,2 -> 31.2)."""
-    token = token.strip(".,")
-    if not token or not any(c.isdigit() for c in token):
-        return None
-    negativo = token.startswith("-")
-    token = token.lstrip("-")
-    try:
-        if "," in token:
-            valor = float(token.replace(".", "").replace(",", "."))
-        else:
-            partes = token.split(".")
-            if len(partes) > 1 and all(len(p) == 3 for p in partes[1:]):
-                valor = float("".join(partes))
-            else:
-                valor = float(token)
-    except ValueError:
-        return None
-    return -valor if negativo else valor
-
-
-def extraer_numeros_de_negocio(texto: str) -> set[float]:
-    """Devuelve las magnitudes del texto, ignorando referencias e identificadores.
-
-    Limpiar primero y extraer después es lo que evita el falso positivo que
-    tenía el prototipo: `doc_112` aportaba un 112 que nunca fue un dato.
-    """
-    limpio = REFERENCIAS.sub(" ", texto)
-    valores = {_a_float(m.group()) for m in NUMERO.finditer(limpio)}
-    return {v for v in valores if v is not None}
+from core.report import Afirmacion, MetricaProducto, Report
 
 
 def _numeros_disponibles(resultados_tools: dict) -> set[float]:
@@ -118,7 +69,13 @@ class ResultadoValidacion:
 def _filtrar(
     afirmaciones: list[Afirmacion], disponibles: set[float]
 ) -> tuple[list[Afirmacion], list[str], int, int]:
-    """Separa las afirmaciones respaldadas de las que inventan cifras."""
+    """Aplica las dos verificaciones a cada afirmación.
+
+    Primero de dónde salieron los números; después si la relación que el texto
+    afirma sobre ellos es cierta. Una afirmación puede pasar la primera y fallar
+    la segunda: "lidera con 242 frente a 257" tiene ambas cifras respaldadas y
+    dice algo aritméticamente falso.
+    """
     aceptadas, rechazadas = [], []
     con_numeros = respaldadas = 0
 
@@ -135,9 +92,15 @@ def _filtrar(
                 f"{a.texto!r} — cifras sin respaldo en los datos: "
                 f"{sorted(inventados)}"
             )
-        else:
-            respaldadas += 1
-            aceptadas.append(a)
+            continue
+
+        # Segunda capa: los números son reales, ¿la comparación se sostiene?
+        if verificar_comparacion(a.texto) is Veredicto.CONTRADICTORIA:
+            rechazadas.append(explicar(a.texto))
+            continue
+
+        respaldadas += 1
+        aceptadas.append(a)
 
     return aceptadas, rechazadas, con_numeros, respaldadas
 
@@ -170,9 +133,13 @@ def validar_informe(informe: Report, resultados_tools: dict) -> ResultadoValidac
     groundedness = 1.0 if total_con_numeros == 0 else respaldadas / total_con_numeros
 
     if rechazadas:
+        # El motivo concreto viaja en cada entrada: puede ser una cifra sin
+        # respaldo o una comparación aritméticamente falsa. Un informe que
+        # explica mal por qué descartó algo confunde más de lo que aclara.
+        plural = "afirmaciones" if len(rechazadas) > 1 else "afirmación"
         informe.advertencias.append(
-            f"Se descartaron {len(rechazadas)} afirmaciones con cifras no "
-            f"respaldadas por los datos consultados: {'; '.join(rechazadas)}"
+            f"Se descartaron {len(rechazadas)} {plural} que no superaron la "
+            f"validación: {'; '.join(rechazadas)}"
         )
 
     return ResultadoValidacion(

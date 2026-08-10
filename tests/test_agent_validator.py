@@ -141,7 +141,7 @@ def test_el_rechazo_queda_documentado_en_las_advertencias():
                    fuentes=[FUENTE_SQL])
     ])
     resultado = validar_informe(informe, {"product_metrics": {"P001": _metrica()}})
-    assert any("no respaldad" in w.lower() or "descart" in w.lower()
+    assert any("respaldo" in w.lower() or "descart" in w.lower()
                for w in resultado.informe.advertencias), resultado.informe.advertencias
 
 
@@ -189,6 +189,60 @@ def test_sin_resultados_de_herramientas_se_rechaza_todo_hecho():
 
 def test_un_informe_sin_afirmaciones_se_aprueba():
     resultado = validar_informe(_informe(), {"product_metrics": {"P001": _metrica()}})
+    assert resultado.aprobado
+
+
+# --- Segunda capa: la comparación se sostiene --------------------------------
+
+def test_rechaza_una_comparacion_invertida_con_numeros_reales():
+    """El caso exacto que produjo el modelo en una corrida real.
+
+    Ambas cifras salen de SQL, así que la verificación numérica las aprueba.
+    Lo que está mal es la relación que el texto afirma sobre ellas: 242 no
+    lidera sobre 257.
+    """
+    informe = _informe(
+        [Afirmacion(texto="Ribera lidera en unidades con 242, frente a las 257 "
+                          "de Calma", tipo="hecho", fuentes=[FUENTE_SQL])],
+        metricas=[_metrica("P002", unidades=242), _metrica("P003", unidades=257)],
+    )
+    resultado = validar_informe(informe, {"product_metrics": {
+        "P002": _metrica("P002", unidades=242),
+        "P003": _metrica("P003", unidades=257),
+    }})
+    assert not resultado.aprobado
+    assert resultado.informe.resumen_ejecutivo == []
+    assert any("aritm" in w.lower() for w in resultado.informe.advertencias)
+
+
+def test_acepta_una_comparacion_correcta():
+    informe = _informe(
+        [Afirmacion(texto="Calma lidera en unidades con 257, frente a las 242 "
+                          "de Ribera", tipo="hecho", fuentes=[FUENTE_SQL])],
+        metricas=[_metrica("P002", unidades=242)],
+    )
+    resultado = validar_informe(informe, {"product_metrics": {
+        "P002": _metrica("P002", unidades=242),
+        "P003": _metrica("P003", unidades=257),
+    }})
+    assert resultado.aprobado
+    assert len(resultado.informe.resumen_ejecutivo) == 1
+
+
+def test_acepta_un_comparativo_de_inferioridad_correcto():
+    """El validador no puede borrar afirmaciones verdaderas.
+
+    Con "más baja" la relación esperada se invierte, y 3,7 < 7,1 la cumple.
+    """
+    informe = _informe(
+        [Afirmacion(texto="Calma tiene una tasa más baja con 3,7%, frente a "
+                          "las 7,1% de Ribera", tipo="hecho", fuentes=[FUENTE_SQL])],
+        metricas=[_metrica("P002", tasa_devolucion_pct=3.7)],
+    )
+    resultado = validar_informe(informe, {"product_metrics": {
+        "P002": _metrica("P002", tasa_devolucion_pct=3.7),
+        "P003": _metrica("P003", tasa_devolucion_pct=7.1),
+    }})
     assert resultado.aprobado
 
 
