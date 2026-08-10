@@ -80,7 +80,7 @@ def test_un_hecho_sin_fuente_es_rechazado():
 def test_un_hecho_con_fuente_inexistente_es_rechazado():
     """Citar una fuente que no está en la lista de fuentes es peor que no citar:
     aparenta rigor y no lo tiene."""
-    with pytest.raises(ValidationError, match="no declarada|inexistente"):
+    with pytest.raises(ValidationError, match=r"no declarada|inexistente"):
         _report_minimo(
             resumen_ejecutivo=[
                 Afirmacion(
@@ -205,7 +205,7 @@ def test_anomalia_con_evidencia_valida_se_construye():
 
 
 def test_anomalia_con_evidencia_inexistente_es_rechazada():
-    with pytest.raises(ValidationError, match="no declarada|inexistente"):
+    with pytest.raises(ValidationError, match=r"no declarada|inexistente"):
         _report_minimo(
             anomalias=[
                 Anomalia(product_id="P002", fecha=date(2026, 1, 18),

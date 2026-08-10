@@ -177,7 +177,7 @@ def test_ningun_numero_del_pdf_esta_inventado(pdf, informe: Report):
     permitidos = {
         1243, 981, 87010, 92340, 31.2, 24.8, 18.4, 3.1, 2.1, 5.7,
         1470, 8.3, 14.1, 30, 3.4, 85, 140, 114000, 112, 3.2, 2026, 1, 18, 8, 9,
-        15, 42, 41, 114, 2, 3, 0, 5, 4, 7, 41.0,
+        15, 42, 41, 114, 2, 3, 0, 5, 4, 7,
     }
     # Duraciones derivadas que el renderer sí puede computar del propio modelo.
     permitidos.add(informe.duracion_total_ms)
