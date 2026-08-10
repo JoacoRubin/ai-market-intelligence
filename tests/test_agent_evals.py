@@ -16,6 +16,17 @@ al número que salió. Eso no es evaluar, es justificar.
 
     Accuracy mínima de intención: 80%
     Accuracy mínima de entidades: 70%
+    Accuracy mínima en HOLDOUT:   75%
+
+**Sobre el holdout.** Algunos casos del golden set aparecen textualmente como
+ejemplos en el prompt del router (`en_prompt: true`). Acertarlos no prueba nada:
+el modelo tiene la respuesta escrita adelante. Es contaminación del conjunto de
+evaluación, y es uno de los errores más comunes y más graves al medir sistemas
+con LLM — un 100% conseguido así se desarma con la primera consulta real.
+
+Por eso la métrica que importa es la del **holdout**: los casos que NO están en
+el prompt. Esa es la que dice si el modelo entendió la categoría o memorizó una
+plantilla.
 
 Correr solo estos:   uv run pytest -m llm -v
 Saltearlos:          uv run pytest -m "not llm"
@@ -39,6 +50,7 @@ GOLDEN = Path(__file__).resolve().parent.parent / "eval" / "golden_set.jsonl"
 # Fijados antes de medir. No se tocan para que un resultado "casi" pase.
 MIN_ACCURACY_INTENCION = 0.80
 MIN_ACCURACY_ENTIDADES = 0.70
+MIN_ACCURACY_HOLDOUT = 0.75
 
 
 def _casos() -> list[dict]:
@@ -73,11 +85,18 @@ def resultados(cliente) -> list[dict]:
             "obtenida": estado.intencion.value if estado.intencion else None,
             "entidades_esperadas": caso["product_ids"],
             "entidades_obtenidas": estado.entidades,
+            "en_prompt": caso.get("en_prompt", False),
             "ok_intencion": (estado.intencion.value if estado.intencion else None)
                             == caso["intencion"],
             "ok_entidades": estado.entidades == caso["product_ids"],
         })
     return salida
+
+
+@pytest.fixture(scope="module")
+def holdout(resultados) -> list[dict]:
+    """Casos que NO aparecen como ejemplos en el prompt."""
+    return [r for r in resultados if not r["en_prompt"]]
 
 
 # --- Métricas ----------------------------------------------------------------
@@ -116,6 +135,39 @@ def test_accuracy_de_extraccion_de_entidades(resultados):
     assert accuracy >= MIN_ACCURACY_ENTIDADES, (
         f"accuracy de {accuracy:.0%}, por debajo del mínimo "
         f"{MIN_ACCURACY_ENTIDADES:.0%}. Fallos: {fallos}"
+    )
+
+
+def test_accuracy_en_holdout(holdout, resultados):
+    """La métrica que de verdad importa.
+
+    Los casos que están en el prompt los acierta por tenerlos escritos adelante.
+    Estos no: si acierta acá, entendió la categoría. Si solo acierta los del
+    prompt, memorizó una plantilla y en producción se cae con la primera
+    consulta que nadie previó.
+    """
+    aciertos = sum(1 for r in holdout if r["ok_intencion"])
+    accuracy = aciertos / len(holdout)
+
+    en_prompt = [r for r in resultados if r["en_prompt"]]
+    acc_prompt = sum(1 for r in en_prompt if r["ok_intencion"]) / len(en_prompt)
+
+    print(f"\n  ACCURACY EN HOLDOUT: {accuracy:.0%} ({aciertos}/{len(holdout)})")
+    print(f"  (casos que están en el prompt: {acc_prompt:.0%} — no cuentan)")
+    for r in holdout:
+        if not r["ok_intencion"]:
+            print(f"    FALLO  {r['id']}: esperaba {r['esperada']}, "
+                  f"dio {r['obtenida']}")
+            print(f"           {r['consulta']!r}")
+
+    # Una brecha grande entre ambas es la señal clásica de memorización.
+    if acc_prompt - accuracy > 0.30:
+        print("    ATENCIÓN: brecha grande entre casos del prompt y holdout. "
+              "El modelo puede estar memorizando en vez de generalizar.")
+
+    assert accuracy >= MIN_ACCURACY_HOLDOUT, (
+        f"accuracy en holdout de {accuracy:.0%}, por debajo del mínimo "
+        f"{MIN_ACCURACY_HOLDOUT:.0%}"
     )
 
 

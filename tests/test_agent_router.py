@@ -72,18 +72,43 @@ def test_una_intencion_desconocida_no_rompe_el_grafo():
     assert any("intención" in w.lower() for w in estado.advertencias)
 
 
-def test_descarta_identificadores_con_formato_invalido():
-    """El router no consulta la base, pero sí filtra lo que no puede ser un id.
+def test_las_entidades_salen_de_la_consulta_no_del_modelo():
+    """La extracción es determinística: el modelo ya no participa.
 
-    Dejar pasar basura hasta la tool solo mueve el error de lugar y gasta una
-    llamada del presupuesto.
+    Aunque el modelo devolviera identificadores inventados, se ignoran. La
+    consulta es la única fuente de verdad sobre qué productos se mencionaron.
     """
-    estado = _estado()
+    estado = _estado("Compará P001 y P002 en los últimos 30 días")
     enrutar(estado, ClienteFalso([
-        _respuesta(product_ids=["P001", "'; DROP TABLE--", "producto A"])
+        _respuesta(product_ids=["P999", "P888"])  # el modelo alucina; da igual
     ]))
+    assert estado.entidades == ["P001", "P002"]
+
+
+def test_el_texto_basura_de_la_consulta_no_produce_entidades():
+    """Un intento de inyección en la consulta no genera identificadores.
+
+    El regex describe qué ES un id de producto; todo lo demás simplemente no
+    coincide. No hay nada que filtrar porque nunca se captura.
+    """
+    estado = _estado("Compará P001 y '; DROP TABLE products--")
+    enrutar(estado, ClienteFalso([_respuesta()]))
     assert estado.entidades == ["P001"]
-    assert any("descart" in w.lower() for w in estado.advertencias)
+
+
+def test_company_research_con_productos_internos_se_corrige():
+    """La contradicción que el diagnóstico dejó a la vista.
+
+    El modelo clasificaba "El P010 cayó fuerte..." como company_research. Ahora
+    el software detecta que la consulta nombra un producto del catálogo interno
+    y reclasifica a hybrid, dejando constancia del motivo.
+    """
+    estado = _estado("El P010 cayó fuerte, buscá qué pasó en el sector")
+    enrutar(estado, ClienteFalso([_respuesta(intencion="company_research")]))
+    assert estado.intencion == Intencion.HYBRID
+    assert estado.entidades == ["P010"]
+    assert any("reclasific" in w.lower() for w in estado.advertencias), \
+        estado.advertencias
 
 
 def test_sin_entidades_validas_marca_fuera_de_alcance():
@@ -113,12 +138,12 @@ def test_dias_ausente_usa_el_default():
 
 
 def test_demasiadas_entidades_se_recortan():
-    estado = _estado()
-    enrutar(estado, ClienteFalso([
-        _respuesta(product_ids=[f"P{i:03d}" for i in range(1, 30)])
-    ]))
+    """Una consulta que nombra treinta productos no es un análisis comparativo.
+    El tope evita que el informe sea ilegible y la consulta, cara."""
+    consulta = "Compará " + " ".join(f"P{i:03d}" for i in range(1, 30))
+    estado = _estado(consulta)
+    enrutar(estado, ClienteFalso([_respuesta()]))
     assert len(estado.entidades) <= 10
-    assert any("recort" in w.lower() for w in estado.advertencias)
 
 
 # --- Degradación -------------------------------------------------------------

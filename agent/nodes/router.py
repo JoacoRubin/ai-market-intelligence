@@ -23,11 +23,14 @@ explicación; el grafo prefiere seguir y contar qué pasó.
 
 from __future__ import annotations
 
-import re
 import time
 from datetime import date, timedelta
 
 from agent.llm import ClienteLLM
+from agent.nodes.entidades import (
+    corregir_intencion_por_entidades,
+    extraer_product_ids,
+)
 from agent.state import AnalysisState, Intencion, Periodo
 
 # Fecha de referencia por defecto: el último día del dataset sintético.
@@ -37,9 +40,15 @@ HOY_POR_DEFECTO = date(2026, 6, 30)
 
 DIAS_POR_DEFECTO = 30
 MAX_DIAS = 366 * 3
-MAX_ENTIDADES = 10
-PATRON_PRODUCTO = re.compile(r"^P\d{1,6}$")
 
+# El esquema NO pide product_ids. Los identificadores se extraen con un regex
+# determinístico (agent/nodes/entidades.py): es un patrón fijo, y el software
+# lo resuelve perfecto, gratis y sin equivocarse.
+#
+# Además de ser más confiable, evita el problema que el diagnóstico dejó a la
+# vista: pedir clasificación y extracción en la misma llamada hacía que un error
+# contaminara al otro. Menos que generar es menos que fallar — y más rápido, que
+# en CPU no es un detalle.
 ESQUEMA = {
     "type": "object",
     "properties": {
@@ -47,10 +56,9 @@ ESQUEMA = {
             "type": "string",
             "enum": [i.value for i in Intencion],
         },
-        "product_ids": {"type": "array", "items": {"type": "string"}},
         "dias": {"type": "integer"},
     },
-    "required": ["intencion", "product_ids", "dias"],
+    "required": ["intencion", "dias"],
 }
 
 # Los ejemplos atacan de frente la confusión medida en el spike: el modelo
@@ -77,33 +85,52 @@ NO company_research. Una empresa es una organización externa; un producto es
 un artículo del catálogo. Si aparecen identificadores tipo P001, es
 product_performance.
 
+REGLA DECISIVA: si la consulta menciona identificadores de producto (P001, P010,
+P123...), NUNCA es company_research. Esos identificadores son del catálogo
+interno. Será product_performance si solo pide números internos, o hybrid si
+además pide contexto externo.
+
 Ejemplo 1
-  Consulta: "Compará Producto A y Producto B en los últimos 30 días"
-  Respuesta: {"intencion": "product_performance", "product_ids": ["P001", "P002"], "dias": 30}
+  Consulta: "Compará P001 y P002 en los últimos 30 días"
+  Respuesta: {"intencion": "product_performance", "dias": 30}
 
 Ejemplo 2
   Consulta: "¿Cuál fue el margen del P012 durante enero?"
-  Respuesta: {"intencion": "product_performance", "product_ids": ["P012"], "dias": 31}
+  Respuesta: {"intencion": "product_performance", "dias": 31}
 
 Ejemplo 3
   Consulta: "Compará Empresa X vs Empresa Y: crecimiento y riesgos"
-  Respuesta: {"intencion": "company_research", "product_ids": [], "dias": 365}
+  Respuesta: {"intencion": "company_research", "dias": 365}
 
 Ejemplo 4
   Consulta: "¿Por qué el P003 acelera y qué contexto de mercado lo explica?"
-  Respuesta: {"intencion": "hybrid", "product_ids": ["P003"], "dias": 90}
+  Respuesta: {"intencion": "hybrid", "dias": 90}
 
 Ejemplo 5
-  Consulta: "Contame un chiste"
-  Respuesta: {"intencion": "fuera_de_alcance", "product_ids": [], "dias": 0}
+  Consulta: "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector"
+  Respuesta: {"intencion": "hybrid", "dias": 90}
 
 Ejemplo 6
-  Consulta: "P007 vs P011: unidades, revenue y devoluciones del último trimestre"
-  Respuesta: {"intencion": "product_performance", "product_ids": ["P007", "P011"], "dias": 90}
+  Consulta: "Analizá la caída del P022 y fijate si hubo algo raro en la industria"
+  Respuesta: {"intencion": "hybrid", "dias": 90}
 
-Extraé los identificadores de producto tal como aparecen (P seguido de dígitos).
-Si la consulta menciona productos por nombre y no por identificador, devolvé
-product_ids vacío.
+Ejemplo 7
+  Consulta: "Contame un chiste"
+  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0}
+
+Ejemplo 8
+  Consulta: "P007 vs P011: unidades, revenue y devoluciones del último trimestre"
+  Respuesta: {"intencion": "product_performance", "dias": 90}
+
+Ejemplo 9
+  Consulta: "Borrá todos los productos de la base"
+  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0}
+
+Los ejemplos 4, 5 y 6 son todos hybrid aunque estén redactados distinto: lo que
+los define es que piden datos internos MÁS contexto externo, no las palabras que
+usan para pedirlo.
+
+Devolvé únicamente la intención y la cantidad de días del período pedido.
 """
 
 
@@ -116,30 +143,6 @@ def _normalizar_intencion(valor, estado: AnalysisState) -> Intencion:
             "La consulta se trata como fuera de alcance."
         )
         return Intencion.FUERA_DE_ALCANCE
-
-
-def _normalizar_entidades(valores, estado: AnalysisState) -> list[str]:
-    if not isinstance(valores, list):
-        return []
-
-    validos, descartados = [], []
-    for v in valores:
-        texto = str(v).strip()
-        (validos if PATRON_PRODUCTO.match(texto) else descartados).append(texto)
-
-    if descartados:
-        estado._advertir(
-            f"Se descartaron identificadores con formato inválido: {descartados}"
-        )
-
-    unicos = list(dict.fromkeys(validos))
-    if len(unicos) > MAX_ENTIDADES:
-        estado._advertir(
-            f"Se recortó la lista a {MAX_ENTIDADES} productos "
-            f"(el modelo propuso {len(unicos)})."
-        )
-        unicos = unicos[:MAX_ENTIDADES]
-    return unicos
 
 
 def _normalizar_periodo(dias, hoy: date) -> Periodo:
@@ -177,17 +180,16 @@ def enrutar(
     intencion = _normalizar_intencion(
         respuesta.get("intencion", Intencion.FUERA_DE_ALCANCE), estado
     )
-    entidades = _normalizar_entidades(respuesta.get("product_ids", []), estado)
 
-    # Una intención sobre productos sin ningún producto identificado no es
-    # accionable: no hay qué consultar. Seguir adelante llevaría al sintetizador
-    # a redactar sobre la nada, que es como nacen los informes inventados.
-    if intencion in (Intencion.PRODUCT_PERFORMANCE, Intencion.HYBRID) and not entidades:
-        estado._advertir(
-            "No se identificó ningún producto en la consulta. Indicá los "
-            "identificadores (por ejemplo P001) para poder analizarlos."
-        )
-        intencion = Intencion.FUERA_DE_ALCANCE
+    # Las entidades NO vienen del modelo: se extraen de la consulta con un regex.
+    # Es un patrón fijo, y el software lo resuelve perfecto y gratis.
+    entidades = extraer_product_ids(estado.consulta)
+
+    # Y sirven además para verificar la clasificación: el software puede
+    # comprobar contradicciones que el modelo no ve.
+    intencion, motivo = corregir_intencion_por_entidades(intencion, entidades)
+    if motivo:
+        estado._advertir(motivo)
 
     estado.intencion = intencion
     estado.entidades = entidades

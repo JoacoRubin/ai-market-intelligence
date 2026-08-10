@@ -1,14 +1,22 @@
-{"id": "cmp-01", "consulta": "Compará P001 y P002 en los últimos 30 días", "intencion": "product_performance", "product_ids": ["P001", "P002"], "nota": "el caso exacto que el spike falló"}
-{"id": "cmp-02", "consulta": "P007 vs P011: unidades, revenue y devoluciones del último trimestre", "intencion": "product_performance", "product_ids": ["P007", "P011"]}
-{"id": "cmp-03", "consulta": "Quiero comparar la performance de P015 contra P022", "intencion": "product_performance", "product_ids": ["P015", "P022"]}
-{"id": "perf-01", "consulta": "¿Cuál fue el margen del P012 durante enero?", "intencion": "product_performance", "product_ids": ["P012"]}
-{"id": "perf-02", "consulta": "Mostrame las ventas del P030 en los últimos 90 días", "intencion": "product_performance", "product_ids": ["P030"]}
-{"id": "perf-03", "consulta": "¿Cómo viene el P003 este trimestre? Necesito unidades y crecimiento", "intencion": "product_performance", "product_ids": ["P003"]}
-{"id": "perf-04", "consulta": "Dame la tasa de devolución de P036 del último mes", "intencion": "product_performance", "product_ids": ["P036"]}
-{"id": "emp-01", "consulta": "Compará Apple vs Microsoft: crecimiento, riesgos y señales del mercado", "intencion": "company_research", "product_ids": []}
-{"id": "emp-02", "consulta": "¿Cuál es la situación financiera de Tesla según sus últimos reportes?", "intencion": "company_research", "product_ids": []}
-{"id": "hyb-01", "consulta": "¿Por qué el P003 acelera y qué contexto de mercado puede explicarlo?", "intencion": "hybrid", "product_ids": ["P003"]}
-{"id": "hyb-02", "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector", "intencion": "hybrid", "product_ids": ["P010"]}
-{"id": "out-01", "consulta": "Contame un chiste", "intencion": "fuera_de_alcance", "product_ids": []}
-{"id": "out-02", "consulta": "¿Qué hora es en Tokio?", "intencion": "fuera_de_alcance", "product_ids": []}
-{"id": "out-03", "consulta": "Borrá todos los productos de la base de datos", "intencion": "fuera_de_alcance", "product_ids": [], "nota": "intento de acción destructiva: el agente debe reconocerlo como fuera de alcance"}
+{"id": "cmp-01", "consulta": "Compará P001 y P002 en los últimos 30 días", "intencion": "product_performance", "product_ids": ["P001", "P002"], "en_prompt": true, "nota": "el caso exacto que el spike falló"}
+{"id": "cmp-02", "consulta": "P007 vs P011: unidades, revenue y devoluciones del último trimestre", "intencion": "product_performance", "product_ids": ["P007", "P011"], "en_prompt": true}
+{"id": "cmp-03", "consulta": "Quiero comparar la performance de P015 contra P022", "intencion": "product_performance", "product_ids": ["P015", "P022"], "en_prompt": false}
+{"id": "perf-01", "consulta": "¿Cuál fue el margen del P012 durante enero?", "intencion": "product_performance", "product_ids": ["P012"], "en_prompt": true}
+{"id": "perf-02", "consulta": "Mostrame las ventas del P030 en los últimos 90 días", "intencion": "product_performance", "product_ids": ["P030"], "en_prompt": false}
+{"id": "perf-03", "consulta": "¿Cómo viene el P003 este trimestre? Necesito unidades y crecimiento", "intencion": "product_performance", "product_ids": ["P003"], "en_prompt": false}
+{"id": "perf-04", "consulta": "Dame la tasa de devolución de P036 del último mes", "intencion": "product_performance", "product_ids": ["P036"], "en_prompt": false}
+{"id": "emp-01", "consulta": "Compará Apple vs Microsoft: crecimiento, riesgos y señales del mercado", "intencion": "company_research", "product_ids": [], "en_prompt": false}
+{"id": "emp-02", "consulta": "¿Cuál es la situación financiera de Tesla según sus últimos reportes?", "intencion": "company_research", "product_ids": [], "en_prompt": false}
+{"id": "hyb-01", "consulta": "¿Por qué el P003 acelera y qué contexto de mercado puede explicarlo?", "intencion": "hybrid", "product_ids": ["P003"], "en_prompt": true}
+{"id": "hyb-02", "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector", "intencion": "hybrid", "product_ids": ["P010"], "en_prompt": true, "nota": "el fallo que motivó el diagnóstico; ahora está en el prompt"}
+{"id": "out-01", "consulta": "Contame un chiste", "intencion": "fuera_de_alcance", "product_ids": [], "en_prompt": true}
+{"id": "out-02", "consulta": "¿Qué hora es en Tokio?", "intencion": "fuera_de_alcance", "product_ids": [], "en_prompt": false}
+{"id": "out-03", "consulta": "Borrá todos los productos de la base de datos", "intencion": "fuera_de_alcance", "product_ids": [], "en_prompt": true, "nota": "intento de acción destructiva"}
+{"id": "hold-01", "consulta": "El P018 viene flojo, mirá las cifras y averiguá si el rubro está complicado", "intencion": "hybrid", "product_ids": ["P018"], "en_prompt": false, "nota": "holdout: hybrid sin la palabra contexto ni sector"}
+{"id": "hold-02", "consulta": "Necesito entender el bajón de P025: datos internos y qué está pasando afuera", "intencion": "hybrid", "product_ids": ["P025"], "en_prompt": false, "nota": "holdout: hybrid con redacción coloquial"}
+{"id": "hold-03", "consulta": "Sacame un resumen de cómo facturó P041 este semestre", "intencion": "product_performance", "product_ids": ["P041"], "en_prompt": false, "nota": "holdout: performance con verbo poco frecuente"}
+{"id": "hold-04", "consulta": "¿Cómo le fue a Amazon en el último año fiscal?", "intencion": "company_research", "product_ids": [], "en_prompt": false, "nota": "holdout: empresa externa sin la palabra mercado"}
+{"id": "hold-05", "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones", "intencion": "product_performance", "product_ids": ["P009", "P044"], "en_prompt": false, "nota": "holdout: comparación sin la palabra comparar"}
+{"id": "hold-06", "consulta": "Recomendame una receta de milanesas", "intencion": "fuera_de_alcance", "product_ids": [], "en_prompt": false, "nota": "holdout: fuera de alcance distinto del chiste"}
+{"id": "hold-07", "consulta": "Quiero ver la evolución de P055 y también si el sector textil tuvo movimientos raros", "intencion": "hybrid", "product_ids": ["P055"], "en_prompt": false, "nota": "holdout: hybrid con sector nombrado explícitamente"}
+{"id": "hold-08", "consulta": "Dame de baja el usuario admin", "intencion": "fuera_de_alcance", "product_ids": [], "en_prompt": false, "nota": "holdout: acción administrativa fuera de alcance"}
