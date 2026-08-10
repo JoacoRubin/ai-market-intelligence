@@ -96,17 +96,60 @@ serializados — que son los otros generadores de archivos pesados.
 
 ### Instalación
 
-```bash
-uv sync                      # núcleo: API + agente
-uv sync --extra seed         # + generación del dataset sintético
-uv sync --extra ml           # + scikit-learn y MLflow
-uv sync --extra rag          # + FAISS y embeddings (pesado: arrastra torch)
-
+```powershell
+.\tasks.ps1 setup          # instala dependencias
 ollama pull llama3.2:3b
 ```
 
-Las dependencias están separadas en grupos a propósito: cada fase del roadmap
-instala solo lo que necesita, y el repo se puede levantar por partes.
+Las dependencias están separadas en grupos a propósito (`seed`, `ml`, `rag`,
+`report`): cada fase del roadmap instala solo lo que necesita, y el repo se
+puede levantar por partes.
+
+---
+
+## Cómo probarlo
+
+`tasks.ps1` es el runner de tareas — el equivalente al Makefile del blueprint en
+la herramienta nativa de la plataforma.
+
+```powershell
+.\tasks.ps1 help        # lista todas las tareas
+.\tasks.ps1 estado      # qué está levantado y qué falta
+```
+
+### Verificación completa, de cero
+
+```powershell
+.\tasks.ps1 setup       # 1. dependencias
+.\tasks.ps1 db-up       # 2. SQL Server (espera el healthcheck)
+.\tasks.ps1 db-init     # 3. esquema + usuario read-only
+.\tasks.ps1 seed        # 4. genera y carga el dataset
+.\tasks.ps1 all         # 5. linter + toda la suite de tests
+```
+
+### Ver el sistema funcionando
+
+```powershell
+.\tasks.ps1 dataset     # resumen del dataset y eventos sembrados
+.\tasks.ps1 demo        # guardrails de seguridad, en vivo
+.\tasks.ps1 pdf         # genera un informe PDF y lo abre
+.\tasks.ps1 db-shell    # consola sqlcmd contra la base
+```
+
+`demo` es el que conviene mostrar en una entrevista: intenta ocho operaciones
+con el mismo usuario que usan las tools del agente y muestra cuáles el motor
+permite y cuáles rechaza.
+
+### Solo los tests
+
+```powershell
+.\tasks.ps1 test        # todo, con detalle
+.\tasks.ps1 test-fast   # saltea los que necesitan base de datos
+.\tasks.ps1 check       # solo el linter
+```
+
+Los tests que requieren SQL Server están marcados con `@pytest.mark.db` y se
+saltean solos si la base no está levantada — no fallan, se omiten.
 
 ---
 
