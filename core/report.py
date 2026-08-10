@@ -78,7 +78,11 @@ class MetricaProducto(BaseModel):
     nombre: str
     unidades: int = Field(ge=0)
     revenue: float = Field(ge=0)
-    margen_pct: float
+    # Los tres opcionales son deliberados: sin ventas no hay margen, sin período
+    # previo no hay crecimiento, sin líneas no hay tasa de devolución. Devolver 0
+    # en esos casos sería afirmar algo que no se sabe, y el informe lo mostraría
+    # como un hecho. `None` se renderiza como "—".
+    margen_pct: float | None = None
     crecimiento_pct: float | None = None
     tasa_devolucion_pct: float | None = Field(default=None, ge=0, le=100)
     fuente: str

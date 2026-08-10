@@ -188,7 +188,7 @@ def render_pdf(informe: Report, destino: str | Path) -> Path:
                 f"{m.nombre} ({m.product_id})",
                 _num(m.unidades, 0),
                 f"USD {_num(m.revenue, 2)}",
-                f"{_num(m.margen_pct)}%",
+                "—" if m.margen_pct is None else f"{_num(m.margen_pct)}%",
                 "—" if m.crecimiento_pct is None else f"{_num(m.crecimiento_pct)}%",
                 "—" if m.tasa_devolucion_pct is None
                 else f"{_num(m.tasa_devolucion_pct)}%",
