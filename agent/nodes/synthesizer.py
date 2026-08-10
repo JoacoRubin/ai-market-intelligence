@@ -130,6 +130,11 @@ def sintetizar(
             "generaron a partir de los datos con reglas determinísticas."
         )
 
+    # El paso se registra ANTES de construir el informe: el informe copia el
+    # trace, y hacerlo después dejaba la etapa de síntesis fuera de "Cómo se
+    # obtuvo" — justo la más lenta, que es la que el lector quiere ver.
+    estado.registrar_paso("synthesizer", int((time.perf_counter() - inicio) * 1000))
+
     estado.informe = Report(
         request_id=estado.request_id,
         consulta=estado.consulta,
@@ -151,5 +156,4 @@ def sintetizar(
         ],
     )
 
-    estado.registrar_paso("synthesizer", int((time.perf_counter() - inicio) * 1000))
     return estado

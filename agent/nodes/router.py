@@ -162,6 +162,13 @@ def enrutar(
     """Clasifica la consulta y completa intención, entidades y período."""
     inicio = time.perf_counter()
 
+    # Si la solicitud ya llegó interpretada —la API la recibió estructurada, con
+    # identificadores y rango— no hay nada que clasificar. Invocar el modelo
+    # igual costaría decenas de segundos para llegar al mismo estado.
+    if estado.intencion is not None and estado.entidades and estado.periodo:
+        estado.registrar_paso("router", int((time.perf_counter() - inicio) * 1000))
+        return estado
+
     try:
         respuesta = cliente.estructurado(SISTEMA, estado.consulta, ESQUEMA)
     except Exception as e:
@@ -190,6 +197,16 @@ def enrutar(
     intencion, motivo = corregir_intencion_por_entidades(intencion, entidades)
     if motivo:
         estado._advertir(motivo)
+
+    # Una consulta fuera de alcance termina el grafo sin informe. Sin una
+    # explicación, el usuario recibe una respuesta vacía y no sabe por qué:
+    # cortar es correcto, cortar en silencio no.
+    if intencion == Intencion.FUERA_DE_ALCANCE and not estado.advertencias:
+        estado._advertir(
+            "La consulta no corresponde a un análisis comercial de productos "
+            "del catálogo. Indicá qué productos querés analizar (por ejemplo "
+            "P001) y sobre qué período."
+        )
 
     estado.intencion = intencion
     estado.entidades = entidades

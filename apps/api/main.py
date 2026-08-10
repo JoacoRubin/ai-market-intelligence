@@ -28,7 +28,9 @@ from io import BytesIO
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
-from apps.api.analisis import construir_informe
+from agent.graph import ejecutar as ejecutar_grafo
+from agent.llm import ClienteLLM, ClienteOllama
+from agent.state import AnalysisState, Intencion, Periodo
 from apps.api.schemas import (
     Analisis,
     EstadoAnalisis,
@@ -148,12 +150,40 @@ def metricas_de_un_producto(product_id: str, rango=Depends(rango_validado)):
 
 # --- recurso: analyses -------------------------------------------------------
 
-def _procesar(analysis_id: str) -> None:
-    """Ejecuta el análisis y actualiza su estado.
+def obtener_cliente_llm() -> ClienteLLM:
+    """Dependencia inyectable con el cliente del modelo.
 
-    Corre como tarea de fondo. Hoy termina en milisegundos; cuando el grafo con
-    LLM ocupe su lugar, esto pasará a un worker aparte sin que el contrato de la
-    API cambie — que es exactamente para lo que se eligió el 202.
+    Que sea una dependencia de FastAPI y no un objeto global es lo que permite
+    testear la API con un doble. Sin eso, cada test esperaría los ~2m44s que
+    tarda el agente real en esta máquina.
+    """
+    return ClienteOllama()
+
+
+def _estado_inicial(registro: Analisis) -> AnalysisState:
+    """Construye el estado del grafo según cómo llegó la solicitud.
+
+    Cuando vienen identificadores y rango, la interpretación ya está hecha: se
+    precarga el estado y el router se saltea solo. Cuando viene lenguaje
+    natural, el estado arranca vacío y el agente interpreta.
+    """
+    estado = AnalysisState(request_id=registro.id, consulta=registro.consulta)
+
+    if registro.product_ids and registro.desde and registro.hasta:
+        estado.intencion = Intencion.PRODUCT_PERFORMANCE
+        estado.entidades = list(registro.product_ids)
+        estado.periodo = Periodo(desde=registro.desde, hasta=registro.hasta)
+
+    return estado
+
+
+def _procesar(analysis_id: str, cliente: ClienteLLM) -> None:
+    """Ejecuta el grafo del agente y actualiza el recurso.
+
+    Corre como tarea de fondo. Con el modelo real esto tarda cerca de dos
+    minutos en esta máquina — que es exactamente el motivo por el que el POST
+    responde 202 desde el principio y no hubo que cambiar el contrato al
+    conectar el agente.
     """
     registro = almacen.obtener(analysis_id)
     if registro is None:
@@ -163,15 +193,16 @@ def _procesar(analysis_id: str) -> None:
     almacen.guardar(registro)
 
     try:
-        consulta = (
-            f"Comparar {', '.join(registro.product_ids)} "
-            f"entre {registro.desde} y {registro.hasta}"
-        )
-        registro.informe = construir_informe(
-            analysis_id, consulta, registro.product_ids,
-            registro.desde, registro.hasta,
-        )
-        registro.etapas = [p.nodo for p in registro.informe.trace]
+        estado = ejecutar_grafo(_estado_inicial(registro), cliente)
+
+        registro.informe = estado.informe
+        registro.intencion = estado.intencion.value if estado.intencion else None
+        registro.product_ids = estado.entidades
+        if estado.periodo:
+            registro.desde = estado.periodo.desde
+            registro.hasta = estado.periodo.hasta
+        registro.etapas = [p.nodo for p in estado.trace]
+        registro.advertencias = list(estado.advertencias)
         registro.estado = EstadoAnalisis.COMPLETADO
     except Exception as e:  # el fallo viaja en el recurso, no revienta la API
         registro.estado = EstadoAnalisis.FALLIDO
@@ -181,31 +212,42 @@ def _procesar(analysis_id: str) -> None:
 
 @app.post("/analyses", response_model=Analisis, status_code=202, tags=["análisis"])
 def crear_analisis(
-    solicitud: SolicitudAnalisis, tareas: BackgroundTasks, respuesta: Response
+    solicitud: SolicitudAnalisis,
+    tareas: BackgroundTasks,
+    respuesta: Response,
+    cliente: ClienteLLM = Depends(obtener_cliente_llm),
 ) -> Analisis:
-    """Crea un análisis.
+    """Crea un análisis, en forma estructurada o en lenguaje natural.
 
     Responde **202 Accepted**, no 201: el recurso ya existe y es consultable,
-    pero el trabajo puede no haber terminado. El header `Location` indica dónde
-    seguir su estado.
+    pero el trabajo puede no haber terminado. Con el agente conectado eso pasó
+    de ser previsión a ser necesidad — el análisis tarda cerca de dos minutos.
     """
-    faltantes = [p for p in solicitud.product_ids if not _producto_existe(p)]
-    if faltantes:
-        # 422 y no 404: el recurso pedido es /analyses, que sí existe. Lo
-        # inválido es el contenido de la solicitud.
-        raise HTTPException(422, f"no existen estos productos: {faltantes}")
+    if solicitud.es_estructurada:
+        faltantes = [p for p in solicitud.product_ids if not _producto_existe(p)]
+        if faltantes:
+            # 422 y no 404: el recurso pedido es /analyses, que sí existe. Lo
+            # inválido es el contenido de la solicitud.
+            raise HTTPException(422, f"no existen estos productos: {faltantes}")
+        consulta = (
+            f"Comparar {', '.join(solicitud.product_ids)} "
+            f"entre {solicitud.desde} y {solicitud.hasta}"
+        )
+    else:
+        consulta = solicitud.consulta.strip()
 
     analysis_id = f"req-{uuid.uuid4().hex[:12]}"
     registro = Analisis(
         id=analysis_id,
         estado=EstadoAnalisis.PENDIENTE,
         creado_en=datetime.now(),
-        product_ids=solicitud.product_ids,
+        consulta=consulta,
+        product_ids=solicitud.product_ids or [],
         desde=solicitud.desde,
         hasta=solicitud.hasta,
     )
     almacen.guardar(registro)
-    tareas.add_task(_procesar, analysis_id)
+    tareas.add_task(_procesar, analysis_id, cliente)
 
     respuesta.headers["Location"] = f"/analyses/{analysis_id}"
     return registro

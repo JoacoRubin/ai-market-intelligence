@@ -135,6 +135,45 @@ class ClienteFalso:
         return self._textos.pop(0)
 
 
+class ClientePredecible:
+    """Doble que responde siempre lo mismo, sin agotarse.
+
+    `ClienteFalso` exige programar cada respuesta, lo que es ideal para
+    verificar un flujo concreto. Este sirve para el caso opuesto: tests que
+    ejercitan OTRA cosa —la API, el almacén, los códigos de estado— y solo
+    necesitan que el modelo no sea el cuello de botella ni el objeto de estudio.
+
+    Sin él, cualquier test de la API terminaría invocando a Ollama y esperando
+    los minutos que tarda la inferencia en CPU.
+    """
+
+    nombre = "falso:predecible"
+
+    def __init__(self, intencion: str = "product_performance", dias: int = 90,
+                 conclusiones: list[str] | None = None) -> None:
+        self._intencion = intencion
+        self._dias = dias
+        self._conclusiones = conclusiones or [
+            "El período analizado muestra actividad comercial registrada"
+        ]
+        self.llamadas: list[dict[str, Any]] = []
+
+    def estructurado(
+        self, sistema: str, usuario: str, esquema: dict[str, Any]
+    ) -> dict[str, Any]:
+        self.llamadas.append({"tipo": "estructurado", "sistema": sistema,
+                              "usuario": usuario, "esquema": esquema})
+        propiedades = esquema.get("properties", {})
+        if "conclusiones" in propiedades:
+            return {"conclusiones": list(self._conclusiones)}
+        return {"intencion": self._intencion, "dias": self._dias}
+
+    def redactar(self, sistema: str, usuario: str, max_tokens: int = 700) -> str:
+        self.llamadas.append({"tipo": "texto", "sistema": sistema,
+                              "usuario": usuario})
+        return " ".join(self._conclusiones)
+
+
 class ClienteQueFalla:
     """Doble que siempre falla. Para probar la degradación del grafo.
 

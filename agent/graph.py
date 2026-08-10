@@ -127,6 +127,24 @@ def construir_grafo(
     return grafo.compile()
 
 
+def ejecutar(
+    estado: AnalysisState,
+    cliente: ClienteLLM,
+    hoy: date = HOY_POR_DEFECTO,
+    ahora: datetime | None = None,
+) -> AnalysisState:
+    """Corre el grafo sobre un estado ya construido.
+
+    Permite entrar con la interpretación resuelta —cuando la solicitud llegó
+    estructurada— y que el router se saltee solo.
+    """
+    grafo = construir_grafo(cliente, hoy=hoy, ahora=ahora)
+    resultado = grafo.invoke(estado)
+    # LangGraph puede devolver un dict con el estado; se normaliza a modelo.
+    return (resultado if isinstance(resultado, AnalysisState)
+            else AnalysisState(**resultado))
+
+
 def analizar(
     consulta: str,
     cliente: ClienteLLM,
@@ -134,9 +152,8 @@ def analizar(
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
 ) -> AnalysisState:
-    """Ejecuta el análisis completo y devuelve el estado final."""
-    grafo = construir_grafo(cliente, hoy=hoy, ahora=ahora)
-    resultado = grafo.invoke(AnalysisState(request_id=request_id, consulta=consulta))
-    # LangGraph puede devolver un dict con el estado; se normaliza a modelo.
-    return (resultado if isinstance(resultado, AnalysisState)
-            else AnalysisState(**resultado))
+    """Ejecuta el análisis desde una consulta en lenguaje natural."""
+    return ejecutar(
+        AnalysisState(request_id=request_id, consulta=consulta),
+        cliente, hoy=hoy, ahora=ahora,
+    )
