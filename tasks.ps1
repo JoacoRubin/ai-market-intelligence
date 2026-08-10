@@ -139,6 +139,19 @@ switch ($Tarea.ToLower()) {
         & $UV run python -m seeds.load
     }
 
+    "api" {
+        Titulo "API en http://localhost:8000"
+        Write-Host "  Documentacion interactiva: http://localhost:8000/docs" -ForegroundColor Green
+        Write-Host "  Ctrl+C para detener"
+        Write-Host ""
+        & $UV run uvicorn apps.api.main:app --reload --port 8000
+    }
+
+    "api-demo" {
+        Titulo "Recorrido del flujo REST completo"
+        & $UV run python -m apps.api.demo
+    }
+
     "dataset" {
         Titulo "Resumen del dataset (generado en memoria, sin base)"
         & $UV run python -c @"

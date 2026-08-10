@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
+from typing import BinaryIO
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
@@ -132,14 +133,22 @@ def _afirmaciones(bloque, est, mostrar_fuentes: bool = True) -> list:
     return salida
 
 
-def render_pdf(informe: Report, destino: str | Path) -> Path:
-    """Renderiza el informe a PDF. Devuelve la ruta escrita."""
-    destino = Path(destino)
-    destino.parent.mkdir(parents=True, exist_ok=True)
+def render_pdf(informe: Report, destino: str | Path | BinaryIO) -> Path | BinaryIO:
+    """Renderiza el informe a PDF.
+
+    `destino` puede ser una ruta o cualquier objeto con `write`. La API sirve
+    los bytes directamente desde memoria: escribir un archivo temporal para
+    después leerlo y borrarlo es trabajo de disco que nadie pidió, y deja basura
+    cuando algo falla en el medio.
+    """
+    es_buffer = hasattr(destino, "write")
+    if not es_buffer:
+        destino = Path(destino)
+        destino.parent.mkdir(parents=True, exist_ok=True)
     est = _estilos()
 
     doc = SimpleDocTemplate(
-        str(destino), pagesize=A4,
+        destino if es_buffer else str(destino), pagesize=A4,
         leftMargin=18 * mm, rightMargin=18 * mm,
         topMargin=16 * mm, bottomMargin=22 * mm,
         title=f"Informe {informe.request_id}",

@@ -132,9 +132,76 @@ la herramienta nativa de la plataforma.
 ```powershell
 .\tasks.ps1 dataset     # resumen del dataset y eventos sembrados
 .\tasks.ps1 demo        # guardrails de seguridad, en vivo
+.\tasks.ps1 api-demo    # recorrido del flujo REST con sus códigos de estado
 .\tasks.ps1 pdf         # genera un informe PDF y lo abre
+.\tasks.ps1 api         # levanta la API en http://localhost:8000/docs
 .\tasks.ps1 db-shell    # consola sqlcmd contra la base
 ```
+
+---
+
+## La API
+
+Diseñada según el **nivel 2 del modelo de madurez de Richardson**: recursos como
+sustantivos, verbos HTTP con su semántica real, códigos de estado que significan
+algo, y negociación de contenido.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/health` | Estado del servicio y sus dependencias |
+| `GET` | `/products` | Catálogo, con paginación y filtro por categoría |
+| `GET` | `/products/{id}` | Un producto |
+| `GET` | `/products/{id}/metrics` | KPIs del producto en un período |
+| `POST` | `/analyses` | Crea un análisis → **202 Accepted** + `Location` |
+| `GET` | `/analyses` | Lista de análisis |
+| `GET` | `/analyses/{id}` | El análisis, en JSON o PDF según `Accept` |
+| `GET` | `/analyses/{id}.pdf` | Descarga directa, para enlaces de navegador |
+| `DELETE` | `/analyses/{id}` | Elimina el análisis |
+
+**No existe `/compare` ni `/generate`.** Un verbo en la URL es RPC disfrazado de
+HTTP; los verbos ya los pone el protocolo. Comparar dos productos no es una
+acción: es la creación de un recurso `análisis`, que después existe, se consulta,
+se descarga y se borra.
+
+### Por qué 202 y no 201
+
+`POST /analyses` responde **202 Accepted**. Hoy el análisis es SQL puro y termina
+en milisegundos, así que un 201 con el resultado adentro funcionaría.
+
+Pero la síntesis con el LLM local tarda cerca de **dos minutos** en el hardware de
+referencia (ver [ADR-003](docs/adr/ADR-003-llm-local.md)). Dejar al cliente
+colgado ese tiempo es inaceptable, y cambiar el contrato después rompería a todos
+los consumidores. El recurso existe desde el instante cero; lo que cambia es su
+estado.
+
+### El PDF es una representación, no otro recurso
+
+```http
+GET /analyses/{id}
+Accept: application/json    → el informe en JSON
+Accept: application/pdf     → el mismo informe en PDF
+Accept: application/xml     → 406 Not Acceptable
+```
+
+Un recurso, una URL, varias representaciones. Si el PDF fuera un recurso aparte
+tendría su propio ciclo de vida y podría desincronizarse del JSON.
+
+La ruta `/analyses/{id}.pdf` convive con la negociación de contenido porque un
+`<a href>` de navegador no puede mandar headers. No es redundancia: es reconocer
+cómo funcionan los clientes reales.
+
+### La API funciona sin el LLM
+
+En esta fase el informe se arma de forma **completamente determinística**: los
+KPIs salen de SQL y las conclusiones se derivan comparando esos números.
+
+Eso no es una limitación temporal. Cuando el agente entre en la Fase 2 va a
+*agregar* interpretación y evidencia documental sobre un informe que ya es
+correcto. Si el modelo falla, el sistema degrada a esto — que sigue siendo un
+informe válido con números verificados.
+
+Un sistema que sin el modelo no produce nada es un sistema que depende del modelo
+para tener razón.
 
 `demo` es el que conviene mostrar en una entrevista: intenta ocho operaciones
 con el mismo usuario que usan las tools del agente y muestra cuáles el motor
