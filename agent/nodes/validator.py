@@ -22,6 +22,7 @@ las cifras.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from agent.nodes.comparaciones import Veredicto, explicar, verificar_comparacion
@@ -31,6 +32,26 @@ from agent.nodes.numeros import (
     extraer_numeros_de_negocio,
 )
 from core.report import Afirmacion, MetricaProducto, Report
+
+# Fórmulas con las que se pide una acción. El modelo suele redactar
+# recomendaciones y etiquetarlas como "hecho": el informe valida la etiqueta,
+# no el texto, así que pasan el control y terminan mezcladas con los datos
+# verificados. Detectarlas es determinístico y barato.
+RECOMENDACION = re.compile(
+    r"\b(?:"
+    r"se\s+recomienda|recomendamos|recomendable"
+    r"|habría\s+que|habria\s+que|convendría|convendria"
+    r"|conviene\s+\w+r\b|sería\s+conveniente|seria\s+conveniente"
+    r"|se\s+sugiere|sugerimos|deberían?\s+\w+r\b|deberian?\s+\w+r\b"
+    r"|es\s+aconsejable|se\s+aconseja"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def parece_recomendacion(texto: str) -> bool:
+    """Indica si el texto pide una acción en vez de describir un hecho."""
+    return bool(RECOMENDACION.search(texto or ""))
 
 
 def _numeros_disponibles(resultados_tools: dict) -> set[float]:
@@ -117,6 +138,20 @@ def validar_informe(informe: Report, resultados_tools: dict) -> ResultadoValidac
     parte accionable.
     """
     disponibles = _numeros_disponibles(resultados_tools)
+
+    # Antes de validar cifras: las recomendaciones mal etiquetadas se mueven a
+    # su sección. No se descartan — la información es útil, el problema es dónde
+    # estaba puesta.
+    reubicadas = [a for a in informe.resumen_ejecutivo
+                  if parece_recomendacion(a.texto)]
+    if reubicadas:
+        informe.resumen_ejecutivo = [
+            a for a in informe.resumen_ejecutivo if a not in reubicadas
+        ]
+        informe.recomendaciones = [
+            *informe.recomendaciones,
+            *[Afirmacion(texto=a.texto, tipo="recomendacion") for a in reubicadas],
+        ]
 
     resumen, rech_resumen, con_num_r, ok_r = _filtrar(
         informe.resumen_ejecutivo, disponibles)

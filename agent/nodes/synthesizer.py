@@ -23,7 +23,7 @@ from agent.llm import ClienteLLM
 from agent.state import AnalysisState
 from core.conclusiones import _alertas_de_devolucion, _conclusiones
 from core.kpis import FUENTE
-from core.report import Afirmacion, Fuente, MetricaProducto, Report
+from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
 
 MAX_CONCLUSIONES = 5
 
@@ -115,6 +115,24 @@ def _evidencia_para_el_modelo(evidencia: list[dict]) -> str:
     )
 
 
+def _fuentes_de_modelo(predicciones: list, ahora: datetime) -> list[Fuente]:
+    """Declara el modelo de ML como fuente citable.
+
+    Una predicción es tan rastreable como un dato: tiene que poder decirse qué
+    modelo y qué versión la produjo.
+    """
+    vistos: dict[str, Fuente] = {}
+    for p in predicciones:
+        clave = f"ml:{p.modelo_version or 'desconocido'}"
+        if clave not in vistos:
+            vistos[clave] = Fuente(
+                id=clave, tipo="modelo_ml",
+                referencia=f"forecast_sales · {p.modelo_version}",
+                consultada_en=ahora,
+            )
+    return list(vistos.values())
+
+
 def _fuentes_documentales(evidencia: list[dict], ahora: datetime) -> list[Fuente]:
     """Declara cada documento recuperado como fuente citable del informe.
 
@@ -130,6 +148,11 @@ def _fuentes_documentales(evidencia: list[dict], ahora: datetime) -> list[Fuente
                 seccion=e["seccion"], consultada_en=ahora,
             )
     return list(vistos.values())
+
+
+def _predicciones_del_estado(estado: AnalysisState) -> list[Prediccion]:
+    crudas = estado.resultados_tools.get("forecast_sales", [])
+    return [p for p in (crudas or []) if isinstance(p, Prediccion)]
 
 
 def _metricas_del_estado(estado: AnalysisState) -> list[MetricaProducto]:
@@ -229,9 +252,11 @@ def sintetizar(
                 consultada_en=ahora,
             ),
             *_fuentes_documentales(estado.evidencia, ahora),
+            *_fuentes_de_modelo(_predicciones_del_estado(estado), ahora),
         ],
         resumen_ejecutivo=conclusiones,
         metricas=metricas,
+        predicciones=_predicciones_del_estado(estado),
         advertencias=list(estado.advertencias) + _alertas_de_devolucion(metricas),
         trace=list(estado.trace),
         limitaciones=[

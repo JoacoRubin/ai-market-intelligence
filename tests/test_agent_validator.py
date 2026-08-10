@@ -329,3 +329,50 @@ def test_sigue_detectando_magnitudes_junto_a_identificadores():
         "El lote L1829 del P002 acumuló 1.243 devoluciones"
     )
     assert numeros == {1243.0}
+
+
+# --- Recomendaciones disfrazadas de hecho ------------------------------------
+
+@pytest.mark.parametrize("texto", [
+    "Se recomienda revisar el stock del lote antes de seguir vendiendo",
+    "Habría que bajar el precio del producto",
+    "Conviene auditar el proceso del proveedor",
+    "Sería conveniente revisar la política de descuentos",
+    "Se sugiere reforzar el control de calidad",
+])
+def test_detecta_una_recomendacion_redactada_como_hecho(texto):
+    """El modelo etiqueta mal y el informe no lo nota.
+
+    `Report` valida la ETIQUETA, no el texto: una recomendación marcada como
+    "hecho" pasa el control y se muestra junto a los datos verificados. Ahí se
+    borra la frontera entre lo que pasó y lo que alguien opina que habría que
+    hacer, que es justamente lo que el informe existe para separar.
+    """
+    from agent.nodes.validator import parece_recomendacion
+    assert parece_recomendacion(texto)
+
+
+@pytest.mark.parametrize("texto", [
+    "El margen del P002 fue de 31,2%",
+    "Las devoluciones aumentaron en el período",
+    "El proveedor reportó defectos en el lote",
+])
+def test_no_confunde_un_hecho_con_una_recomendacion(texto):
+    from agent.nodes.validator import parece_recomendacion
+    assert not parece_recomendacion(texto)
+
+
+def test_una_recomendacion_mal_etiquetada_se_mueve_a_su_seccion():
+    """No se descarta: se reubica. La información es útil, el problema es dónde
+    estaba puesta."""
+    informe = _informe([
+        Afirmacion(texto="El margen fue de 31,2%", tipo="hecho",
+                   fuentes=[FUENTE_SQL]),
+        Afirmacion(texto="Se recomienda revisar el stock del lote",
+                   tipo="hecho", fuentes=[FUENTE_SQL]),
+    ])
+    resultado = validar_informe(informe, {"product_metrics": {"P001": _metrica()}})
+
+    assert len(resultado.informe.resumen_ejecutivo) == 1
+    assert len(resultado.informe.recomendaciones) == 1
+    assert resultado.informe.recomendaciones[0].tipo == "recomendacion"

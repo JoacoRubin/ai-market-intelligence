@@ -152,6 +152,11 @@ switch ($Tarea.ToLower()) {
         & $UV run python -m agent.demo $args[1]
     }
 
+    "ml-train" {
+        Titulo "Forecast con backtesting y registro en MLflow"
+        & $UV run python -m ml.demo
+    }
+
     "rag-build" {
         Titulo "Construyendo el indice documental (embeddings en CPU)"
         & $UV run python -m rag.build

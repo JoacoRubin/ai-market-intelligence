@@ -9,6 +9,10 @@ plan sin romper el grafo entero.
 from __future__ import annotations
 
 from agent.state import AnalysisState
+from agent.tools.forecast_sales import (
+    EntradaForecastSales,
+    ejecutar_forecast_sales,
+)
 from agent.tools.product_metrics import (
     EntradaProductMetrics,
     ejecutar_product_metrics,
@@ -21,6 +25,7 @@ from agent.tools.search_documents import (
 NOMBRE_A_TOOL = {
     "product_metrics": EntradaProductMetrics,
     "search_documents": EntradaSearchDocuments,
+    "forecast_sales": EntradaForecastSales,
 }
 
 
@@ -49,6 +54,8 @@ def ejecutar_plan(estado: AnalysisState, indice=None) -> AnalysisState:
 
         if paso.tool == "search_documents":
             ejecutar_search_documents(entrada, estado, indice)
+        elif paso.tool == "forecast_sales":
+            ejecutar_forecast_sales(entrada, estado)
         else:
             ejecutar_product_metrics(entrada, estado)
 

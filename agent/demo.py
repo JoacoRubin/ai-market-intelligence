@@ -91,6 +91,16 @@ def main() -> int:
               f"USD {m.revenue:,.2f}"
               + (f" · margen {m.margen_pct:.1f}%" if m.margen_pct else ""))
 
+    if informe.predicciones:
+        print(f"\n  {AZUL}Predicciones (modelo ML con su error medido){FIN}")
+        for p in informe.predicciones:
+            veredicto = ("supera al baseline" if p.supera_al_baseline
+                         else "NO supera al baseline")
+            print(f"    {p.product_id}: {p.valor:,.0f} unidades "
+                  f"a {p.horizonte_dias} días")
+            print(f"      {GRIS}MAPE {p.mape_backtest}% vs baseline "
+                  f"{p.mape_baseline}% — {veredicto} · {p.modelo_version}{FIN}")
+
     print(f"\n  {AZUL}Conclusiones (redactadas por el modelo, validadas por software){FIN}")
     for a in informe.resumen_ejecutivo:
         print(f"    · {a.texto}")

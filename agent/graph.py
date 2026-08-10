@@ -40,6 +40,7 @@ def construir_grafo(
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
     indice=None,
+    con_ml: bool = True,
 ):
     """Arma el grafo con el cliente de modelo ya inyectado."""
 
@@ -59,7 +60,7 @@ def construir_grafo(
         if replan:
             estado.registrar_reintento()
         return planificar(estado, replanificando=replan,
-                          con_rag=indice is not None)
+                          con_rag=indice is not None, con_ml=con_ml)
 
     def nodo_ejecutor(estado: AnalysisState) -> AnalysisState:
         return ejecutar_plan(estado, indice=indice)
