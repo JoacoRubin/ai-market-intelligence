@@ -70,11 +70,15 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
-addopts = "-q --strict-markers"
+# Los evals contra el modelo real quedan fuera de la corrida por defecto:
+# tardan minutos en CPU y se corren cuando se toca el prompt o el modelo,
+# no en cada commit. Se invocan con: pytest -m llm
+addopts = "-q --strict-markers -m 'not llm'"
 markers = [
     "slow: pruebas que invocan al LLM local (segundos a minutos)",
     "db: requieren SQL Server levantado",
     "eval: corren contra el golden set",
+    "llm: invocan al modelo de lenguaje real (lentos: minutos en CPU)",
 ]
 
 [tool.ruff]

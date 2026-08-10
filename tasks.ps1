@@ -147,6 +147,11 @@ switch ($Tarea.ToLower()) {
         & $UV run uvicorn apps.api.main:app --reload --port 8000
     }
 
+    "eval" {
+        Titulo "Evaluacion del router contra el golden set (modelo real, lento)"
+        & $UV run pytest -m llm -v -s
+    }
+
     "api-demo" {
         Titulo "Recorrido del flujo REST completo"
         & $UV run python -m apps.api.demo

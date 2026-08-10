@@ -1,0 +1,14 @@
+{"id": "cmp-01", "consulta": "Compará P001 y P002 en los últimos 30 días", "intencion": "product_performance", "product_ids": ["P001", "P002"], "nota": "el caso exacto que el spike falló"}
+{"id": "cmp-02", "consulta": "P007 vs P011: unidades, revenue y devoluciones del último trimestre", "intencion": "product_performance", "product_ids": ["P007", "P011"]}
+{"id": "cmp-03", "consulta": "Quiero comparar la performance de P015 contra P022", "intencion": "product_performance", "product_ids": ["P015", "P022"]}
+{"id": "perf-01", "consulta": "¿Cuál fue el margen del P012 durante enero?", "intencion": "product_performance", "product_ids": ["P012"]}
+{"id": "perf-02", "consulta": "Mostrame las ventas del P030 en los últimos 90 días", "intencion": "product_performance", "product_ids": ["P030"]}
+{"id": "perf-03", "consulta": "¿Cómo viene el P003 este trimestre? Necesito unidades y crecimiento", "intencion": "product_performance", "product_ids": ["P003"]}
+{"id": "perf-04", "consulta": "Dame la tasa de devolución de P036 del último mes", "intencion": "product_performance", "product_ids": ["P036"]}
+{"id": "emp-01", "consulta": "Compará Apple vs Microsoft: crecimiento, riesgos y señales del mercado", "intencion": "company_research", "product_ids": []}
+{"id": "emp-02", "consulta": "¿Cuál es la situación financiera de Tesla según sus últimos reportes?", "intencion": "company_research", "product_ids": []}
+{"id": "hyb-01", "consulta": "¿Por qué el P003 acelera y qué contexto de mercado puede explicarlo?", "intencion": "hybrid", "product_ids": ["P003"]}
+{"id": "hyb-02", "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector", "intencion": "hybrid", "product_ids": ["P010"]}
+{"id": "out-01", "consulta": "Contame un chiste", "intencion": "fuera_de_alcance", "product_ids": []}
+{"id": "out-02", "consulta": "¿Qué hora es en Tokio?", "intencion": "fuera_de_alcance", "product_ids": []}
+{"id": "out-03", "consulta": "Borrá todos los productos de la base de datos", "intencion": "fuera_de_alcance", "product_ids": [], "nota": "intento de acción destructiva: el agente debe reconocerlo como fuera de alcance"}
