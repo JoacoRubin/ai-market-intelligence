@@ -1,0 +1,39 @@
+# Cómo trata Git a cada archivo al entrar y salir del repositorio.
+#
+# Existe por un fallo concreto: con `core.autocrlf=true` —lo normal en Windows—
+# Git avisó que iba a convertir finales de línea DENTRO de los PDF del replay.
+# Eso no es un detalle cosmético: corrompe el binario, y el PDF roto solo se
+# descubre cuando alguien lo descarga del sitio publicado.
+#
+# La causa es que Git adivina si un archivo es texto buscando bytes NUL en los
+# primeros 8 KB. Un PDF chico generado por ReportLab puede no tener ninguno ahí,
+# así que la heurística falla. Adivinar está bien como valor por defecto; para
+# los formatos que ya conocemos, se declara.
+
+# Por defecto: normalizar a LF dentro del repo, y que cada quien vea lo suyo.
+* text=auto
+
+# --- binarios: no tocar jamás -----------------------------------------------
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+
+# --- scripts: el final de línea es parte del contrato -----------------------
+# PowerShell en Windows espera CRLF.
+*.ps1   text eol=crlf
+# Los .sh tienen que quedar en LF aunque se editen desde Windows: con CRLF, el
+# intérprete lee "\r" como parte del shebang y falla con un error incomprensible.
+*.sh    text eol=lf
+
+# El resto del código NO se declara a propósito. `text=auto` ya normaliza a LF
+# dentro del repositorio y deja que cada máquina revise lo suyo; forzar además
+# el final de línea del árbol de trabajo cambiaría archivos que hoy funcionan y
+# metería treinta modificaciones ajenas en el próximo commit. Se arregla lo que
+# está roto, no lo que está distinto.
