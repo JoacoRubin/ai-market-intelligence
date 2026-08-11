@@ -31,6 +31,12 @@ $RAIZ = $PSScriptRoot
 $env:PYTHONIOENCODING = "utf-8"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# El modelo de embeddings se lee del cache local y no se consulta el Hub de
+# Hugging Face. Va acá y no en Python porque huggingface_hub lee esta variable
+# AL IMPORTARSE: setearla después no tiene efecto. La tarea rag-descargar la
+# apaga para poder bajar el modelo la primera vez.
+if (-not $env:HF_HUB_OFFLINE) { $env:HF_HUB_OFFLINE = "1" }
+
 if (-not (Test-Path $UV)) {
     Write-Host "No se encontró uv en $UV" -ForegroundColor Red
     Write-Host "Instalalo con: irm https://astral.sh/uv/install.ps1 | iex"
@@ -68,6 +74,7 @@ switch ($Tarea.ToLower()) {
         Write-Host "  demo       Demostración de los guardrails de seguridad"
         Write-Host "  replay     Captura las ejecuciones del replay estático (lento)"
         Write-Host "  replay-servir  Sirve el sitio del replay en localhost:8080"
+        Write-Host "  rag-descargar  Baja el modelo de embeddings (una vez por máquina)"
         Write-Host "  estado     Estado de todos los componentes"
         Write-Host ""
     }
@@ -162,6 +169,16 @@ switch ($Tarea.ToLower()) {
     "rag-build" {
         Titulo "Construyendo el indice documental (embeddings en CPU)"
         & $UV run python -m rag.build
+    }
+
+    "rag-descargar" {
+        Titulo "Descargando el modelo de embeddings (una sola vez por maquina)"
+        # La UNICA tarea que tiene permitido salir a la red. Todas las demas
+        # corren offline contra el cache.
+        $env:HF_HUB_OFFLINE = "0"
+        Write-Host "  Modelo: intfloat/multilingual-e5-small" -ForegroundColor Yellow
+        Write-Host ""
+        & $UV run python -c "from rag.indice import obtener_modelo; obtener_modelo(); print('  Modelo en cache local.')"
     }
 
     "replay" {

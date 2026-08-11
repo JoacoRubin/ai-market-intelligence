@@ -27,6 +27,7 @@ similitud coseno.
 from __future__ import annotations
 
 import json
+import os
 import pickle
 from dataclasses import dataclass
 from datetime import date
@@ -46,6 +47,45 @@ SOLAPAMIENTO = 150
 _modelo = None
 
 
+def _activar_modo_offline() -> None:
+    """Evita que la carga del modelo consulte el Hub de Hugging Face.
+
+    `sentence-transformers` le pega a la red para ver si el modelo cambió, y
+    recién después lee el cache local. Eso contradice el principio de correr sin
+    servicios de terceros, y sin conexión esa consulta puede colgarse antes de
+    caer al cache — justo en una demo con wifi malo, que es cuando importa.
+
+    Se usa `setdefault` y no una asignación: quien exporte `HF_HUB_OFFLINE=0`
+    está pidiendo descargar, y es la única salida que tiene una instalación
+    nueva para bajar el modelo la primera vez.
+
+    **Tiene que correr antes de que se importe `huggingface_hub`**: la librería
+    lee esta variable al importarse y la congela en una constante. Por eso se
+    invoca al importar este módulo y no dentro de `obtener_modelo()`. La garantía
+    fuerte igual la da `tasks.ps1`, que la exporta antes de arrancar Python.
+    """
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
+
+_activar_modo_offline()
+
+
+def _mensaje_sin_cache(error: Exception) -> str:
+    """Traduce un fallo de carga en modo offline a algo accionable.
+
+    En offline, un modelo ausente y un fallo de red se ven casi igual. Sin esta
+    traducción el mensaje habla de conexiones y de rutas de cache, y no dice lo
+    único que hace falta saber: que el modelo no está bajado todavía.
+    """
+    return (
+        f"No se pudo cargar '{MODELO_EMBEDDINGS}' desde el cache local y el modo "
+        f"offline está activo, así que no se intentó descargarlo.\n"
+        f"Si es la primera vez en esta máquina, bajalo una vez con "
+        f"'.\\tasks.ps1 rag-descargar' (o exportando HF_HUB_OFFLINE=0).\n"
+        f"Causa original: {type(error).__name__}: {error}"
+    )
+
+
 def obtener_modelo():
     """Carga perezosa y única del modelo.
 
@@ -59,7 +99,10 @@ def obtener_modelo():
         warnings.filterwarnings("ignore")
         from sentence_transformers import SentenceTransformer
 
-        _modelo = SentenceTransformer(MODELO_EMBEDDINGS, device="cpu")
+        try:
+            _modelo = SentenceTransformer(MODELO_EMBEDDINGS, device="cpu")
+        except Exception as e:
+            raise RuntimeError(_mensaje_sin_cache(e)) from e
     return _modelo
 
 
