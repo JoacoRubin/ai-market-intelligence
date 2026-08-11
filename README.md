@@ -227,6 +227,12 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-001](docs/adr/ADR-001-langgraph.md) | Por qué LangGraph y cuándo no usarlo |
 | [ADR-002](docs/adr/ADR-002-datos.md) | SQL Server relacional + FAISS para vectores |
 | [ADR-003](docs/adr/ADR-003-llm-local.md) | LLM local: elección de modelo con datos medidos |
+| [ADR-005](docs/adr/ADR-005-reglas-de-negocio-kpis.md) | Las reglas de negocio de los KPIs viven en SQL |
+| [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md) | Por qué el proyecto no se despliega en AWS |
+
+> **ADR-004 falta.** Está citado desde el ADR-002 y el ADR-005 como la decisión
+> de no delegar la generación de SQL al modelo, pero nunca se escribió. La
+> decisión está tomada y aplicada en el código; lo que falta es el documento.
 
 ---
 
