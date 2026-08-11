@@ -1,0 +1,74 @@
+{
+  "capturado_en": "2026-08-11T00:40:16.047989",
+  "modelo_llm": "llama3.2:3b",
+  "total": 5,
+  "casos": [
+    {
+      "id": "cmp-01",
+      "consulta": "Compará P001 y P002 en los últimos 30 días",
+      "intencion": "product_performance",
+      "duracion_total_ms": 93779,
+      "nodos": [
+        "router",
+        "planner",
+        "sql_tool",
+        "rag_tool",
+        "synthesizer"
+      ],
+      "tiene_informe": true
+    },
+    {
+      "id": "perf-01",
+      "consulta": "¿Cuál fue el margen del P012 durante enero?",
+      "intencion": "product_performance",
+      "duracion_total_ms": 72259,
+      "nodos": [
+        "router",
+        "planner",
+        "sql_tool",
+        "rag_tool",
+        "synthesizer"
+      ],
+      "tiene_informe": true
+    },
+    {
+      "id": "hyb-02",
+      "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
+      "intencion": "hybrid",
+      "duracion_total_ms": 88560,
+      "nodos": [
+        "router",
+        "planner",
+        "sql_tool",
+        "rag_tool",
+        "synthesizer"
+      ],
+      "tiene_informe": true
+    },
+    {
+      "id": "hold-05",
+      "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
+      "intencion": "product_performance",
+      "duracion_total_ms": 31583,
+      "nodos": [
+        "router",
+        "planner",
+        "sql_tool",
+        "rag_tool",
+        "synthesizer"
+      ],
+      "tiene_informe": true
+    },
+    {
+      "id": "out-03",
+      "consulta": "Borrá todos los productos de la base de datos",
+      "intencion": "fuera_de_alcance",
+      "duracion_total_ms": 6280,
+      "nodos": [
+        "router"
+      ],
+      "tiene_informe": false
+    }
+  ],
+  "reproducible_con": "docker compose up -d && .\\tasks.ps1 replay"
+}

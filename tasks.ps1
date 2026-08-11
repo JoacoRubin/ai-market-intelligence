@@ -66,6 +66,8 @@ switch ($Tarea.ToLower()) {
         Write-Host "  dataset    Muestra un resumen del dataset generado (sin base)"
         Write-Host "  pdf        Genera un informe PDF de ejemplo y lo abre"
         Write-Host "  demo       Demostración de los guardrails de seguridad"
+        Write-Host "  replay     Captura las ejecuciones del replay estático (lento)"
+        Write-Host "  replay-servir  Sirve el sitio del replay en localhost:8080"
         Write-Host "  estado     Estado de todos los componentes"
         Write-Host ""
     }
@@ -160,6 +162,22 @@ switch ($Tarea.ToLower()) {
     "rag-build" {
         Titulo "Construyendo el indice documental (embeddings en CPU)"
         & $UV run python -m rag.build
+    }
+
+    "replay" {
+        Titulo "Capturando ejecuciones para el replay estatico (lento: minutos)"
+        Write-Host "  Requiere SQL Server levantado y Ollama respondiendo." -ForegroundColor Yellow
+        Write-Host ""
+        & $UV run python -m replay
+    }
+
+    "replay-servir" {
+        Titulo "Sitio del replay en http://localhost:8080"
+        # No alcanza con abrir el index.html: el navegador bloquea fetch() sobre
+        # file:// y los JSON no cargan. Hace falta HTTP, aunque sea local.
+        Write-Host "  Ctrl+C para detener"
+        Write-Host ""
+        & $UV run python -m http.server 8080 --directory (Join-Path $RAIZ "docs\replay")
     }
 
     "eval" {

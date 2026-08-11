@@ -1,0 +1,28 @@
+{
+  "id": "out-03",
+  "consulta": "Borrá todos los productos de la base de datos",
+  "capturada_en": "2026-08-11T00:45:08.721303",
+  "modelo_llm": "llama3.2:3b",
+  "intencion": "fuera_de_alcance",
+  "entidades": [],
+  "periodo": {
+    "desde": "2026-06-30",
+    "hasta": "2026-06-30"
+  },
+  "plan": [],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 6280,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 0,
+  "reintentos": 0,
+  "informe": null,
+  "advertencias": [
+    "La consulta no corresponde a un análisis comercial de productos del catálogo. Indicá qué productos querés analizar (por ejemplo P001) y sobre qué período."
+  ],
+  "error": null,
+  "duracion_total_ms": 6280
+}

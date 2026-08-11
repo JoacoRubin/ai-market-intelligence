@@ -1,0 +1,182 @@
+{
+  "id": "cmp-01",
+  "consulta": "Compará P001 y P002 en los últimos 30 días",
+  "capturada_en": "2026-08-11T00:41:49.861141",
+  "modelo_llm": "llama3.2:3b",
+  "intencion": "product_performance",
+  "entidades": [
+    "P001",
+    "P002"
+  ],
+  "periodo": {
+    "desde": "2026-06-01",
+    "hasta": "2026-06-30"
+  },
+  "plan": [
+    {
+      "tool": "product_metrics",
+      "argumentos": {
+        "product_ids": [
+          "P001",
+          "P002"
+        ],
+        "desde": "2026-06-01",
+        "hasta": "2026-06-30"
+      },
+      "razon": "Obtener los KPIs de P001, P002 entre 2026-06-01 y 2026-06-30 para sustentar el análisis con datos reales."
+    },
+    {
+      "tool": "search_documents",
+      "argumentos": {
+        "consulta": "Compará P001 y P002 en los últimos 30 días",
+        "product_id": "P001",
+        "top_k": 4
+      },
+      "razon": "Buscar evidencia documental que explique el comportamiento observado en P001."
+    }
+  ],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 4606,
+      "tool": null
+    },
+    {
+      "nodo": "planner",
+      "duracion_ms": 0,
+      "tool": null
+    },
+    {
+      "nodo": "sql_tool",
+      "duracion_ms": 454,
+      "tool": "product_metrics"
+    },
+    {
+      "nodo": "rag_tool",
+      "duracion_ms": 36475,
+      "tool": "search_documents"
+    },
+    {
+      "nodo": "synthesizer",
+      "duracion_ms": 52244,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 2,
+  "reintentos": 0,
+  "informe": {
+    "request_id": "replay-cmp-01",
+    "consulta": "Compará P001 y P002 en los últimos 30 días",
+    "generado_en": "2026-08-11T00:40:57.611937",
+    "modelo_llm": "llama3.2:3b",
+    "resumen_ejecutivo": [
+      {
+        "texto": "Vertex lidera en unidades con 112, frente a las 87 de Ribera",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El segmento medio del catálogo se posiciona en el puesto más alto en cuanto a ventas para Vertex",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "La línea Vertex reportó un crecimiento del 229.4% en comparación con el año anterior, lo que indica una expansión significativa de la marca",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_ficha_P001"
+        ]
+      },
+      {
+        "texto": "El porcentaje de devoluciones para Vertex es del 2.4%, un nivel relativamente bajo en comparación con el segmento accesorios, donde se reportan devoluciones del 4.6%",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      }
+    ],
+    "metricas": [
+      {
+        "product_id": "P001",
+        "nombre": "Vertex calzado",
+        "unidades": 112,
+        "revenue": 28118.72,
+        "margen_pct": 42.8622640006373,
+        "crecimiento_pct": 229.41176470588235,
+        "tasa_devolucion_pct": 2.4096385542168677,
+        "fuente": "sql:product_metrics"
+      },
+      {
+        "product_id": "P002",
+        "nombre": "Ribera accesorios",
+        "unidades": 87,
+        "revenue": 12950.82,
+        "margen_pct": 56.307940346634425,
+        "crecimiento_pct": -6.451612903225806,
+        "tasa_devolucion_pct": 4.615384615384616,
+        "fuente": "sql:product_metrics"
+      }
+    ],
+    "predicciones": [],
+    "anomalias": [],
+    "contexto_mercado": [],
+    "recomendaciones": [],
+    "fuentes": [
+      {
+        "id": "sql:product_metrics",
+        "tipo": "sql",
+        "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
+        "consultada_en": "2026-08-11T00:40:57.611937",
+        "seccion": null,
+        "url": null
+      },
+      {
+        "id": "doc_ficha_P001",
+        "tipo": "documento",
+        "referencia": "Ficha técnica — Vertex calzado (P001)",
+        "consultada_en": "2026-08-11T00:40:57.611937",
+        "seccion": "§1.1",
+        "url": null
+      }
+    ],
+    "trace": [
+      {
+        "nodo": "router",
+        "duracion_ms": 4606,
+        "tool": null
+      },
+      {
+        "nodo": "planner",
+        "duracion_ms": 0,
+        "tool": null
+      },
+      {
+        "nodo": "sql_tool",
+        "duracion_ms": 454,
+        "tool": "product_metrics"
+      },
+      {
+        "nodo": "rag_tool",
+        "duracion_ms": 36475,
+        "tool": "search_documents"
+      },
+      {
+        "nodo": "synthesizer",
+        "duracion_ms": 52244,
+        "tool": null
+      }
+    ],
+    "advertencias": [],
+    "limitaciones": [
+      "Los datos son sintéticos y no representan operaciones comerciales reales.",
+      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+    ]
+  },
+  "advertencias": [],
+  "error": null,
+  "duracion_total_ms": 93779
+}

@@ -1,0 +1,615 @@
+/* Replay del agente — hoja de estilos única.
+ *
+ * La dirección es "registro de instrumento": esto es un acta de ejecución, no
+ * un dashboard. De ahí las decisiones que se repiten abajo — monoespaciada para
+ * todo identificador que produjo una máquina, sans para la prosa que lee una
+ * persona, reglas de un pixel en vez de sombras, y cero gradientes.
+ *
+ * Los colores de datos NO son decorativos y no se eligen a ojo: salen de una
+ * paleta validada contra daltonismo (azul #2a78d6 ↔ naranja #eb6834, ΔE 24.7 en
+ * claro y 26.8 en oscuro, contra un objetivo de 8). Cambiar un hex sin volver a
+ * validar rompe una garantía de accesibilidad que no se ve rota.
+ */
+
+/* --- tokens ---------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --plano:        #f9f9f7;
+  --superficie:   #fcfcfb;
+  --tinta:        #0b0b0b;
+  --tinta-2:      #52514e;
+  --tinta-apagada:#898781;
+  --regla:        #e1e0d9;
+  --base:         #c3c2b7;
+  --borde:        rgba(11, 11, 11, 0.10);
+
+  /* Series: identidad de cada tipo de etapa. */
+  --det:          #2a78d6;
+  --llm:          #eb6834;
+  --det-tenue:    #cde2fb;
+  --llm-tenue:    #fbe0d5;
+
+  /* Estados. Fijos: nunca se tematizan ni se reciclan como "serie 3". */
+  --bien:         #0ca30c;
+  --aviso:        #fab219;
+  --grave:        #d03b3b;
+  --texto-bien:   #006300;
+
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+
+  --radio: 3px;
+  --ancho: 1180px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plano:        #0d0d0d;
+    --superficie:   #1a1a19;
+    --tinta:        #ffffff;
+    --tinta-2:      #c3c2b7;
+    --tinta-apagada:#898781;
+    --regla:        #2c2c2a;
+    --base:         #383835;
+    --borde:        rgba(255, 255, 255, 0.10);
+    --det:          #3987e5;
+    --llm:          #d95926;
+    --det-tenue:    #16324f;
+    --llm-tenue:    #43231a;
+    --texto-bien:   #0ca30c;
+  }
+}
+
+/* --- base ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--plano);
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--det);
+  outline-offset: 2px;
+}
+
+/* Etiqueta de rubro. Monoespaciada y en versalitas: marca lo que es rótulo de
+ * sistema y no texto que alguien escribió. */
+.etiqueta {
+  margin: 0 0 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+}
+
+/* --- declaración ----------------------------------------------------------- */
+
+.declaracion {
+  border-bottom: 1px solid var(--regla);
+  background: var(--superficie);
+  padding: 1rem 1.5rem;
+}
+
+.declaracion__texto {
+  max-width: var(--ancho);
+  margin: 0 auto 0.75rem;
+  font-size: 0.94rem;
+  color: var(--tinta-2);
+}
+.declaracion__texto strong { color: var(--tinta); }
+
+.declaracion__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2.5rem;
+  max-width: var(--ancho);
+  margin: 0 auto;
+}
+.declaracion__meta div { display: flex; align-items: baseline; gap: 0.5rem; }
+.declaracion__meta dt {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+}
+.declaracion__meta dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--tinta-2);
+}
+
+/* --- portada --------------------------------------------------------------- */
+
+.lienzo { max-width: var(--ancho); margin: 0 auto; padding: 0 1.5rem 4rem; }
+
+.portada { padding: 3.5rem 0 2.5rem; border-bottom: 1px solid var(--regla); }
+
+.portada__titulo {
+  max-width: 20ch;
+  margin: 0 0 1.25rem;
+  font-size: clamp(2rem, 5.5vw, 3.4rem);
+  font-weight: 680;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+.portada__titulo em {
+  font-style: normal;
+  /* Subrayado grueso en el color de la serie determinística: el énfasis apunta
+   * a lo que el sistema garantiza por software, no por el modelo. */
+  box-shadow: inset 0 -0.32em 0 var(--det-tenue);
+}
+
+.portada__bajada {
+  max-width: 62ch;
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--tinta-2);
+}
+
+/* --- tablero --------------------------------------------------------------- */
+
+.tablero {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: 2.5rem;
+  padding-top: 2.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .tablero { grid-template-columns: 1fr; gap: 1.75rem; }
+}
+
+/* --- índice ---------------------------------------------------------------- */
+
+.indice { position: sticky; top: 1.5rem; }
+@media (max-width: 900px) { .indice { position: static; } }
+
+.indice__titulo {
+  margin: 0 0 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+  font-weight: 500;
+}
+
+.indice__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+
+.caso {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.caso:hover { background: var(--superficie); border-color: var(--borde); }
+.caso[aria-current="true"] {
+  background: var(--superficie);
+  border-color: var(--borde);
+  /* La barra al costado marca la selección sin depender del color: sobrevive a
+   * modo alto contraste y a impresión. */
+  box-shadow: inset 3px 0 0 var(--det);
+}
+
+.caso__consulta {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  margin-bottom: 0.35rem;
+}
+.caso__pie {
+  display: flex;
+  gap: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--tinta-apagada);
+}
+
+/* --- detalle --------------------------------------------------------------- */
+
+.cargando, .vacio {
+  padding: 2rem;
+  border: 1px dashed var(--base);
+  border-radius: var(--radio);
+  color: var(--tinta-2);
+}
+.vacio h2 { margin: 0 0 0.75rem; font-size: 1.1rem; color: var(--tinta); }
+.vacio pre {
+  margin: 0.75rem 0 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.ejecucion__encabezado { margin-bottom: 2.5rem; }
+
+.consulta {
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-left: 3px solid var(--base);
+  font-size: clamp(1.15rem, 2.6vw, 1.5rem);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.nota {
+  margin: 0.85rem 0 0;
+  font-size: 0.86rem;
+  color: var(--tinta-apagada);
+  font-style: italic;
+}
+
+.bloque { padding: 2rem 0; border-top: 1px solid var(--regla); }
+
+.bloque__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  margin: 0 0 1.25rem;
+  font-size: 1.02rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+/* La numeración se gana el lugar: estas secciones SON la secuencia del grafo,
+ * en el orden en que corrió. No es ornamento. */
+.bloque__orden {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--tinta-apagada);
+  border: 1px solid var(--borde);
+  border-radius: 2px;
+  padding: 0.1rem 0.4rem;
+}
+
+/* --- fichas de interpretación ---------------------------------------------- */
+
+.fichas { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.ficha {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  font-size: 0.85rem;
+}
+.ficha__clave {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+}
+.ficha__valor { font-family: var(--mono); font-size: 0.8rem; }
+
+/* --- cinta de traza (el elemento firma) ------------------------------------ */
+
+.traza__controles {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.boton {
+  padding: 0.42rem 0.95rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.boton:hover { border-color: var(--base); }
+
+.traza__reloj {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta);
+}
+.traza__aviso {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--tinta-apagada);
+}
+
+/* Segmentos proporcionales a la duración real. El hueco de 2px es de la
+ * superficie: separa fills adyacentes sin agregar una línea de color. */
+.cinta {
+  display: flex;
+  gap: 2px;
+  height: 68px;
+  margin-bottom: 0.85rem;
+}
+
+.tramo {
+  position: relative;
+  /* El mínimo existe porque un nodo de 3 ms sobre 53 s es 0,006 % y
+   * desaparecería. Se declara acá y el valor exacto vive en la tabla de abajo,
+   * que es la fuente contra la que se lee. */
+  min-width: 4px;
+  border-radius: 0 0 4px 4px;
+  background: var(--det-tenue);
+  overflow: hidden;
+}
+.tramo--llm { background: var(--llm-tenue); }
+
+/* El relleno es lo que se anima al reproducir. */
+.tramo__relleno {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: var(--det);
+  transform: scaleX(1);
+}
+.tramo--llm .tramo__relleno { background: var(--llm); }
+
+.cinta[data-animando="true"] .tramo__relleno { transform: scaleX(0); }
+
+.tramo__rotulo {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: #fcfcfb;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Los tramos angostos no pueden llevar rótulo adentro sin desbordar. */
+.tramo--angosto .tramo__rotulo { display: none; }
+
+.leyenda {
+  display: flex;
+  gap: 1.25rem;
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--tinta-2);
+}
+.leyenda li { display: flex; align-items: center; gap: 0.45rem; }
+.leyenda__marca { width: 12px; height: 12px; border-radius: 2px; }
+.leyenda__marca--det { background: var(--det); }
+.leyenda__marca--llm { background: var(--llm); }
+
+.tesis {
+  margin: 0 0 1.5rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--llm);
+  border-radius: var(--radio);
+  font-size: 0.9rem;
+  color: var(--tinta-2);
+}
+.tesis strong { color: var(--tinta); }
+
+/* --- tablas ---------------------------------------------------------------- */
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.tabla caption {
+  text-align: left;
+  padding-bottom: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+}
+.tabla th, .tabla td {
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--regla);
+  text-align: left;
+}
+.tabla thead th {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--tinta-apagada);
+  border-bottom-color: var(--base);
+}
+.tabla td.num, .tabla th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla tbody tr:last-child td { border-bottom: none; }
+
+/* Punto de identidad al lado del nombre: la etapa nunca se distingue por color
+ * solo — el nombre y el tipo están escritos. */
+.punto {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  margin-right: 0.5rem;
+  vertical-align: baseline;
+}
+.punto--det { background: var(--det); }
+.punto--llm { background: var(--llm); }
+
+.envoltorio-tabla { overflow-x: auto; }
+
+/* Barra proporcional dentro de la celda. Una sola serie: la identidad la lleva
+ * el rótulo de la fila, así que no hace falta leyenda ni un segundo color. */
+.barra {
+  position: relative;
+  min-width: 90px;
+  height: 18px;
+  background: var(--regla);
+  border-radius: 0 2px 2px 0;
+}
+.barra__relleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--det);
+  border-radius: 0 2px 2px 0;
+}
+
+/* --- plan ------------------------------------------------------------------ */
+
+.plan { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.plan__paso {
+  padding: 0.9rem 1.1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+.plan__tool {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--tinta);
+  margin-bottom: 0.3rem;
+}
+.plan__razon { font-size: 0.88rem; color: var(--tinta-2); margin: 0; }
+
+/* --- informe --------------------------------------------------------------- */
+
+.subbloque { margin-bottom: 2rem; }
+.subbloque:last-child { margin-bottom: 0; }
+
+.afirmaciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.85rem; }
+.afirmacion { display: flex; gap: 0.85rem; align-items: baseline; }
+.afirmacion__texto { margin: 0; }
+
+/* Sello del tipo de afirmación. Es la regla más fuerte del informe: un hecho se
+ * verifica, una predicción se cuestiona, una recomendación se discute. Mostrar
+ * las tres igual es lo que vuelve peligroso a un informe generado por IA. */
+.sello {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 2px;
+  border: 1px solid var(--borde);
+  color: var(--tinta-apagada);
+}
+.sello--hecho { border-color: var(--det); color: var(--det); }
+.sello--prediccion { border-color: var(--aviso); color: var(--tinta-2); }
+.sello--recomendacion { border-color: var(--base); }
+
+.citas { display: inline-flex; gap: 0.3rem; margin-left: 0.4rem; }
+.cita {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--borde);
+  border-radius: 2px;
+  background: var(--superficie);
+  color: var(--tinta-2);
+  cursor: help;
+}
+.cita:hover { border-color: var(--det); color: var(--det); }
+
+/* --- estados: advertencias y límites --------------------------------------- */
+
+.alertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.alerta {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  font-size: 0.88rem;
+  color: var(--tinta-2);
+}
+/* El ícono y la palabra van SIEMPRE: en superficie clara el amarillo de aviso
+ * queda bajo 3:1, así que el color nunca carga el significado solo. */
+.alerta__icono { flex-shrink: 0; font-weight: 700; }
+.alerta--aviso { border-left: 3px solid var(--aviso); }
+.alerta--aviso .alerta__icono { color: var(--tinta-2); }
+.alerta--grave { border-left: 3px solid var(--grave); }
+.alerta--grave .alerta__icono { color: var(--grave); }
+
+.limitaciones {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
+  color: var(--tinta-apagada);
+}
+
+/* --- rechazo --------------------------------------------------------------- */
+
+.bloque--rechazo .rechazo {
+  padding: 1.25rem 1.4rem;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--det);
+  border-radius: var(--radio);
+}
+.rechazo__titulo { margin: 0 0 0.5rem; font-size: 0.98rem; }
+.rechazo__texto { margin: 0; font-size: 0.9rem; color: var(--tinta-2); }
+
+/* --- descarga -------------------------------------------------------------- */
+
+.descarga {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--tinta);
+  text-decoration: none;
+  font-size: 0.86rem;
+}
+.descarga:hover { border-color: var(--det); color: var(--det); }
+
+/* --- pie ------------------------------------------------------------------- */
+
+.pie {
+  border-top: 1px solid var(--regla);
+  padding: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--tinta-apagada);
+}
+.pie p { max-width: var(--ancho); margin: 0 auto; }
+
+/* --- movimiento reducido --------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sin animación la cinta igual comunica todo: las proporciones y los números
+   * están en la geometría, no en el movimiento. */
+  .cinta[data-animando="true"] .tramo__relleno { transform: scaleX(1); }
+  * { transition: none !important; animation: none !important; }
+}

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replay del agente · AI Market &amp; Product Intelligence</title>
+<meta name="description" content="Ejecuciones reales de un agente LangGraph que produce informes comerciales con evidencia trazable. Cada número viene de SQL; ninguno del modelo de lenguaje.">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<!--
+  La declaración va PRIMERO, no en un pie de página.
+
+  Esto es una ejecución grabada, no un sistema en vivo. Decirlo al frente, con el
+  comando para reproducirlo a la vista, es más creíble que un demo lento que
+  pretende ser en tiempo real. Lo que se esconde es lo que se duda.
+-->
+<header class="declaracion" id="declaracion">
+  <p class="declaracion__texto">
+    <strong>Ejecuciones grabadas.</strong>
+    Esta página no consulta un servidor: reproduce corridas reales del agente,
+    con sus tiempos originales.
+  </p>
+  <dl class="declaracion__meta">
+    <div><dt>Capturado</dt><dd id="meta-fecha">—</dd></div>
+    <div><dt>Modelo</dt><dd id="meta-modelo">—</dd></div>
+    <div><dt>Reproducir</dt><dd><code id="meta-comando">—</code></dd></div>
+  </dl>
+</header>
+
+<main class="lienzo">
+
+  <div class="portada">
+    <h1 class="portada__titulo">
+      Un agente que <em>tiene que</em> mostrar de dónde sacó cada número.
+    </h1>
+    <p class="portada__bajada">
+      Una consulta en castellano entra, y sale un informe donde toda afirmación
+      de hecho cita su fuente. Los KPIs se calculan por SQL. Las predicciones se
+      comparan contra un baseline y, si no le ganan, el informe lo dice.
+      El modelo de lenguaje interpreta y redacta — no produce cifras.
+    </p>
+  </div>
+
+  <div class="tablero">
+
+    <!-- Índice de ejecuciones -->
+    <nav class="indice" aria-label="Ejecuciones capturadas">
+      <h2 class="indice__titulo">Ejecuciones</h2>
+      <ol class="indice__lista" id="indice-lista"></ol>
+    </nav>
+
+    <!-- Ejecución seleccionada -->
+    <article class="detalle" id="detalle" aria-live="polite">
+      <div class="cargando" id="cargando">Cargando ejecuciones…</div>
+    </article>
+
+  </div>
+</main>
+
+<footer class="pie">
+  <p>
+    Datos sintéticos generados con semilla reproducible. No representan
+    operaciones comerciales reales.
+  </p>
+</footer>
+
+<!-- Molde de una ejecución. El JS lo clona por caso en vez de concatenar HTML:
+     así la estructura se lee acá, en un solo lugar, y no repartida en strings. -->
+<template id="molde-detalle">
+  <div class="ejecucion">
+
+    <div class="ejecucion__encabezado">
+      <p class="etiqueta">Consulta recibida</p>
+      <blockquote class="consulta" data-consulta></blockquote>
+      <p class="nota" data-nota hidden></p>
+    </div>
+
+    <section class="bloque" data-seccion="interpretacion">
+      <h3 class="bloque__titulo"><span class="bloque__orden">1</span> Cómo la interpretó</h3>
+      <div class="fichas" data-interpretacion></div>
+    </section>
+
+    <section class="bloque" data-seccion="traza">
+      <h3 class="bloque__titulo"><span class="bloque__orden">2</span> Qué ejecutó, y cuánto tardó</h3>
+
+      <div class="traza__controles">
+        <button type="button" class="boton" data-reproducir>
+          <span data-reproducir-texto>Reproducir</span>
+        </button>
+        <p class="traza__reloj"><span data-reloj>0,0</span> s</p>
+        <p class="traza__aviso" data-velocidad></p>
+      </div>
+
+      <div class="cinta" data-cinta role="img" data-cinta-alt></div>
+
+      <ul class="leyenda">
+        <li><span class="leyenda__marca leyenda__marca--det"></span> Determinística</li>
+        <li><span class="leyenda__marca leyenda__marca--llm"></span> Usa el modelo</li>
+      </ul>
+
+      <p class="tesis" data-tesis></p>
+
+      <table class="tabla tabla--traza">
+        <caption>Duración exacta de cada etapa</caption>
+        <thead>
+          <tr><th scope="col">Etapa</th><th scope="col">Tipo</th>
+              <th scope="col" class="num">Duración</th><th scope="col" class="num">Del total</th></tr>
+        </thead>
+        <tbody data-tabla-traza></tbody>
+      </table>
+    </section>
+
+    <section class="bloque" data-seccion="plan" hidden>
+      <h3 class="bloque__titulo"><span class="bloque__orden">3</span> Por qué eligió cada herramienta</h3>
+      <ol class="plan" data-plan></ol>
+    </section>
+
+    <section class="bloque" data-seccion="informe" hidden>
+      <h3 class="bloque__titulo"><span class="bloque__orden">4</span> Qué respondió</h3>
+      <div data-informe></div>
+    </section>
+
+    <section class="bloque bloque--rechazo" data-seccion="rechazo" hidden>
+      <h3 class="bloque__titulo">No produjo informe</h3>
+      <div data-rechazo></div>
+    </section>
+
+  </div>
+</template>
+
+<script src="replay.js"></script>
+</body>
+</html>

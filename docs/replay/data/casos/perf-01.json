@@ -1,0 +1,175 @@
+{
+  "id": "perf-01",
+  "consulta": "¿Cuál fue el margen del P012 durante enero?",
+  "capturada_en": "2026-08-11T00:43:02.162922",
+  "modelo_llm": "llama3.2:3b",
+  "intencion": "product_performance",
+  "entidades": [
+    "P012"
+  ],
+  "periodo": {
+    "desde": "2026-05-31",
+    "hasta": "2026-06-30"
+  },
+  "plan": [
+    {
+      "tool": "product_metrics",
+      "argumentos": {
+        "product_ids": [
+          "P012"
+        ],
+        "desde": "2026-05-31",
+        "hasta": "2026-06-30"
+      },
+      "razon": "Obtener los KPIs de P012 entre 2026-05-31 y 2026-06-30 para sustentar el análisis con datos reales."
+    },
+    {
+      "tool": "search_documents",
+      "argumentos": {
+        "consulta": "¿Cuál fue el margen del P012 durante enero?",
+        "product_id": "P012",
+        "top_k": 4
+      },
+      "razon": "Buscar evidencia documental que explique el comportamiento observado en P012."
+    }
+  ],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 7109,
+      "tool": null
+    },
+    {
+      "nodo": "planner",
+      "duracion_ms": 0,
+      "tool": null
+    },
+    {
+      "nodo": "sql_tool",
+      "duracion_ms": 590,
+      "tool": "product_metrics"
+    },
+    {
+      "nodo": "rag_tool",
+      "duracion_ms": 46,
+      "tool": "search_documents"
+    },
+    {
+      "nodo": "synthesizer",
+      "duracion_ms": 64514,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 2,
+  "reintentos": 0,
+  "informe": {
+    "request_id": "replay-perf-01",
+    "consulta": "¿Cuál fue el margen del P012 durante enero?",
+    "generado_en": "2026-08-11T00:41:57.643059",
+    "modelo_llm": "llama3.2:3b",
+    "resumen_ejecutivo": [
+      {
+        "texto": "El lote L4990 presentó desvíos en el control de calidad de costuras y terminaciones, lo que explica el incremento de devoluciones",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_prov_010"
+        ]
+      },
+      {
+        "texto": "El margen de ganancia es del 28.3%, lo que indica una rentabilidad sólida",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El crecimiento del 130.8% se debe en parte al incremento de devoluciones debido a defectos no detectados en el control de calidad",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_prov_010"
+        ]
+      }
+    ],
+    "metricas": [
+      {
+        "product_id": "P012",
+        "nombre": "Lumen accesorios",
+        "unidades": 30,
+        "revenue": 8929.8,
+        "margen_pct": 28.25035275146139,
+        "crecimiento_pct": 130.76923076923075,
+        "tasa_devolucion_pct": 4.761904761904762,
+        "fuente": "sql:product_metrics"
+      }
+    ],
+    "predicciones": [],
+    "anomalias": [],
+    "contexto_mercado": [],
+    "recomendaciones": [],
+    "fuentes": [
+      {
+        "id": "sql:product_metrics",
+        "tipo": "sql",
+        "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
+        "consultada_en": "2026-08-11T00:41:57.643059",
+        "seccion": null,
+        "url": null
+      },
+      {
+        "id": "doc_prov_010",
+        "tipo": "documento",
+        "referencia": "Reporte de calidad de lote — P012",
+        "consultada_en": "2026-08-11T00:41:57.643059",
+        "seccion": "§1.1",
+        "url": null
+      },
+      {
+        "id": "doc_ficha_P012",
+        "tipo": "documento",
+        "referencia": "Ficha técnica — Lumen accesorios (P012)",
+        "consultada_en": "2026-08-11T00:41:57.643059",
+        "seccion": "§1.1",
+        "url": null
+      }
+    ],
+    "trace": [
+      {
+        "nodo": "router",
+        "duracion_ms": 7109,
+        "tool": null
+      },
+      {
+        "nodo": "planner",
+        "duracion_ms": 0,
+        "tool": null
+      },
+      {
+        "nodo": "sql_tool",
+        "duracion_ms": 590,
+        "tool": "product_metrics"
+      },
+      {
+        "nodo": "rag_tool",
+        "duracion_ms": 46,
+        "tool": "search_documents"
+      },
+      {
+        "nodo": "synthesizer",
+        "duracion_ms": 64514,
+        "tool": null
+      }
+    ],
+    "advertencias": [
+      "Se descartaron 1 afirmación que no superaron la validación: 'Alfa lidera en unidades con 30, frente a las 981 de Beta' — cifras sin respaldo en los datos: [981.0]"
+    ],
+    "limitaciones": [
+      "Los datos son sintéticos y no representan operaciones comerciales reales.",
+      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+    ]
+  },
+  "advertencias": [
+    "Se descartaron 1 afirmación que no superaron la validación: 'Alfa lidera en unidades con 30, frente a las 981 de Beta' — cifras sin respaldo en los datos: [981.0]"
+  ],
+  "error": null,
+  "duracion_total_ms": 72259
+}

@@ -1,0 +1,172 @@
+{
+  "id": "hold-05",
+  "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
+  "capturada_en": "2026-08-11T00:45:02.404889",
+  "modelo_llm": "llama3.2:3b",
+  "intencion": "product_performance",
+  "entidades": [
+    "P009",
+    "P044"
+  ],
+  "periodo": {
+    "desde": "2026-04-02",
+    "hasta": "2026-06-30"
+  },
+  "plan": [
+    {
+      "tool": "product_metrics",
+      "argumentos": {
+        "product_ids": [
+          "P009",
+          "P044"
+        ],
+        "desde": "2026-04-02",
+        "hasta": "2026-06-30"
+      },
+      "razon": "Obtener los KPIs de P009, P044 entre 2026-04-02 y 2026-06-30 para sustentar el análisis con datos reales."
+    },
+    {
+      "tool": "search_documents",
+      "argumentos": {
+        "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
+        "product_id": "P009",
+        "top_k": 4
+      },
+      "razon": "Buscar evidencia documental que explique el comportamiento observado en P009."
+    }
+  ],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 6393,
+      "tool": null
+    },
+    {
+      "nodo": "planner",
+      "duracion_ms": 0,
+      "tool": null
+    },
+    {
+      "nodo": "sql_tool",
+      "duracion_ms": 581,
+      "tool": "product_metrics"
+    },
+    {
+      "nodo": "rag_tool",
+      "duracion_ms": 56,
+      "tool": "search_documents"
+    },
+    {
+      "nodo": "synthesizer",
+      "duracion_ms": 24553,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 2,
+  "reintentos": 0,
+  "informe": {
+    "request_id": "replay-hold-05",
+    "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
+    "generado_en": "2026-08-11T00:44:37.846188",
+    "modelo_llm": "llama3.2:3b",
+    "resumen_ejecutivo": [
+      {
+        "texto": "Vertex lidera en ventas con $30,171.06",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El margen de beneficio es del 51.2%",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Hubo un crecimiento del 29.5% en comparación al período anterior",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Se devolvieron el 4.0% de las unidades vendidas",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      }
+    ],
+    "metricas": [
+      {
+        "product_id": "P009",
+        "nombre": "Vertex deportes",
+        "unidades": 558,
+        "revenue": 30171.06,
+        "margen_pct": 51.21139263917145,
+        "crecimiento_pct": 29.4663573085847,
+        "tasa_devolucion_pct": 4.040404040404041,
+        "fuente": "sql:product_metrics"
+      }
+    ],
+    "predicciones": [],
+    "anomalias": [],
+    "contexto_mercado": [],
+    "recomendaciones": [],
+    "fuentes": [
+      {
+        "id": "sql:product_metrics",
+        "tipo": "sql",
+        "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
+        "consultada_en": "2026-08-11T00:44:37.846188",
+        "seccion": null,
+        "url": null
+      }
+    ],
+    "trace": [
+      {
+        "nodo": "router",
+        "duracion_ms": 6393,
+        "tool": null
+      },
+      {
+        "nodo": "planner",
+        "duracion_ms": 0,
+        "tool": null
+      },
+      {
+        "nodo": "sql_tool",
+        "duracion_ms": 581,
+        "tool": "product_metrics"
+      },
+      {
+        "nodo": "rag_tool",
+        "duracion_ms": 56,
+        "tool": "search_documents"
+      },
+      {
+        "nodo": "synthesizer",
+        "duracion_ms": 24553,
+        "tool": null
+      }
+    ],
+    "advertencias": [
+      "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
+      "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
+      "El modelo citó un documento inexistente (doc_prov_001). La afirmación se conserva atribuida a los datos."
+    ],
+    "limitaciones": [
+      "Los datos son sintéticos y no representan operaciones comerciales reales.",
+      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+    ]
+  },
+  "advertencias": [
+    "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
+    "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
+    "El modelo citó un documento inexistente (doc_prov_001). La afirmación se conserva atribuida a los datos."
+  ],
+  "error": null,
+  "duracion_total_ms": 31583
+}

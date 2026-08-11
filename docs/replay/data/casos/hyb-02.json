@@ -1,0 +1,185 @@
+{
+  "id": "hyb-02",
+  "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
+  "capturada_en": "2026-08-11T00:44:30.775390",
+  "modelo_llm": "llama3.2:3b",
+  "intencion": "hybrid",
+  "entidades": [
+    "P010"
+  ],
+  "periodo": {
+    "desde": "2026-04-02",
+    "hasta": "2026-06-30"
+  },
+  "plan": [
+    {
+      "tool": "product_metrics",
+      "argumentos": {
+        "product_ids": [
+          "P010"
+        ],
+        "desde": "2026-04-02",
+        "hasta": "2026-06-30"
+      },
+      "razon": "Obtener los KPIs de P010 entre 2026-04-02 y 2026-06-30 para sustentar el análisis con datos reales."
+    },
+    {
+      "tool": "search_documents",
+      "argumentos": {
+        "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
+        "product_id": "P010",
+        "top_k": 4
+      },
+      "razon": "Buscar evidencia documental que explique el comportamiento observado en P010."
+    }
+  ],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 6450,
+      "tool": null
+    },
+    {
+      "nodo": "planner",
+      "duracion_ms": 0,
+      "tool": null
+    },
+    {
+      "nodo": "sql_tool",
+      "duracion_ms": 424,
+      "tool": "product_metrics"
+    },
+    {
+      "nodo": "rag_tool",
+      "duracion_ms": 55,
+      "tool": "search_documents"
+    },
+    {
+      "nodo": "synthesizer",
+      "duracion_ms": 81631,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 2,
+  "reintentos": 0,
+  "informe": {
+    "request_id": "replay-hyb-02",
+    "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
+    "generado_en": "2026-08-11T00:43:09.138751",
+    "modelo_llm": "llama3.2:3b",
+    "resumen_ejecutivo": [
+      {
+        "texto": "El artículo P010 experimentó una caída significativa en unidades vendidas durante un período de inavailability, lo que se debe a error en la proyección de reposición",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_stock_006"
+        ]
+      },
+      {
+        "texto": "La disponibilidad del artículo P010 se mantiene habitualmente en el canal principal, con una reposición semanal estándar",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El segmento de mercado al que pertenece el artículo P010 es el medio del catálogo, y comparte proveedor con la línea Sable",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_ficha_P010"
+        ]
+      },
+      {
+        "texto": "La pérdida de demanda del artículo P010 durante su inavailability se debió a que los pedidos no pudieron cursarse y una parte de la demanda se perdió frente a alternativas",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_stock_006"
+        ]
+      },
+      {
+        "texto": "El margen de ganancia del artículo P010 es del 32,7%",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      }
+    ],
+    "metricas": [
+      {
+        "product_id": "P010",
+        "nombre": "Sable calzado",
+        "unidades": 432,
+        "revenue": 65823.84,
+        "margen_pct": 32.74922885082365,
+        "crecimiento_pct": 41.63934426229508,
+        "tasa_devolucion_pct": 2.1671826625387,
+        "fuente": "sql:product_metrics"
+      }
+    ],
+    "predicciones": [],
+    "anomalias": [],
+    "contexto_mercado": [],
+    "recomendaciones": [],
+    "fuentes": [
+      {
+        "id": "sql:product_metrics",
+        "tipo": "sql",
+        "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
+        "consultada_en": "2026-08-11T00:43:09.138751",
+        "seccion": null,
+        "url": null
+      },
+      {
+        "id": "doc_stock_006",
+        "tipo": "documento",
+        "referencia": "Quiebre de stock — P010",
+        "consultada_en": "2026-08-11T00:43:09.138751",
+        "seccion": "§2.2",
+        "url": null
+      },
+      {
+        "id": "doc_ficha_P010",
+        "tipo": "documento",
+        "referencia": "Ficha técnica — Sable calzado (P010)",
+        "consultada_en": "2026-08-11T00:43:09.138751",
+        "seccion": "§1.1",
+        "url": null
+      }
+    ],
+    "trace": [
+      {
+        "nodo": "router",
+        "duracion_ms": 6450,
+        "tool": null
+      },
+      {
+        "nodo": "planner",
+        "duracion_ms": 0,
+        "tool": null
+      },
+      {
+        "nodo": "sql_tool",
+        "duracion_ms": 424,
+        "tool": "product_metrics"
+      },
+      {
+        "nodo": "rag_tool",
+        "duracion_ms": 55,
+        "tool": "search_documents"
+      },
+      {
+        "nodo": "synthesizer",
+        "duracion_ms": 81631,
+        "tool": null
+      }
+    ],
+    "advertencias": [],
+    "limitaciones": [
+      "Los datos son sintéticos y no representan operaciones comerciales reales.",
+      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+    ]
+  },
+  "advertencias": [],
+  "error": null,
+  "duracion_total_ms": 88560
+}
