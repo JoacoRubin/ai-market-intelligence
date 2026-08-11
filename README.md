@@ -7,7 +7,38 @@ un informe ejecutivo **con evidencia trazable**.
 > No es un chatbot. Es un analista asistido: el LLM planifica, selecciona
 > herramientas e interpreta. **Los números los calcula el software, no el modelo.**
 
-**Estado:** Fase 0 — Diseño. Spike de viabilidad completado.
+**Estado:** Fases 0 a 4 completas — diseño, datos, agente, RAG y ML. El sistema
+funciona de punta a punta: una consulta en castellano entra por `POST /analyses`,
+el grafo la interpreta, consulta SQL, recupera evidencia documental, proyecta con
+un modelo validado contra su baseline, redacta y valida — y sale un PDF
+descargable. **430 tests en verde.** Pendientes: fase 5 (evals y tracing), fase 6
+(jobs y CI) y fase 7 (portfolio).
+
+---
+
+## Ver el agente sin instalar nada
+
+El sitio de **[replay](docs/replay/)** reproduce ejecuciones reales del agente:
+la traza etapa por etapa con la duración verdadera de cada nodo, el criterio con
+que eligió cada herramienta, las citas documentales con su identificador, el
+forecast contra su baseline y el PDF descargable.
+
+> Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
+> todo con el comando para reproducirlas. Una corrida real tarda entre 70 y 95
+> segundos: nadie mira un spinner ese tiempo, y el replay muestra más que un demo
+> en vivo — la traza y el criterio quedan invisibles cuando solo ves el resultado.
+
+Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
+
+```powershell
+.\tasks.ps1 replay          # captura las ejecuciones (necesita base y Ollama)
+.\tasks.ps1 replay-servir   # http://localhost:8080
+```
+
+Entre las cinco ejecuciones publicadas hay una que conviene mirar primero:
+`"Borrá todos los productos de la base de datos"`. El agente corta en el router y
+no ejecuta nada. **Un sistema que sabe decir que no** es más difícil de construir
+que uno que siempre responde algo.
 
 ---
 
@@ -25,18 +56,28 @@ cruza cada número del informe contra los resultados de las tools.
 
 ## Arquitectura
 
+Lo que corre hoy:
+
 | Responsabilidad | Tecnología |
 |---|---|
-| UI y visualización | React + TypeScript + Vite |
 | API y contratos | FastAPI + Pydantic |
 | Orquestación del agente | LangGraph |
 | Datos internos | SQL Server 2025 Developer (T-SQL) |
 | Búsqueda vectorial | FAISS local |
 | LLM | Ollama local (`llama3.2:3b`) |
 | ML | scikit-learn |
-| Tracking y tracing | MLflow |
-| Packaging | Docker Compose |
-| CI | GitHub Actions |
+| Tracking de experimentos | MLflow |
+| Base de datos containerizada | Docker Compose |
+| Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
+
+Y lo que **todavía no está construido**, para que no haya confusión:
+
+| Responsabilidad | Tecnología prevista | Fase |
+|---|---|---|
+| UI y visualización | React + TypeScript + Vite | 7 |
+| Integración continua | GitHub Actions | 6 |
+| Jobs y caching | Redis + worker aparte | 6 |
+| Aplicación containerizada | Dockerfile propio | 6 |
 
 ### Flujo del agente
 
@@ -136,7 +177,12 @@ la herramienta nativa de la plataforma.
 .\tasks.ps1 pdf         # genera un informe PDF y lo abre
 .\tasks.ps1 api         # levanta la API en http://localhost:8000/docs
 .\tasks.ps1 db-shell    # consola sqlcmd contra la base
+.\tasks.ps1 replay-servir  # el sitio de replay en http://localhost:8080
 ```
+
+El modelo de embeddings se lee del cache local: todas las tareas corren con
+`HF_HUB_OFFLINE=1`. La única que sale a la red es `.\tasks.ps1 rag-descargar`,
+que baja el modelo una vez por máquina.
 
 ---
 
@@ -165,14 +211,17 @@ se descarga y se borra.
 
 ### Por qué 202 y no 201
 
-`POST /analyses` responde **202 Accepted**. Hoy el análisis es SQL puro y termina
-en milisegundos, así que un 201 con el resultado adentro funcionaría.
+`POST /analyses` responde **202 Accepted**. Cuando se fijó ese contrato el
+análisis era SQL puro y terminaba en milisegundos: un 201 con el resultado
+adentro habría funcionado perfectamente.
 
-Pero la síntesis con el LLM local tarda cerca de **dos minutos** en el hardware de
-referencia (ver [ADR-003](docs/adr/ADR-003-llm-local.md)). Dejar al cliente
-colgado ese tiempo es inaceptable, y cambiar el contrato después rompería a todos
-los consumidores. El recurso existe desde el instante cero; lo que cambia es su
-estado.
+Se eligió 202 igual, porque la síntesis con el LLM local iba a tardar minutos en
+el hardware de referencia (ver [ADR-003](docs/adr/ADR-003-llm-local.md)) y
+cambiar el contrato más tarde habría roto a todos los consumidores.
+
+Hoy el agente está conectado y una corrida real tarda **entre 70 y 95 segundos**
+—medido, no estimado—. La previsión dejó de ser previsión y el contrato no hubo
+que tocarlo. El recurso existe desde el instante cero; lo que cambia es su estado.
 
 ### El PDF es una representación, no otro recurso
 
