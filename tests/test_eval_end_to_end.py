@@ -26,6 +26,7 @@ Correr solo estos:   uv run pytest -m llm -v -s
 from __future__ import annotations
 
 import time
+from datetime import datetime
 
 import pytest
 
@@ -34,6 +35,7 @@ from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
 from eval.ground_truth import casos_de_evaluacion, consulta_para, leer_eventos
 from eval.metricas import Proporcion, evaluar, resumir
+from eval.registro import documento_de_corrida, guardar
 
 pytestmark = [pytest.mark.slow, pytest.mark.llm, pytest.mark.db]
 
@@ -150,6 +152,14 @@ def resumen(corridas) -> dict[str, Proporcion]:
               f"{f'{p.aplicables}/{p.total}':>8}   ({umbral:.0%})  "
               f"{'ok' if p.valor >= umbral else 'POR DEBAJO'}")
     print("-" * 78 + "\n")
+
+    # El registro va acá y no dentro de un test: los tests de umbral pueden
+    # fallar, y una corrida que falla es justamente la que hay que conservar.
+    archivo = guardar(documento_de_corrida(
+        corridas=corridas, proporciones=proporciones, umbrales=UMBRALES,
+        generado_en=datetime.now(),
+    ))
+    print(f"  corrida registrada en {archivo}\n")
 
     return proporciones
 
