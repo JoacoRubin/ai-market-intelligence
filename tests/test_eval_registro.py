@@ -148,6 +148,40 @@ def test_guarda_el_commit_y_si_el_arbol_estaba_limpio():
     assert isinstance(documento["arbol_limpio"], bool)
 
 
+def test_la_procedencia_se_puede_capturar_antes_de_la_corrida():
+    """El instrumento se ensuciaba a sí mismo.
+
+    La corrida del commit 60925fb se lanzó con el árbol commiteado y quedó
+    marcada `arbol_limpio: false`. La causa era el propio registro: al evaluar
+    la procedencia recién al GUARDAR, el archivo de salida ya estaba escrito y
+    ensuciaba el árbol que se estaba describiendo.
+
+    La procedencia describe **con qué código se midió**, así que se captura
+    cuando la corrida empieza, no cuando termina.
+    """
+    documento = _documento(
+        procedencia_inicial={"commit": "abc1234", "arbol_limpio": True})
+
+    assert documento["commit"] == "abc1234"
+    assert documento["arbol_limpio"] is True
+
+
+def test_sin_procedencia_explicita_se_captura_sola():
+    """No se rompe a quien la llame sin el dato."""
+    documento = _documento()
+
+    assert "commit" in documento and "arbol_limpio" in documento
+
+
+def test_procedencia_informa_el_commit_y_el_estado_del_arbol():
+    from eval.registro import procedencia
+
+    p = procedencia()
+
+    assert set(p) == {"commit", "arbol_limpio"}
+    assert isinstance(p["arbol_limpio"], bool)
+
+
 # --- persistencia -------------------------------------------------------------
 
 def test_guardar_escribe_un_json_legible_por_corrida(tmp_path):

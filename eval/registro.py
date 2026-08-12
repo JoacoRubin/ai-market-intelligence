@@ -31,8 +31,14 @@ from eval.metricas import EventoSembrado, Hallazgo, Proporcion
 CORRIDAS = Path(__file__).resolve().parent / "corridas"
 
 
-def _procedencia() -> dict[str, object]:
+def procedencia() -> dict[str, object]:
     """Contra qué código se midió.
+
+    **Se llama al EMPEZAR la corrida, no al guardarla.** Evaluarla al final
+    describe un árbol que la propia salida ya ensució: la corrida del commit
+    `60925fb` se lanzó con todo commiteado y quedó marcada `arbol_limpio:
+    false` porque el JSON del registro se había escrito un instante antes.
+    El instrumento se ensuciaba a sí mismo y después se declaraba irreproducible.
 
     `arbol_limpio=False` marca que la corrida se hizo sobre cambios sin
     commitear. El resultado sigue siendo válido, pero el commit registrado no
@@ -105,6 +111,7 @@ def documento_de_corrida(
     proporciones: dict[str, Proporcion],
     umbrales: dict[str, float],
     generado_en: datetime,
+    procedencia_inicial: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Arma el documento de una corrida, listo para `json.dumps` sin conversores.
 
@@ -117,7 +124,9 @@ def documento_de_corrida(
         # Comparar dos corridas de modelos distintos y llamarlo progreso es el
         # error que este campo previene.
         "modelo_llm": informes[0].modelo_llm if informes else None,
-        **_procedencia(),
+        # Capturada al arrancar la corrida cuando quien llama la pasa; si no,
+        # se toma acá y describe el árbol de este instante.
+        **(procedencia_inicial or procedencia()),
         "casos": [_caso(*c) for c in corridas],
         "metricas": [
             _metrica(nombre, proporciones.get(nombre), umbral)

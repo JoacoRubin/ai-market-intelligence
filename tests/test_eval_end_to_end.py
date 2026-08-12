@@ -35,7 +35,7 @@ from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
 from eval.ground_truth import casos_de_evaluacion, consulta_para, leer_eventos
 from eval.metricas import Proporcion, evaluar, resumir
-from eval.registro import documento_de_corrida, guardar
+from eval.registro import documento_de_corrida, guardar, procedencia
 
 pytestmark = [pytest.mark.slow, pytest.mark.llm, pytest.mark.db]
 
@@ -58,10 +58,17 @@ UMBRALES = {
 }
 
 # Cada caso invoca el grafo completo: entre 70 y 130 segundos en esta CPU, más el
-# primero, que carga los embeddings en frío. Con seis, la corrida ronda el cuarto
-# de hora, que es lo máximo que alguien vuelve a ejecutar sin postergarlo. Un
-# eval que nadie corre no mide nada.
-MAX_CASOS = 6
+# primero, que carga los embeddings en frío.
+#
+# Se pasó de 6 a 12 —todos los casos únicos que existen— después de medir con
+# seis y quedarse sin poder concluir. Con `usa_la_evidencia_documental` en 3 de
+# 6, la diferencia entre "el sistema falla la mitad de las veces" y "salió así"
+# no se distingue: el intervalo es demasiado ancho. Y las proporciones por tipo
+# de evento se apoyaban en 2 y 1 caso.
+#
+# El costo es media hora en vez de un cuarto. Es mucho, y sigue siendo menos que
+# volver a discutir si un 50% era real.
+MAX_CASOS = 12
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +80,17 @@ def cliente():
 
 
 @pytest.fixture(scope="module")
-def corridas(cliente) -> list[list]:
+def procedencia_inicial() -> dict:
+    """Con qué código se mide, capturado ANTES de la primera consulta.
+
+    Tomarla al final describiría un árbol que el propio archivo de registro ya
+    ensució, y la corrida quedaría marcada irreproducible por su propia salida.
+    """
+    return procedencia()
+
+
+@pytest.fixture(scope="module")
+def corridas(cliente, procedencia_inicial) -> list[list]:
     """Interroga al agente sobre cada evento sembrado, una sola vez.
 
     Sin `scope="module"` cada test volvería a correr el grafo y la evaluación
@@ -124,7 +141,7 @@ def _rotulo(cumple: bool | None) -> str:
 
 
 @pytest.fixture(scope="module")
-def resumen(corridas) -> dict[str, Proporcion]:
+def resumen(corridas, procedencia_inicial) -> dict[str, Proporcion]:
     logrados = [h for _, informe, h in corridas if informe is not None]
 
     print("\n" + "=" * 78)
@@ -157,7 +174,7 @@ def resumen(corridas) -> dict[str, Proporcion]:
     # fallar, y una corrida que falla es justamente la que hay que conservar.
     archivo = guardar(documento_de_corrida(
         corridas=corridas, proporciones=proporciones, umbrales=UMBRALES,
-        generado_en=datetime.now(),
+        generado_en=datetime.now(), procedencia_inicial=procedencia_inicial,
     ))
     print(f"  corrida registrada en {archivo}\n")
 
