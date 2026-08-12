@@ -1,4 +1,4 @@
-"""Tests del nodo ReportValidator.
+﻿"""Tests del nodo ReportValidator.
 
 Es el último nodo del grafo y el que decide si lo que el modelo escribió puede
 salir. Es determinístico: verificar números es aritmética, no comprensión.
@@ -35,12 +35,18 @@ def _metrica(pid="P001", **kw) -> MetricaProducto:
     return MetricaProducto(**base)
 
 
-def _informe(afirmaciones=None, metricas=None) -> Report:
+def _informe(afirmaciones=None, metricas=None, docs=()) -> Report:
+    """`docs` declara fuentes documentales: `Report` rechaza toda cita a una
+    fuente no declarada, así que citar un documento exige declararlo primero."""
     return Report(
         request_id="req-001", consulta="x", generado_en=datetime(2026, 8, 10, 12, 0),
         modelo_llm="llama3.2:3b",
-        fuentes=[Fuente(id=FUENTE_SQL, tipo="sql", referencia="dbo.order_items",
-                        consultada_en=datetime(2026, 8, 10, 11, 59))],
+        fuentes=[
+            Fuente(id=FUENTE_SQL, tipo="sql", referencia="dbo.order_items",
+                   consultada_en=datetime(2026, 8, 10, 11, 59)),
+            *[Fuente(id=d, tipo="documento", referencia=f"{d}.pdf",
+                     consultada_en=datetime(2026, 8, 10, 11, 59)) for d in docs],
+        ],
         resumen_ejecutivo=afirmaciones or [],
         metricas=metricas if metricas is not None else [_metrica()],
     )
@@ -86,6 +92,108 @@ def test_combina_referencias_y_magnitudes():
         "El P002 (ver doc_112 §3.2) devolvió 5,7% de las unidades"
     )
     assert numeros == {5.7}
+
+
+# --- La cifra que sostiene el porqué vive en el documento --------------------
+#
+# Medido el 2026-08-12: el sintetizador citaba `doc_promo_001` en 3 de 3
+# corridas de P016 y el eval end-to-end registraba ese caso como fallado. En el
+# medio estaba este nodo.
+#
+#   ANTES:   [doc_promo_001] La campaña de descuento del 30% ... explicó ...
+#   DESPUÉS: — eliminada —
+#
+# El 30 sale del documento y no de las métricas, así que el validador lo leía
+# como cifra inventada y borraba la afirmación. Con ella se iba la cita, y el
+# informe perdía la única frase que decía POR QUÉ.
+#
+# El control lo confirma por el otro lado: en P038 la conclusión citada decía
+# "11,7% de las unidades devueltas", que ES la tasa de devolución de las
+# métricas, y sobrevivía. Nunca fue el tipo de evento: es de dónde sale la cifra.
+#
+# Un documento recuperado es una fuente, y un número que figura textualmente en
+# un pasaje citado es rastreable. Que es todo lo que el proyecto le pide a un
+# número.
+
+FUENTE_DOC = "doc_promo_001"
+
+EVIDENCIA = [{
+    "doc_id": FUENTE_DOC,
+    "texto": "La acción combinó un descuento del 30% con pauta en redes. "
+             "La demanda diaria se multiplicó aproximadamente por 3.",
+}]
+
+
+def test_acepta_una_cifra_que_figura_en_el_documento_citado():
+    informe = _informe([
+        Afirmacion(texto="La campaña de descuento del 30% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_DOC])
+    ], docs=[FUENTE_DOC])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=EVIDENCIA)
+
+    assert resultado.afirmaciones_rechazadas == []
+    assert [a.texto for a in resultado.informe.resumen_ejecutivo] == [
+        "La campaña de descuento del 30% explica el salto"
+    ]
+
+
+def test_la_cita_es_lo_que_habilita_la_cifra():
+    """Sin cita no hay permiso. Si cualquier número del corpus quedara
+    disponible para cualquier afirmación, el guardrail se aflojaría de más: una
+    frase sin fuente podría tomar prestada una cifra que nunca miró."""
+    informe = _informe([
+        Afirmacion(texto="El descuento del 30% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_SQL])
+    ])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=EVIDENCIA)
+
+    assert resultado.informe.resumen_ejecutivo == []
+    assert "30" in resultado.afirmaciones_rechazadas[0]
+
+
+def test_citar_un_documento_no_habilita_las_cifras_de_otro():
+    """El permiso es por documento, no por informe."""
+    otro = [{"doc_id": "doc_prov_009", "texto": "Se detectaron desvíos en el 30% del lote."}]
+    informe = _informe([
+        Afirmacion(texto="La campaña de descuento del 30% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_DOC])
+    ], docs=[FUENTE_DOC])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=otro)
+
+    assert resultado.informe.resumen_ejecutivo == []
+
+
+def test_sin_evidencia_el_validador_se_comporta_igual_que_antes():
+    """La contraprueba: el permiso nuevo no debilita nada por sí solo."""
+    informe = _informe([
+        Afirmacion(texto="La campaña de descuento del 30% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_DOC])
+    ], docs=[FUENTE_DOC])
+
+    resultado = validar_informe(informe, {"product_metrics": {"P001": _metrica()}})
+
+    assert resultado.informe.resumen_ejecutivo == []
+
+
+def test_una_cifra_que_no_esta_ni_en_los_datos_ni_en_el_documento_se_rechaza():
+    """Lo que el nodo vino a atrapar sigue atrapado: el documento amplía las
+    fuentes legítimas, no las suspende."""
+    informe = _informe([
+        Afirmacion(texto="La campaña de descuento del 55% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_DOC])
+    ], docs=[FUENTE_DOC])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=EVIDENCIA)
+
+    assert resultado.informe.resumen_ejecutivo == []
+    assert "55" in resultado.afirmaciones_rechazadas[0]
 
 
 # --- Detección de números inventados ----------------------------------------

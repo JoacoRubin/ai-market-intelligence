@@ -71,7 +71,8 @@ def construir_grafo(
     def nodo_validator(estado: AnalysisState) -> AnalysisState:
         if estado.informe is None:
             return estado
-        resultado = validar_informe(estado.informe, estado.resultados_tools)
+        resultado = validar_informe(estado.informe, estado.resultados_tools,
+                                    estado.evidencia)
         estado.informe = resultado.informe
         estado.advertencias = list(estado.informe.advertencias)
         return estado

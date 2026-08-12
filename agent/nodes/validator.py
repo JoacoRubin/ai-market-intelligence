@@ -70,6 +70,34 @@ def _numeros_disponibles(resultados_tools: dict) -> set[float]:
     return disponibles
 
 
+def _numeros_del_documento(evidencia: list[dict], doc_ids: set[str]) -> set[float]:
+    """Cifras que figuran textualmente en los pasajes que la afirmación cita.
+
+    Un documento recuperado es una fuente, y este nodo no la estaba mirando:
+    `_numeros_disponibles` recorre solo `MetricaProducto`, así que toda cifra
+    tomada de un pasaje se leía como inventada.
+
+    Medido el 2026-08-12: el sintetizador citaba `doc_promo_001` en 3 de 3
+    corridas de P016 y el eval registraba ese caso como fallado. En el medio
+    estaba este nodo, borrando "La campaña de descuento del 30% ... explicó ..."
+    porque el 30 no salía de SQL. Con la afirmación se iba la cita, y el informe
+    perdía la única frase que decía POR QUÉ.
+
+    **El permiso es por documento citado, no por informe.** Habilitar cualquier
+    número del corpus para cualquier afirmación aflojaría el guardrail de más:
+    una frase sin fuente podría tomar prestada una cifra que nunca miró. Así, la
+    cita deja de ser decorativa y pasa a ser lo que autoriza el número.
+    """
+    numeros: set[float] = set()
+    for pasaje in evidencia:
+        if pasaje.get("doc_id") not in doc_ids:
+            continue
+        for valor in extraer_numeros_de_negocio(pasaje.get("texto", "")):
+            numeros.add(valor)
+            numeros.add(abs(valor))
+    return numeros
+
+
 def _esta_respaldado(valor: float, disponibles: set[float]) -> bool:
     for referencia in disponibles:
         if abs(valor - referencia) <= TOLERANCIA_ABSOLUTA:
@@ -88,7 +116,8 @@ class ResultadoValidacion:
 
 
 def _filtrar(
-    afirmaciones: list[Afirmacion], disponibles: set[float]
+    afirmaciones: list[Afirmacion], disponibles: set[float],
+    evidencia: list[dict] | None = None,
 ) -> tuple[list[Afirmacion], list[str], int, int]:
     """Aplica las dos verificaciones a cada afirmación.
 
@@ -107,7 +136,11 @@ def _filtrar(
             continue
 
         con_numeros += 1
-        inventados = [n for n in numeros if not _esta_respaldado(n, disponibles)]
+        # Los datos de las herramientas, más las cifras del documento que ESTA
+        # afirmación cita. La cita es lo que habilita el número.
+        permitidos = disponibles | _numeros_del_documento(
+            evidencia or [], set(a.fuentes))
+        inventados = [n for n in numeros if not _esta_respaldado(n, permitidos)]
         if inventados:
             rechazadas.append(
                 f"{a.texto!r} — cifras sin respaldo en los datos: "
@@ -126,7 +159,8 @@ def _filtrar(
     return aceptadas, rechazadas, con_numeros, respaldadas
 
 
-def validar_informe(informe: Report, resultados_tools: dict) -> ResultadoValidacion:
+def validar_informe(informe: Report, resultados_tools: dict,
+                    evidencia: list[dict] | None = None) -> ResultadoValidacion:
     """Verifica que cada cifra del informe provenga de una herramienta.
 
     Las afirmaciones que inventan números **se eliminan**, no se marcan.
@@ -154,9 +188,9 @@ def validar_informe(informe: Report, resultados_tools: dict) -> ResultadoValidac
         ]
 
     resumen, rech_resumen, con_num_r, ok_r = _filtrar(
-        informe.resumen_ejecutivo, disponibles)
+        informe.resumen_ejecutivo, disponibles, evidencia)
     contexto, rech_contexto, con_num_c, ok_c = _filtrar(
-        informe.contexto_mercado, disponibles)
+        informe.contexto_mercado, disponibles, evidencia)
 
     informe.resumen_ejecutivo = resumen
     informe.contexto_mercado = contexto
