@@ -57,28 +57,42 @@ REGLAS INNEGOCIABLES:
 2. NO calcules nada: si un número no está en los datos, no existe.
 3. Cada conclusión es una oración corta y afirmativa sobre lo que muestran los
    datos, no una recomendación de qué hacer.
-4. Escribí entre 2 y 5 conclusiones.
+4. Escribí entre 3 y 5 conclusiones. La regla 6 y la regla 7 se cumplen en
+   conclusiones DISTINTAS: una dice cuánto, otra dice por qué. No alcanza con
+   una sola que intente las dos cosas.
 5. Los porcentajes usan coma decimal (31,2%) y los miles, punto (1.243).
 
-6. Si el bloque incluye "Evidencia documental disponible", AL MENOS UNA de tus
+6. AL MENOS UNA conclusión tiene que decir las UNIDADES y el REVENUE tal como
+   figuran en los datos. Un porcentaje sin la cantidad de la que sale no se
+   puede verificar: "creció 18,4%" puede ser de 10 a 12 unidades o de 10.000 a
+   11.840, y son dos historias distintas.
+
+7. Si el bloque incluye "Evidencia documental disponible", AL MENOS UNA de tus
    conclusiones tiene que explicar POR QUÉ pasó lo que muestran los números,
    usando esa evidencia, y poner el identificador del documento en "fuente"
    (por ejemplo "doc_prov_009").
-7. Las conclusiones que salen de las métricas llevan "fuente" vacío.
-8. NUNCA inventes un identificador de documento: usá solo los que aparecen
-   entre corchetes en la evidencia.
+8. La regla 7 vale IGUAL cuando el número mejoró. Una suba de ventas también
+   tiene una causa, y suele estar en un documento de campaña o promoción.
+9. Las conclusiones que salen de las métricas llevan "fuente" vacío.
+10. NUNCA inventes un identificador de documento: usá solo los que aparecen
+    entre corchetes en la evidencia.
 
 Los números dicen QUÉ pasó. Los documentos dicen POR QUÉ. Un informe que solo
 repite métricas no es un análisis.
 
-Un ejemplo de conclusión correcta:
+Ejemplos de conclusiones correctas:
   {"texto": "Alfa lidera en unidades con 1.243, frente a las 981 de Beta", "fuente": ""}
+  {"texto": "Alfa facturó USD 87.010 con 1.243 unidades vendidas", "fuente": ""}
   {"texto": "El proveedor reportó defectos de costura en el lote", "fuente": "doc_prov_009"}
+  {"texto": "La campaña de descuento del 20% explica el salto de unidades",
+   "fuente": "doc_promo_004"}
 
 Ejemplos de conclusiones INCORRECTAS:
   "Alfa vendió aproximadamente 1.300 unidades"   (redondeó: inventó un número)
   "Habría que bajar el precio de Beta"           (es una recomendación)
   "Alfa creció un 20%"                           (si el dato dice 18,4%)
+  "Las ventas subieron 31,2% en el período"      (porcentaje sin la magnitud
+                                                  absoluta que lo respalda)
 """
 
 
