@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from eval.ground_truth import consulta_para
+from eval.ground_truth import casos_de_evaluacion, consulta_para
 from eval.metricas import EventoSembrado
 
 CAIDA = EventoSembrado(
@@ -82,6 +82,73 @@ def test_dos_eventos_distintos_producen_la_misma_pregunta():
     que cambia es lo que tiene que encontrar, no lo que se le cuenta.
     """
     assert consulta_para(CAIDA) == consulta_para(PICO)
+
+
+# --- selección de casos: la otra cara de la misma moneda ----------------------
+#
+# Que dos eventos produzcan la misma pregunta es la garantía de que el enunciado
+# no filtra la respuesta. Y es, exactamente por eso, lo que impide contarlos como
+# dos casos: el agente recibiría dos veces el mismo texto y el eval anotaría dos
+# resultados sobre una sola pregunta.
+#
+# La corrida del 2026-08-12 lo mostró. Los eventos 3 y 4 eran `pico_ventas` de
+# P033 el 09 y el 11 de junio: misma consulta, mismas magnitudes en el informe
+# (726 unidades, 83.039 de revenue) y resultados OPUESTOS en
+# `usa_la_evidencia_documental` — uno citó `doc_promo_005` y el otro no citó
+# nada. Se creyó estar midiendo seis consultas y eran cinco.
+
+MISMO_MES = EventoSembrado(
+    tipo="caida_ventas", product_id="P010", fecha=date(2026, 2, 27),
+    magnitud=-38.1, descripcion="Segunda caída del mismo mes",
+)
+
+OTRO_MES = EventoSembrado(
+    tipo="caida_ventas", product_id="P010", fecha=date(2026, 3, 2),
+    magnitud=-12.0, descripcion="Caída del mes siguiente",
+)
+
+
+def test_dos_eventos_del_mismo_producto_y_mes_son_un_solo_caso():
+    """Repetir la pregunta no agranda la muestra: infla el denominador.
+
+    Seis corridas sobre cinco preguntas no son seis observaciones. La repetida
+    pesa doble y la varianza del modelo entra al promedio disfrazada de
+    cobertura.
+    """
+    casos = casos_de_evaluacion([CAIDA, MISMO_MES])
+
+    assert len(casos) == 1
+    assert len({consulta_para(c) for c in casos}) == 1
+
+
+def test_cada_caso_produce_una_consulta_distinta():
+    """La invariante que define la función, y la que hay que poder afirmar
+    antes de dividir cualquier cosa por la cantidad de casos."""
+    casos = casos_de_evaluacion([CAIDA, MISMO_MES, OTRO_MES])
+
+    assert len({consulta_para(c) for c in casos}) == len(casos)
+
+
+def test_un_producto_y_mes_con_dos_anomalias_opuestas_se_descarta():
+    """Acá no alcanza con quedarse con uno: el oráculo sería ambiguo.
+
+    `CAIDA` y `PICO` comparten producto y mes con anomalías de distinto tipo.
+    Una sola pregunta no puede distinguirlas, así que cualquier veredicto sobre
+    ese caso mediría contra un evento elegido por el orden del `ORDER BY`. Se
+    descarta entero: un caso que no se puede juzgar no se juzga.
+    """
+    assert casos_de_evaluacion([CAIDA, PICO]) == []
+
+
+def test_el_orden_de_los_casos_es_estable():
+    """Mismo motivo que el `ORDER BY` de `leer_eventos`: dos corridas tienen que
+    recorrer los mismos casos en la misma secuencia."""
+    eventos = [OTRO_MES, CAIDA, MISMO_MES]
+
+    assert casos_de_evaluacion(eventos) == casos_de_evaluacion(eventos)
+    assert [c.fecha for c in casos_de_evaluacion(eventos)] == [
+        date(2026, 2, 14), date(2026, 3, 2),
+    ]
 
 
 def test_la_consulta_pide_explicar_lo_anomalo_sin_afirmar_que_lo_hay():

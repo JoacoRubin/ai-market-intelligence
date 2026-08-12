@@ -54,6 +54,41 @@ def leer_eventos(tipos: tuple[str, ...] = TIPOS) -> list[EventoSembrado]:
     ]
 
 
+def casos_de_evaluacion(eventos: list[EventoSembrado]) -> list[EventoSembrado]:
+    """Reduce los eventos a casos con una consulta distinta cada uno.
+
+    `consulta_para` redacta con producto y **mes**, así que dos eventos del
+    mismo producto y mes producen el mismo texto. Eso es deliberado —es lo que
+    impide que el enunciado filtre la respuesta— pero significa que no pueden
+    contarse como dos casos: el agente recibiría dos veces la misma pregunta y
+    el eval anotaría dos resultados sobre una sola observación.
+
+    La corrida del 2026-08-12 pagó ese precio. Los eventos 3 y 4 eran
+    `pico_ventas` de P033 el 09 y el 11 de junio: misma consulta, mismas
+    magnitudes en el informe, y resultados opuestos en
+    `usa_la_evidencia_documental`. Seis corridas sobre cinco preguntas, con la
+    repetida pesando doble.
+
+    **Un grupo con anomalías de distinto tipo se descarta entero.** Ahí no
+    alcanza con quedarse con una: la consulta no puede distinguirlas, y medir
+    contra la que el `ORDER BY` puso primero sería elegir el oráculo por
+    casualidad. Un caso que no se puede juzgar no se juzga.
+    """
+    grupos: dict[tuple[str, str], list[EventoSembrado]] = {}
+    for evento in eventos:
+        clave = (evento.product_id, evento.fecha.strftime("%Y-%m"))
+        grupos.setdefault(clave, []).append(evento)
+
+    casos = [
+        min(grupo, key=lambda e: (e.fecha, e.tipo))
+        for grupo in grupos.values()
+        if len({e.tipo for e in grupo}) == 1
+    ]
+    # El mismo motivo que el ORDER BY de `leer_eventos`: dos corridas tienen que
+    # recorrer los mismos casos en la misma secuencia.
+    return sorted(casos, key=lambda e: (e.fecha, e.product_id))
+
+
 def consulta_para(evento: EventoSembrado) -> str:
     """Redacta la consulta en castellano con la que se interroga al agente.
 

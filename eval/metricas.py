@@ -215,9 +215,19 @@ def _usa_la_evidencia_documental(informe: Report, _evento: EventoSembrado) -> Ha
     irrelevantes. Una métrica no debe pedir más de lo que el sistema debería
     hacer.
 
-    El sobrante lo mide `_no_declara_documentos_sin_usar`. Antes las dos
-    preguntas vivían en una sola métrica y su resultado era ambiguo: no se sabía
-    si el informe había ignorado la evidencia o si solo había declarado de más.
+    **Hubo una métrica hermana, `no_declara_documentos_sin_usar`, y se eliminó
+    el 2026-08-12.** Contaba como defecto todo documento declarado que ningún
+    texto citara, y con eso contradecía por escrito al párrafo de arriba: juntas
+    equivalían a "citalos todos". Dio 17% sobre un umbral de 75% y el detalle
+    mostró por qué. El caso P012 fallaba por no citar `doc_ficha_P012` —la ficha
+    del producto, que no explica ningún evento— y el resto, por no citar
+    documentos que el RAG había traído sin que vinieran al caso.
+
+    El defecto no estaba en el informe sino en la métrica: `Report.fuentes`
+    declara TODA la evidencia recuperada (`synthesizer._fuentes_documentales`),
+    porque la lista de fuentes es la biblioteca consultada y no la bibliografía
+    citada. Medir el sobrante contra esa lista es medir el recall del RAG y
+    llamarlo rigor del informe.
     """
     documentales = {f.id for f in informe.fuentes if f.tipo == "documento"}
     if not documentales:
@@ -229,26 +239,6 @@ def _usa_la_evidencia_documental(informe: Report, _evento: EventoSembrado) -> Ha
         "usa_la_evidencia_documental", bool(usados),
         f"citó {sorted(usados) or 'ningún documento'} "
         f"de {len(documentales)} disponible(s)",
-    )
-
-
-def _no_declara_documentos_sin_usar(informe: Report, _evento: EventoSembrado) -> Hallazgo:
-    """¿Declaró fuentes que después no usó? La otra mitad del defecto.
-
-    Un documento que figura en la lista de fuentes y que ningún texto cita es
-    decoración: engorda la sección de fuentes y no sostiene ninguna afirmación.
-    Es menos grave que ignorar la evidencia —por eso es una métrica aparte, con
-    su propio umbral— pero sigue siendo rigor aparente.
-    """
-    documentales = {f.id for f in informe.fuentes if f.tipo == "documento"}
-    if not documentales:
-        return Hallazgo("no_declara_documentos_sin_usar", None,
-                        "no se declaró evidencia documental: nada que sobrar")
-
-    sin_usar = documentales - _citadas(informe)
-    return Hallazgo(
-        "no_declara_documentos_sin_usar", not sin_usar,
-        f"documentos declarados y nunca citados: {sorted(sin_usar) or 'ninguno'}",
     )
 
 
@@ -284,7 +274,6 @@ _METRICAS = (
     _atribuye_al_producto_correcto,
     _reporta_magnitudes_absolutas,
     _usa_la_evidencia_documental,
-    _no_declara_documentos_sin_usar,
     _no_invierte_el_sentido_del_error,
 )
 

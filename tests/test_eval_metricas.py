@@ -221,45 +221,36 @@ def test_sin_evidencia_documental_recuperada_la_metrica_no_aplica():
     assert _por_nombre(informe)["usa_la_evidencia_documental"] is None
 
 
-# --- 4 bis. fuentes declaradas y nunca usadas ---------------------------------
+# --- 4 bis. citar un documento no obliga a citarlos todos ---------------------
 
-def test_detecta_un_documento_declarado_que_ninguna_afirmacion_cita():
-    """La otra mitad de lo que antes era una sola métrica.
+def test_citar_uno_alcanza_aunque_queden_documentos_declarados_sin_citar():
+    """El reemplazo de `no_declara_documentos_sin_usar`, eliminada el 2026-08-12.
 
-    Un documento que aparece en la lista de fuentes y que ningún texto usa es
-    decoración: engorda la sección de fuentes y no sostiene nada. Es el caso
-    P016 de la corrida real, donde `doc_promo_001` quedó declarado y suelto.
+    Aquella métrica contaba como defecto cada documento declarado que ningún
+    texto citara, y así contradecía a esta: juntas exigían citarlos todos. Dio
+    17% sobre un umbral de 75% castigando informes por no citar, entre otros,
+    la ficha del producto — que no explica ningún evento.
+
+    `Report.fuentes` es la biblioteca consultada, no la bibliografía citada. Que
+    sobre un documento irrelevante no es rigor aparente: es el RAG haciendo su
+    trabajo y el sintetizador eligiendo bien.
     """
-    otro_doc = Fuente(id="doc-999", tipo="documento", referencia="ruido.pdf",
-                      consultada_en=AHORA)
+    ruido = Fuente(id="doc-999", tipo="documento", referencia="ficha-producto.pdf",
+                   consultada_en=AHORA)
     informe = _informe(
-        fuentes=[FUENTE_SQL, FUENTE_DOC, otro_doc],
+        fuentes=[FUENTE_SQL, FUENTE_DOC, ruido],
         resumen_ejecutivo=[Afirmacion(
             texto="P010 vendió 1.243 unidades por USD 87.010 con un error de 8,3%.",
             tipo="hecho", fuentes=["sql-kpis", "doc-112"])],
     )
 
-    hallazgos = _por_nombre(informe)
-
-    # Citó uno: usó la evidencia. Dejó otro colgado: declaró de más.
-    assert hallazgos["usa_la_evidencia_documental"] is True
-    assert hallazgos["no_declara_documentos_sin_usar"] is False
+    assert _por_nombre(informe)["usa_la_evidencia_documental"] is True
 
 
-def test_cuando_todos_los_documentos_declarados_se_citan_no_hay_sobrante():
-    assert _por_nombre(_informe())["no_declara_documentos_sin_usar"] is True
-
-
-def test_sin_documentos_declarados_la_metrica_del_sobrante_no_aplica():
-    informe = _informe(
-        fuentes=[FUENTE_SQL],
-        resumen_ejecutivo=[Afirmacion(
-            texto="P010 vendió 1.243 unidades por USD 87.010.",
-            tipo="hecho", fuentes=["sql-kpis"])],
-        recomendaciones=[],
-    )
-
-    assert _por_nombre(informe)["no_declara_documentos_sin_usar"] is None
+def test_la_metrica_del_sobrante_ya_no_se_reporta():
+    """Una métrica eliminada no puede reaparecer en el resumen: si volviera,
+    volvería con su umbral y con el 17% que no medía lo que decía medir."""
+    assert "no_declara_documentos_sin_usar" not in _por_nombre(_informe())
 
 
 # --- 5. inversión del significado de una métrica ------------------------------

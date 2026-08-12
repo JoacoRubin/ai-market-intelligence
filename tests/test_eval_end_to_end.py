@@ -32,30 +32,33 @@ import pytest
 from agent.graph import analizar
 from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
-from eval.ground_truth import consulta_para, leer_eventos
+from eval.ground_truth import casos_de_evaluacion, consulta_para, leer_eventos
 from eval.metricas import Proporcion, evaluar, resumir
 
 pytestmark = [pytest.mark.slow, pytest.mark.llm, pytest.mark.db]
 
 # Fijados ANTES de medir. No se tocan para que un resultado "casi" pase.
 #
-# `usa_la_evidencia_documental` y `no_declara_documentos_sin_usar` nacieron de
-# partir en dos una métrica que preguntaba dos cosas a la vez. Sus umbrales salen
-# de qué tan grave es cada una: ignorar la evidencia desobedece una instrucción
-# explícita del prompt (regla 7), mientras que declarar un documento de más es
-# ruido en la lista de fuentes. No se eligieron mirando el resultado anterior.
+# El umbral de `usa_la_evidencia_documental` sale de que ignorar la evidencia
+# desobedece una instrucción explícita del prompt (regla 7). No se eligió mirando
+# ningún resultado.
+#
+# Hubo un sexto umbral, `no_declara_documentos_sin_usar` en 0.75, retirado el
+# 2026-08-12 junto con su métrica. No se bajó para que pasara: se eliminó porque
+# medía el recall del RAG creyendo medir el rigor del informe. El motivo largo
+# está en la docstring de `_usa_la_evidencia_documental`.
 UMBRALES = {
     "analiza_el_producto_del_evento": 0.80,
     "atribuye_al_producto_correcto": 0.90,
     "reporta_magnitudes_absolutas": 0.75,
     "usa_la_evidencia_documental": 0.90,
-    "no_declara_documentos_sin_usar": 0.75,
     "no_invierte_el_sentido_del_error": 0.90,
 }
 
-# Cada caso invoca el grafo completo: entre 70 y 95 segundos en esta CPU. Con
-# seis, la corrida ronda los diez minutos, que es lo máximo que alguien vuelve a
-# ejecutar sin postergarlo. Un eval que nadie corre no mide nada.
+# Cada caso invoca el grafo completo: entre 70 y 130 segundos en esta CPU, más el
+# primero, que carga los embeddings en frío. Con seis, la corrida ronda el cuarto
+# de hora, que es lo máximo que alguien vuelve a ejecutar sin postergarlo. Un
+# eval que nadie corre no mide nada.
 MAX_CASOS = 6
 
 
@@ -77,7 +80,11 @@ def corridas(cliente) -> list[list]:
     if not hay_base_disponible():
         pytest.skip("SQL Server no responde: levantalo con `.\\tasks.ps1 db-up`")
 
-    eventos = leer_eventos()[:MAX_CASOS]
+    # Deduplicar ANTES de cortar por MAX_CASOS, no después: los eventos 3 y 4 de
+    # la corrida del 2026-08-12 eran la misma consulta y ocuparon dos de los seis
+    # lugares. Cortar primero deja el duplicado adentro y a un caso distinto
+    # afuera.
+    eventos = casos_de_evaluacion(leer_eventos())[:MAX_CASOS]
     if not eventos:
         pytest.skip("no hay eventos sembrados: corré `.\\tasks.ps1 seed`")
 
