@@ -20,6 +20,7 @@ descartan los que quedan muy por debajo del mejor.
 from __future__ import annotations
 
 import time
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -36,6 +37,23 @@ MAX_TOP_K = 8
 # aporta ruido, no contexto. Es relativo al mejor y no absoluto justamente
 # porque la escala de e5 está comprimida.
 CAIDA_MAXIMA = 0.06
+
+# Cuánto después del período se sigue aceptando un documento.
+#
+# Un incidente se documenta después de ocurrir: el parte de calidad, el cierre
+# de campaña y el reporte de quiebre se escriben cuando ya pasó lo que narran.
+# Sin este margen, un evento de los últimos días del mes pierde su explicación
+# por haber ocurrido cerca del borde del calendario.
+#
+# El caso que lo destapó: el evento de P010 es del 2025-06-25 y `doc_stock_006`,
+# el reporte que lo explica, está fechado el 2025-07-01. `hasta = 2025-06-30` lo
+# excluía por un día, y el informe salía sin la única evidencia que decía por qué.
+#
+# Treinta días y no siete: el margen tiene que cubrir el ancho del período, no
+# solo la demora del reporte. Un evento del día 30 documentado a la semana cae
+# recién en el mes siguiente. Más allá de eso el documento ya no explica el
+# período: lo recuerda.
+VENTANA_DE_REPORTE = timedelta(days=30)
 
 
 class EntradaSearchDocuments(BaseModel):
@@ -114,9 +132,12 @@ def ejecutar_search_documents(
         product_id=entrada.product_id,
         # No se filtra por `desde`: un documento anterior al período puede
         # explicarlo igual (una política vigente, un lote despachado antes).
-        # Sí se excluye lo posterior: nada fechado después puede haber causado
-        # lo que pasó antes.
-        hasta=periodo.hasta if periodo else None,
+        #
+        # Lo posterior se sigue excluyendo, pero con `VENTANA_DE_REPORTE` de
+        # gracia. Decir "nada fechado después puede haber causado lo que pasó
+        # antes" confunde la causa con el REPORTE de la causa: el documento no
+        # produce el evento, lo narra — y se escribe después, siempre.
+        hasta=periodo.hasta + VENTANA_DE_REPORTE if periodo else None,
     )
     relevantes = _filtrar_por_relevancia(resultados)
 
