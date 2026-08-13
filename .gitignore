@@ -15,6 +15,11 @@ venv/
 # Nada de esto va al repo, y menos aún debería sincronizarse a la nube.
 mlruns/
 mlartifacts/
+# El backend de MLflow pasó de filesystem a SQLite (ver ml/forecast.py) y el
+# ignore se quedó en el nombre viejo: data/mlflow.db estuvo versionada sin
+# quererlo. Es un binario de ~1 MB que cambia en CADA forecast, y este repo vive
+# dentro de OneDrive.
+data/mlflow.db
 data/raw/
 data/public/cache/
 *.faiss
