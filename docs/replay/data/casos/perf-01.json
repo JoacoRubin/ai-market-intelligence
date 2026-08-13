@@ -1,7 +1,7 @@
 {
   "id": "perf-01",
   "consulta": "¿Cuál fue el margen del P012 durante enero?",
-  "capturada_en": "2026-08-11T00:43:02.162922",
+  "capturada_en": "2026-08-13T01:30:31.900220",
   "modelo_llm": "llama3.2:3b",
   "intencion": "product_performance",
   "entidades": [
@@ -36,7 +36,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 7109,
+      "duracion_ms": 9437,
       "tool": null
     },
     {
@@ -46,17 +46,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 590,
+      "duracion_ms": 623,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 46,
+      "duracion_ms": 245,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 64514,
+      "duracion_ms": 97270,
       "tool": null
     }
   ],
@@ -65,28 +65,21 @@
   "informe": {
     "request_id": "replay-perf-01",
     "consulta": "¿Cuál fue el margen del P012 durante enero?",
-    "generado_en": "2026-08-11T00:41:57.643059",
+    "generado_en": "2026-08-13T01:28:54.617431",
     "modelo_llm": "llama3.2:3b",
     "resumen_ejecutivo": [
       {
-        "texto": "El lote L4990 presentó desvíos en el control de calidad de costuras y terminaciones, lo que explica el incremento de devoluciones",
+        "texto": "El proveedor reportó defectos de costura en el lote L4990",
         "tipo": "hecho",
         "fuentes": [
           "doc_prov_010"
         ]
       },
       {
-        "texto": "El margen de ganancia es del 28.3%, lo que indica una rentabilidad sólida",
+        "texto": "El margen de ganancia es del 28,3%, lo que indica una rentabilidad sólida en la venta de accesorios Lumen",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
-        ]
-      },
-      {
-        "texto": "El crecimiento del 130.8% se debe en parte al incremento de devoluciones debido a defectos no detectados en el control de calidad",
-        "tipo": "hecho",
-        "fuentes": [
-          "doc_prov_010"
         ]
       }
     ],
@@ -111,7 +104,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-11T00:41:57.643059",
+        "consultada_en": "2026-08-13T01:28:54.617431",
         "seccion": null,
         "url": null
       },
@@ -119,7 +112,7 @@
         "id": "doc_prov_010",
         "tipo": "documento",
         "referencia": "Reporte de calidad de lote — P012",
-        "consultada_en": "2026-08-11T00:41:57.643059",
+        "consultada_en": "2026-08-13T01:28:54.617431",
         "seccion": "§1.1",
         "url": null
       },
@@ -127,7 +120,7 @@
         "id": "doc_ficha_P012",
         "tipo": "documento",
         "referencia": "Ficha técnica — Lumen accesorios (P012)",
-        "consultada_en": "2026-08-11T00:41:57.643059",
+        "consultada_en": "2026-08-13T01:28:54.617431",
         "seccion": "§1.1",
         "url": null
       }
@@ -135,7 +128,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 7109,
+        "duracion_ms": 9437,
         "tool": null
       },
       {
@@ -145,22 +138,22 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 590,
+        "duracion_ms": 623,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 46,
+        "duracion_ms": 245,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 64514,
+        "duracion_ms": 97270,
         "tool": null
       }
     ],
     "advertencias": [
-      "Se descartaron 1 afirmación que no superaron la validación: 'Alfa lidera en unidades con 30, frente a las 981 de Beta' — cifras sin respaldo en los datos: [981.0]"
+      "Se descartaron 2 afirmaciones que no superaron la validación: 'Alfa vendió USD 8.292,80 con 30 unidades vendidas' — cifras sin respaldo en los datos: [8292.8]; 'La campaña de descuento del 20% no se menciona como causa del crecimiento de unidades' — cifras sin respaldo en los datos: [20.0]"
     ],
     "limitaciones": [
       "Los datos son sintéticos y no representan operaciones comerciales reales.",
@@ -168,8 +161,8 @@
     ]
   },
   "advertencias": [
-    "Se descartaron 1 afirmación que no superaron la validación: 'Alfa lidera en unidades con 30, frente a las 981 de Beta' — cifras sin respaldo en los datos: [981.0]"
+    "Se descartaron 2 afirmaciones que no superaron la validación: 'Alfa vendió USD 8.292,80 con 30 unidades vendidas' — cifras sin respaldo en los datos: [8292.8]; 'La campaña de descuento del 20% no se menciona como causa del crecimiento de unidades' — cifras sin respaldo en los datos: [20.0]"
   ],
   "error": null,
-  "duracion_total_ms": 72259
+  "duracion_total_ms": 107575
 }

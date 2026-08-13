@@ -1,7 +1,7 @@
 {
   "id": "hold-05",
   "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-  "capturada_en": "2026-08-11T00:45:02.404889",
+  "capturada_en": "2026-08-13T01:35:01.749381",
   "modelo_llm": "llama3.2:3b",
   "intencion": "product_performance",
   "entidades": [
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 6393,
+      "duracion_ms": 16347,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 581,
+      "duracion_ms": 1364,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 56,
+      "duracion_ms": 165,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 24553,
+      "duracion_ms": 48911,
       "tool": null
     }
   ],
@@ -67,32 +67,18 @@
   "informe": {
     "request_id": "replay-hold-05",
     "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-    "generado_en": "2026-08-11T00:44:37.846188",
+    "generado_en": "2026-08-13T01:34:12.826785",
     "modelo_llm": "llama3.2:3b",
     "resumen_ejecutivo": [
       {
-        "texto": "Vertex lidera en ventas con $30,171.06",
+        "texto": "Vertex deportes reportó USD 30.171,06 en ventas con 558 unidades vendidas",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
         ]
       },
       {
-        "texto": "El margen de beneficio es del 51.2%",
-        "tipo": "hecho",
-        "fuentes": [
-          "sql:product_metrics"
-        ]
-      },
-      {
-        "texto": "Hubo un crecimiento del 29.5% en comparación al período anterior",
-        "tipo": "hecho",
-        "fuentes": [
-          "sql:product_metrics"
-        ]
-      },
-      {
-        "texto": "Se devolvieron el 4.0% de las unidades vendidas",
+        "texto": "La devolución de 4.0% afectó negativamente las ganancias del producto",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
@@ -120,7 +106,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-11T00:44:37.846188",
+        "consultada_en": "2026-08-13T01:34:12.826785",
         "seccion": null,
         "url": null
       }
@@ -128,7 +114,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 6393,
+        "duracion_ms": 16347,
         "tool": null
       },
       {
@@ -138,24 +124,25 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 581,
+        "duracion_ms": 1364,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 56,
+        "duracion_ms": 165,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 24553,
+        "duracion_ms": 48911,
         "tool": null
       }
     ],
     "advertencias": [
       "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
       "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
-      "El modelo citó un documento inexistente (doc_prov_001). La afirmación se conserva atribuida a los datos."
+      "El modelo citó un documento inexistente (doc_promo_XXX). La afirmación se conserva atribuida a los datos.",
+      "Se descartaron 1 afirmación que no superaron la validación: 'El crecimiento del 29,5% se explica por la campaña de promoción que ofreció descuentos del 20%' — cifras sin respaldo en los datos: [20.0]"
     ],
     "limitaciones": [
       "Los datos son sintéticos y no representan operaciones comerciales reales.",
@@ -165,8 +152,9 @@
   "advertencias": [
     "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
     "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
-    "El modelo citó un documento inexistente (doc_prov_001). La afirmación se conserva atribuida a los datos."
+    "El modelo citó un documento inexistente (doc_promo_XXX). La afirmación se conserva atribuida a los datos.",
+    "Se descartaron 1 afirmación que no superaron la validación: 'El crecimiento del 29,5% se explica por la campaña de promoción que ofreció descuentos del 20%' — cifras sin respaldo en los datos: [20.0]"
   ],
   "error": null,
-  "duracion_total_ms": 31583
+  "duracion_total_ms": 66787
 }
