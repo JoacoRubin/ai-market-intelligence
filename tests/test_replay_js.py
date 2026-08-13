@@ -172,3 +172,35 @@ def test_renderiza_todos_los_casos_incluido_el_que_no_tiene_informe(sitio):
     resultado = _correr(sitio)
 
     assert resultado["casos_renderizados"] == ["cmp-01", "out-03"]
+
+
+# --- el sitio que se publica de verdad ----------------------------------------
+
+@sin_node
+def test_el_sitio_publicado_renderiza_las_capturas_del_repo():
+    """Los tests de arriba arman un sitio sintético en un directorio temporal.
+
+    Eso alcanza para validar el JavaScript, y no alcanza para validar lo que se
+    publica: las capturas del repo las produjo el modelo real, con textos, cifras
+    y huecos que ningún generador de pruebas anticipa. El bug que originó este
+    archivo se manifestó exactamente ahí — en el sitio de verdad, con los datos
+    de verdad.
+
+    Correr el harness contra `docs/replay` es barato y cierra esa brecha: si una
+    recaptura deja un JSON que el JS no puede pintar, falla acá y no en GitHub
+    Pages.
+    """
+    manifiesto = json.loads(
+        (SITIO / "data" / "manifiesto.json").read_text(encoding="utf-8")
+    )
+    esperados = [c["id"] for c in manifiesto["casos"]]
+
+    resultado = _correr(SITIO)
+
+    assert resultado["error"] is None, (
+        f"el sitio publicado rompe al renderizar: {resultado['error']}\n"
+        f"{resultado.get('pila', '')}"
+    )
+    assert resultado["casos_renderizados"] == esperados, (
+        "el sitio no pintó los mismos casos que declara el manifiesto"
+    )
