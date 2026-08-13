@@ -29,6 +29,7 @@ from datetime import date, timedelta
 from agent.llm import ClienteLLM
 from agent.nodes.entidades import (
     corregir_intencion_por_entidades,
+    extraer_periodo,
     extraer_product_ids,
 )
 from agent.state import AnalysisState, Intencion, Periodo
@@ -56,6 +57,10 @@ ESQUEMA = {
             "type": "string",
             "enum": [i.value for i in Intencion],
         },
+        # `dias` es una DURACIÓN hacia atrás desde hoy, y solo eso. Un período
+        # explícito ("2025-06", "junio de 2025", un rango) NO se pide acá: lo
+        # extrae `entidades.extraer_periodo` con un regex, por el mismo motivo
+        # que los product_ids. Ver el comentario en `enrutar`.
         "dias": {"type": "integer"},
     },
     "required": ["intencion", "dias"],
@@ -95,8 +100,8 @@ Ejemplo 1
   Respuesta: {"intencion": "product_performance", "dias": 30}
 
 Ejemplo 2
-  Consulta: "¿Cuál fue el margen del P012 durante enero?"
-  Respuesta: {"intencion": "product_performance", "dias": 31}
+  Consulta: "¿Cuál fue el margen del P012 en los últimos tres meses?"
+  Respuesta: {"intencion": "product_performance", "dias": 90}
 
 Ejemplo 3
   Consulta: "Compará Empresa X vs Empresa Y: crecimiento y riesgos"
@@ -210,6 +215,17 @@ def enrutar(
 
     estado.intencion = intencion
     estado.entidades = entidades
-    estado.periodo = _normalizar_periodo(respuesta.get("dias", DIAS_POR_DEFECTO), hoy)
+
+    # El período explícito tampoco viene del modelo, por el mismo motivo que las
+    # entidades. Y acá el costo de delegarlo estaba medido: `dias` solo puede
+    # expresar "los últimos N días hasta hoy", así que una consulta sobre un mes
+    # cerrado —"durante 2025-06"— terminaba analizando 2025-12-30 → 2026-06-30,
+    # con el mes preguntado FUERA del rango. El few-shot enseñaba el error de
+    # frente: "durante enero" → {"dias": 31}.
+    #
+    # Cuando no hay período explícito, la cantidad de días del modelo sigue
+    # siendo la respuesta correcta: "los últimos 30 días" es exactamente eso.
+    estado.periodo = extraer_periodo(estado.consulta, hoy) or _normalizar_periodo(
+        respuesta.get("dias", DIAS_POR_DEFECTO), hoy)
     estado.registrar_paso("router", int((time.perf_counter() - inicio) * 1000))
     return estado

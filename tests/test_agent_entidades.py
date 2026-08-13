@@ -14,13 +14,16 @@ Separarlas hace que la extracción sea imposible de fallar, y deja al modelo una
 sola tarea: clasificar.
 """
 
+from datetime import date
+
 import pytest
 
 from agent.nodes.entidades import (
     corregir_intencion_por_entidades,
+    extraer_periodo,
     extraer_product_ids,
 )
-from agent.state import Intencion
+from agent.state import Intencion, Periodo
 
 # --- Extracción --------------------------------------------------------------
 
@@ -133,3 +136,86 @@ def test_fuera_de_alcance_con_productos_no_se_fuerza():
         Intencion.FUERA_DE_ALCANCE, ["P001"]
     )
     assert corregida == Intencion.FUERA_DE_ALCANCE
+
+
+# --- Extracción determinística del período -----------------------------------
+#
+# El mismo argumento que ya justifica extraer los product_ids con un regex, y
+# que está escrito en `router.ESQUEMA`: "es un patrón fijo, y el software lo
+# resuelve perfecto, gratis y sin equivocarse".
+#
+# El costo de no hacerlo se midió el 2026-08-12. El router le pedía al modelo un
+# número de DÍAS y `_normalizar_periodo` armaba siempre `[hoy - dias, hoy]`, así
+# que el agente no podía representar un período histórico cerrado. La consulta
+# "Analizá el desempeño de P010 durante 2025-06" se resolvía como
+# 2025-12-30 → 2026-06-30: el mes preguntado quedaba FUERA del período
+# analizado, y ninguna métrica del eval lo detectaba.
+#
+# Y el few-shot enseñaba el error: "¿el margen del P012 durante enero?" ->
+# {"dias": 31}. Enero no es "31 días hacia atrás desde hoy", es un mes concreto.
+
+HOY = date(2026, 6, 30)
+
+
+def test_extrae_un_mes_escrito_como_aaaa_mm():
+    """El caso exacto de las consultas del eval."""
+    assert extraer_periodo("Analizá el desempeño de P010 durante 2025-06", HOY) == (
+        Periodo(desde=date(2025, 6, 1), hasta=date(2025, 6, 30))
+    )
+
+
+def test_el_mes_termina_el_ultimo_dia_que_le_corresponde():
+    """Febrero de un año no bisiesto tiene 28. Calcularlo con un `timedelta(30)`
+    es la clase de error que después aparece como un dato faltante."""
+    assert extraer_periodo("ventas de P001 en 2026-02", HOY) == Periodo(
+        desde=date(2026, 2, 1), hasta=date(2026, 2, 28)
+    )
+
+
+def test_reconoce_el_mes_escrito_en_castellano():
+    assert extraer_periodo("¿Cuál fue el margen del P012 en junio de 2025?", HOY) == (
+        Periodo(desde=date(2025, 6, 1), hasta=date(2025, 6, 30))
+    )
+
+
+@pytest.mark.parametrize("texto", [
+    "marzo 2026", "en Marzo de 2026", "durante marzo del 2026",
+])
+def test_acepta_las_formas_naturales_de_escribir_un_mes(texto):
+    assert extraer_periodo(f"P001 {texto}", HOY) == Periodo(
+        desde=date(2026, 3, 1), hasta=date(2026, 3, 31)
+    )
+
+
+def test_un_rango_explicito_se_respeta_tal_cual():
+    assert extraer_periodo("P001 entre 2025-03-15 y 2025-04-10", HOY) == Periodo(
+        desde=date(2025, 3, 15), hasta=date(2025, 4, 10)
+    )
+
+
+def test_sin_periodo_explicito_devuelve_none():
+    """`None` significa "no hay nada que extraer", y ahí sí decide el modelo con
+    su cantidad de días. No se inventa un rango: eso es lo que hacía el bug."""
+    assert extraer_periodo("Compará P001 y P002 en los últimos 30 días", HOY) is None
+
+
+def test_un_identificador_de_producto_no_se_confunde_con_un_ano():
+    """`P2025` es un producto. Leerlo como año sería el mismo error que contar
+    `doc_112` como una cifra de negocio."""
+    assert extraer_periodo("Analizá P2025 y P2026", HOY) is None
+
+
+def test_un_mes_imposible_no_se_acepta():
+    assert extraer_periodo("P001 durante 2025-13", HOY) is None
+
+
+def test_un_rango_invertido_no_se_acepta():
+    """Si `desde` es posterior a `hasta`, el `Periodo` sería inválido. Devolver
+    `None` deja que el flujo normal siga en vez de reventar tres capas después."""
+    assert extraer_periodo("P001 entre 2025-04-10 y 2025-03-15", HOY) is None
+
+
+def test_no_devuelve_un_periodo_futuro():
+    """El dataset termina en `hoy`. Un período enteramente posterior no tiene
+    datos que analizar, y arrastrarlo produce un informe vacío sin explicación."""
+    assert extraer_periodo("P001 durante 2027-01", HOY) is None
