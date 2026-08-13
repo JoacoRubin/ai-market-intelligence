@@ -33,7 +33,12 @@ import pytest
 from agent.graph import analizar
 from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
-from eval.ground_truth import casos_de_evaluacion, consulta_para, leer_eventos
+from eval.ground_truth import (
+    casos_de_evaluacion,
+    consulta_con_proyeccion,
+    consulta_para,
+    leer_eventos,
+)
 from eval.metricas import Proporcion, evaluar, resumir
 from eval.registro import documento_de_corrida, guardar, procedencia
 
@@ -69,6 +74,18 @@ UMBRALES = {
 # El costo es media hora en vez de un cuarto. Es mucho, y sigue siendo menos que
 # volver a discutir si un 50% era real.
 MAX_CASOS = 12
+
+# Casos que además piden una proyección, uno por tipo de evento.
+#
+# `no_invierte_el_sentido_del_error` estuvo cuatro corridas marcada NUNCA
+# APLICÓ. No era el agente: el planner solo planifica `forecast_sales` cuando la
+# consulta pide una proyección, y `consulta_para` no la pide. El agente hacía lo
+# correcto y la métrica juzgaba un informe que no podía existir.
+#
+# Van como casos APARTE y no cambiando el enunciado de los 12: cambiar la
+# pregunta invalidaría como referencia la única corrida buena que hay. El costo
+# real es la síntesis; el forecast en sí tarda 0,09 s.
+CASOS_CON_PROYECCION = 3
 
 
 @pytest.fixture(scope="module")
@@ -107,30 +124,46 @@ def corridas(cliente, procedencia_inicial) -> list[list]:
     if not eventos:
         pytest.skip("no hay eventos sembrados: corré `.\\tasks.ps1 seed`")
 
+    # Un caso de proyección por tipo de evento, tomando el primero de cada uno.
+    # Repartirlos por tipo y no agarrar los tres primeros evita que la única
+    # medición del forecast salga toda del mismo tipo de anomalía.
+    con_proyeccion = []
+    for tipo in dict.fromkeys(e.tipo for e in eventos):
+        primero = next(e for e in eventos if e.tipo == tipo)
+        con_proyeccion.append(primero)
+        if len(con_proyeccion) == CASOS_CON_PROYECCION:
+            break
+
+    casos = ([(e, "analisis", consulta_para(e)) for e in eventos]
+             + [(e, "proyeccion", consulta_con_proyeccion(e))
+                for e in con_proyeccion])
+
     from rag.build import cargar_indice
     indice = cargar_indice()
 
     resultados = []
-    for i, evento in enumerate(eventos, 1):
+    for i, (evento, clase, consulta) in enumerate(casos, 1):
         # El progreso se imprime porque cada caso tarda más de un minuto. Diez
         # minutos de silencio no se distinguen de un proceso colgado, y la
         # reacción natural es cortarlo.
-        print(f"  [{i}/{len(eventos)}] {evento.tipo:<20} {evento.product_id} "
-              f"{evento.fecha}", flush=True)
+        print(f"  [{i}/{len(casos)}] {evento.tipo:<20} {evento.product_id} "
+              f"{evento.fecha}  {clase}", flush=True)
         arranque = time.perf_counter()
 
         estado = analizar(
-            consulta_para(evento), cliente,
-            request_id=f"eval-{evento.tipo}-{evento.product_id}", indice=indice,
+            consulta, cliente,
+            request_id=f"eval-{clase}-{evento.tipo}-{evento.product_id}",
+            indice=indice,
         )
         print(f"        {time.perf_counter() - arranque:>6.1f}s", flush=True)
 
         if estado.informe is None:
             # Sin informe no hay nada que medir, y contarlo como aprobado
             # inflaría todas las métricas. Se registra el hueco.
-            resultados.append((evento, None, []))
+            resultados.append((evento, clase, None, []))
             continue
-        resultados.append((evento, estado.informe, evaluar(estado.informe, evento)))
+        resultados.append(
+            (evento, clase, estado.informe, evaluar(estado.informe, evento)))
 
     return resultados
 
@@ -142,14 +175,15 @@ def _rotulo(cumple: bool | None) -> str:
 
 @pytest.fixture(scope="module")
 def resumen(corridas, procedencia_inicial) -> dict[str, Proporcion]:
-    logrados = [h for _, informe, h in corridas if informe is not None]
+    logrados = [h for *_, informe, h in corridas if informe is not None]
 
     print("\n" + "=" * 78)
     print("  CALIDAD DEL INFORME CONTRA LOS EVENTOS SEMBRADOS")
     print("=" * 78)
-    for evento, informe, hallazgos in corridas:
+    for evento, clase, informe, hallazgos in corridas:
         estado = "sin informe" if informe is None else ""
-        print(f"\n  {evento.tipo:<20} {evento.product_id}  {evento.fecha}  {estado}")
+        print(f"\n  {evento.tipo:<20} {evento.product_id}  {evento.fecha}  "
+              f"[{clase}] {estado}")
         for h in hallazgos:
             print(f"     {_rotulo(h.cumple):<6} {h.nombre:<36} {h.detalle[:70]}")
 
@@ -188,7 +222,8 @@ def test_todas_las_consultas_produjeron_un_informe(corridas):
     calculan sobre nada y un promedio alto sobre dos casos no dice lo mismo que
     sobre seis.
     """
-    sin_informe = [e.product_id for e, informe, _ in corridas if informe is None]
+    sin_informe = [f"{e.product_id} [{clase}]"
+                   for e, clase, informe, _ in corridas if informe is None]
 
     assert not sin_informe, f"el agente no produjo informe para {sin_informe}"
 

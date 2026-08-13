@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from eval.ground_truth import casos_de_evaluacion, consulta_para
+from agent.nodes.planner import _pide_proyeccion
+from eval.ground_truth import (
+    casos_de_evaluacion,
+    consulta_con_proyeccion,
+    consulta_para,
+)
 from eval.metricas import EventoSembrado
 
 CAIDA = EventoSembrado(
@@ -149,6 +154,49 @@ def test_el_orden_de_los_casos_es_estable():
     assert [c.fecha for c in casos_de_evaluacion(eventos)] == [
         date(2026, 2, 14), date(2026, 3, 2),
     ]
+
+
+# --- la consulta que ejercita el forecast -------------------------------------
+#
+# `no_invierte_el_sentido_del_error` estuvo cuatro corridas marcada NUNCA
+# APLICÓ, y la causa no era el agente: era el enunciado. El planner solo
+# planifica `forecast_sales` si la consulta pide una proyección
+# (`planner.PIDE_PROYECCION`), y `consulta_para` no menciona nada de eso. El
+# agente hacía lo correcto —no entrenar un modelo para quien solo pidió KPIs— y
+# la métrica juzgaba un informe que nunca podía existir.
+
+def test_la_consulta_de_proyeccion_activa_el_plan_de_forecast():
+    """El test que impide que esto vuelva a pasar en silencio.
+
+    Ata el enunciado del eval al criterio real del planner. Si alguien edita
+    `PIDE_PROYECCION`, esto falla acá y no cuatro corridas después, cuando la
+    métrica vuelva a informar que no juzgó nada.
+    """
+    assert _pide_proyeccion(consulta_con_proyeccion(CAIDA))
+    assert not _pide_proyeccion(consulta_para(CAIDA))
+
+
+def test_la_consulta_de_proyeccion_sigue_sin_revelar_el_evento():
+    """La disciplina del enunciado no se afloja porque el caso sea otro."""
+    consulta = consulta_con_proyeccion(PICO).lower()
+
+    assert "lote" not in consulta
+    assert "proveedor" not in consulta
+    assert "5,7" not in consulta
+    assert "pico_devoluciones" not in consulta
+
+
+def test_la_consulta_de_proyeccion_conserva_el_producto_y_el_periodo():
+    consulta = consulta_con_proyeccion(CAIDA)
+
+    assert "P010" in consulta
+    assert "2026-02" in consulta
+
+
+def test_las_dos_consultas_del_mismo_evento_son_distintas():
+    """Si fueran iguales, los casos de proyección serían repeticiones y volvería
+    el problema del denominador inflado que la deduplicación vino a resolver."""
+    assert consulta_con_proyeccion(CAIDA) != consulta_para(CAIDA)
 
 
 def test_la_consulta_pide_explicar_lo_anomalo_sin_afirmar_que_lo_hay():

@@ -67,7 +67,7 @@ def procedencia() -> dict[str, object]:
     }
 
 
-def _caso(evento: EventoSembrado, informe: Report | None,
+def _caso(evento: EventoSembrado, consulta: str, informe: Report | None,
           hallazgos: list[Hallazgo]) -> dict[str, object]:
     return {
         "evento": {
@@ -75,6 +75,10 @@ def _caso(evento: EventoSembrado, informe: Report | None,
             "product_id": evento.product_id,
             "fecha": evento.fecha.isoformat(),
         },
+        # Qué se le preguntó al agente. Desde que el eval mezcla consultas de
+        # análisis con consultas de proyección, un promedio sobre todos los
+        # casos junta dos poblaciones: sin este campo no se pueden separar.
+        "consulta": consulta,
         # Un hueco es un dato: sin informe no hay nada que medir, y eso tiene
         # que poder distinguirse de un caso que se evaluó y salió mal.
         "informe": informe is not None,
@@ -107,7 +111,7 @@ def _metrica(nombre: str, proporcion: Proporcion | None,
 
 
 def documento_de_corrida(
-    corridas: list[tuple[EventoSembrado, Report | None, list[Hallazgo]]],
+    corridas: list[tuple[EventoSembrado, str, Report | None, list[Hallazgo]]],
     proporciones: dict[str, Proporcion],
     umbrales: dict[str, float],
     generado_en: datetime,
@@ -118,7 +122,7 @@ def documento_de_corrida(
     Nada de `default=str`: si algo necesitara un conversor, el registro tendría
     fechas que a veces son texto y a veces no, y compararlas sería adivinar.
     """
-    informes = [informe for _, informe, _ in corridas if informe is not None]
+    informes = [informe for *_, informe, _ in corridas if informe is not None]
     return {
         "generado_en": generado_en.isoformat(timespec="seconds"),
         # Comparar dos corridas de modelos distintos y llamarlo progreso es el

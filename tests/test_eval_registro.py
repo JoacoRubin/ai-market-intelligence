@@ -49,7 +49,7 @@ UMBRALES = {
 
 def _documento(**cambios):
     base = dict(
-        corridas=[(EVENTO, _informe(), HALLAZGOS)],
+        corridas=[(EVENTO, "analisis", _informe(), HALLAZGOS)],
         proporciones=PROPORCIONES,
         umbrales=UMBRALES,
         generado_en=AHORA,
@@ -120,10 +120,22 @@ def test_guarda_el_detalle_por_caso_y_no_solo_el_promedio():
 def test_un_caso_sin_informe_queda_registrado_como_tal():
     """Un hueco es un dato. Si el agente no produjo informe, el registro tiene
     que poder distinguirlo de un caso que se evaluó y salió mal."""
-    documento = _documento(corridas=[(EVENTO, None, [])])
+    documento = _documento(corridas=[(EVENTO, "analisis", None, [])])
 
     assert documento["casos"][0]["informe"] is False
     assert documento["casos"][0]["hallazgos"] == []
+
+
+def test_guarda_que_consulta_se_le_hizo_al_agente():
+    """Desde que el eval mezcla consultas de análisis con consultas de
+    proyección, un promedio sobre todos los casos junta dos poblaciones. Sin
+    este campo el registro no permite separarlas después."""
+    documento = _documento(
+        corridas=[(EVENTO, "analisis", _informe(), HALLAZGOS),
+                  (EVENTO, "proyeccion", _informe(), HALLAZGOS)])
+
+    assert [c["consulta"] for c in documento["casos"]] == [
+        "analisis", "proyeccion"]
 
 
 def test_guarda_el_modelo_que_se_evaluo():

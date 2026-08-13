@@ -103,3 +103,27 @@ def consulta_para(evento: EventoSembrado) -> str:
         f"unidades, revenue, margen y devoluciones. Si ves algo fuera de lo "
         f"normal, explicá a qué puede deberse."
     )
+
+
+def consulta_con_proyeccion(evento: EventoSembrado) -> str:
+    """La misma pregunta, pidiendo además una proyección.
+
+    Existe porque `no_invierte_el_sentido_del_error` estuvo cuatro corridas
+    marcada NUNCA APLICÓ, y la causa no era el agente: era el enunciado. El
+    planner solo planifica `forecast_sales` cuando la consulta pide una
+    proyección (`planner.PIDE_PROYECCION`), y `consulta_para` no lo pide. El
+    agente hacía lo correcto —no entrena un modelo con backtesting para quien
+    solo pidió KPIs— y la métrica juzgaba cómo el informe describe un MAPE que
+    nunca iba a existir.
+
+    Se mantiene la disciplina del enunciado: no nombra el evento, no adelanta
+    su magnitud y no dice qué se va a encontrar. Lo único que agrega es el
+    pedido de proyección.
+    """
+    mes = evento.fecha.strftime("%Y-%m")
+    return (
+        f"Analizá el desempeño de {evento.product_id} durante {mes}: "
+        f"unidades, revenue, margen y devoluciones. Si ves algo fuera de lo "
+        f"normal, explicá a qué puede deberse, y proyectá la demanda de los "
+        f"próximos 30 días."
+    )
