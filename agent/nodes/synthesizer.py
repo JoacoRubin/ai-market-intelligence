@@ -75,8 +75,7 @@ REGLAS INNEGOCIABLES:
    tiene una causa, y suele estar en un documento de campaña o promoción.
 9. Las conclusiones que salen de las métricas llevan "fuente" vacío.
 10. NUNCA inventes un identificador de documento: usá solo los que aparecen
-    entre corchetes en la evidencia. Los "XXX" de los ejemplos de acá abajo son
-    de relleno y no existen: mostrás el formato, no el identificador.
+    entre corchetes en la evidencia.
 
 Los números dicen QUÉ pasó. Los documentos dicen POR QUÉ. Un informe que solo
 repite métricas no es un análisis.
