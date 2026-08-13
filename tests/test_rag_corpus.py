@@ -150,3 +150,57 @@ def test_incluye_documentos_de_politica_general(corpus):
     evento puntual."""
     tipos = {d.tipo for d in corpus.documentos}
     assert "politica" in tipos
+
+
+# --- El prompt no puede contener respuestas del examen ------------------------
+
+def test_ningun_doc_id_de_los_ejemplos_del_prompt_existe_en_el_corpus(corpus):
+    """La regla 5 del método del proyecto, aplicada al sintetizador.
+
+        "El conjunto de evaluación no puede contaminarse con el prompt. Un caso
+        de prueba que aparece textualmente como ejemplo del prompt no mide nada."
+
+    Medido el 2026-08-12: los ejemplos de `synthesizer.SISTEMA` usaban
+    `doc_prov_009` y `doc_promo_004`, y los dos existían de verdad —explican a
+    P030 y a P031, que son dos de los quince casos del eval—. Los dos casos
+    pasaron citando exactamente esos documentos, y no hay forma de saber si los
+    citaron porque el RAG se los trajo o porque los tenían escritos adelante.
+
+    El daño no es que el modelo copie un identificador: cuando copia uno que no
+    está en la evidencia, el guardrail lo detecta y borra la cita. El daño es
+    cuando el identificador copiado SÍ corresponde al caso, porque entonces
+    parece un acierto y no se puede distinguir de uno.
+
+    Este test es determinístico y vale para siempre: si alguien agrega un
+    ejemplo con un identificador real, falla acá.
+    """
+    import re
+
+    from agent.nodes.synthesizer import SISTEMA
+
+    del_prompt = set(re.findall(r"doc_[a-z]+_[A-Za-z0-9]+", SISTEMA))
+    reales = {d.id for d in corpus.documentos}
+
+    assert del_prompt, "el prompt debe mostrar el formato de una cita"
+    assert not (del_prompt & reales), (
+        f"los ejemplos del prompt usan documentos que existen en el corpus: "
+        f"{sorted(del_prompt & reales)}. Un caso del eval cuya respuesta está "
+        f"en el prompt no mide nada."
+    )
+
+
+def test_los_ejemplos_del_prompt_conservan_el_formato_de_un_doc_id(corpus):
+    """La contraprueba: no alcanza con que sean falsos, tienen que seguir
+    pareciéndose a los reales. El ejemplo enseña la FORMA de la cita, y si deja
+    de parecerse el modelo pierde la referencia de qué se espera que escriba."""
+    import re
+
+    from agent.nodes.synthesizer import SISTEMA
+
+    prefijos_reales = {d.id.rsplit("_", 1)[0] for d in corpus.documentos}
+    del_prompt = set(re.findall(r"doc_[a-z]+_[A-Za-z0-9]+", SISTEMA))
+
+    assert all(x.rsplit("_", 1)[0] in prefijos_reales for x in del_prompt), (
+        f"los ejemplos deben usar los mismos prefijos que el corpus real "
+        f"({sorted(prefijos_reales)}) y diferenciarse solo en el sufijo"
+    )

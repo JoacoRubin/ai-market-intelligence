@@ -70,12 +70,13 @@ REGLAS INNEGOCIABLES:
 7. Si el bloque incluye "Evidencia documental disponible", AL MENOS UNA de tus
    conclusiones tiene que explicar POR QUÉ pasó lo que muestran los números,
    usando esa evidencia, y poner el identificador del documento en "fuente"
-   (por ejemplo "doc_prov_009").
+   (por ejemplo "doc_prov_XXX").
 8. La regla 7 vale IGUAL cuando el número mejoró. Una suba de ventas también
    tiene una causa, y suele estar en un documento de campaña o promoción.
 9. Las conclusiones que salen de las métricas llevan "fuente" vacío.
 10. NUNCA inventes un identificador de documento: usá solo los que aparecen
-    entre corchetes en la evidencia.
+    entre corchetes en la evidencia. Los "XXX" de los ejemplos de acá abajo son
+    de relleno y no existen: mostrás el formato, no el identificador.
 
 Los números dicen QUÉ pasó. Los documentos dicen POR QUÉ. Un informe que solo
 repite métricas no es un análisis.
@@ -83,9 +84,9 @@ repite métricas no es un análisis.
 Ejemplos de conclusiones correctas:
   {"texto": "Alfa lidera en unidades con 1.243, frente a las 981 de Beta", "fuente": ""}
   {"texto": "Alfa facturó USD 87.010 con 1.243 unidades vendidas", "fuente": ""}
-  {"texto": "El proveedor reportó defectos de costura en el lote", "fuente": "doc_prov_009"}
+  {"texto": "El proveedor reportó defectos de costura en el lote", "fuente": "doc_prov_XXX"}
   {"texto": "La campaña de descuento del 20% explica el salto de unidades",
-   "fuente": "doc_promo_004"}
+   "fuente": "doc_promo_XXX"}
 
 Ejemplos de conclusiones INCORRECTAS:
   "Alfa vendió aproximadamente 1.300 unidades"   (redondeó: inventó un número)
