@@ -21,11 +21,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
 from ml.baseline import baseline_estacional, baseline_naive
 from ml.metricas import mae, mape, rmse
+from ml.tipos import SerieNumerica
 
 MIN_ENTRENAMIENTO = 60
 
@@ -76,7 +78,7 @@ def construir_features(serie: np.ndarray, indices: Sequence[int]) -> np.ndarray:
     return np.asarray(filas, dtype=float)
 
 
-def _predecir_recursivo(modelo, historia: np.ndarray, horizonte: int,
+def _predecir_recursivo(modelo: Any, historia: np.ndarray, horizonte: int,
                         inicio: int) -> np.ndarray:
     """Proyecta paso a paso, realimentando las propias predicciones.
 
@@ -105,7 +107,7 @@ class ResultadoBacktest:
     mape_baseline: float | None = None
     mape_estacional: float | None = None
     motivo: str = ""
-    detalle: list[dict] = field(default_factory=list)
+    detalle: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def supera_al_baseline(self) -> bool:
@@ -114,7 +116,7 @@ class ResultadoBacktest:
         return self.mape_modelo < self.mape_baseline
 
 
-def entrenar_modelo(serie: np.ndarray, indices: Sequence[int]):
+def entrenar_modelo(serie: np.ndarray, indices: Sequence[int]) -> Any:
     """Entrena el modelo sobre los índices dados.
 
     Ridge y no algo más sofisticado: con series cortas y features simples, un
@@ -134,7 +136,7 @@ def entrenar_modelo(serie: np.ndarray, indices: Sequence[int]):
 
 
 def backtest(
-    serie: Sequence[float],
+    serie: SerieNumerica,
     horizonte: int = 14,
     n_ventanas: int = 3,
 ) -> ResultadoBacktest:
@@ -150,8 +152,11 @@ def backtest(
             )
         )
 
-    reales, pred_modelo, pred_naive, pred_estacional = [], [], [], []
-    detalle = []
+    reales: list[float] = []
+    pred_modelo: list[float] = []
+    pred_naive: list[float] = []
+    pred_estacional: list[float] = []
+    detalle: list[dict[str, Any]] = []
 
     for train, test in ventanas:
         modelo = entrenar_modelo(s, train)

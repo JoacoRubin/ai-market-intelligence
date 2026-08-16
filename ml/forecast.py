@@ -106,7 +106,8 @@ def _registrar_en_mlflow(resultado: ResultadoForecast, desde: date,
             # modelo merece existir. Se registra como tal.
             mlflow.set_tag("supera_al_baseline",
                            str(resultado.backtest.supera_al_baseline))
-            return run.info.run_id
+            run_id: str = run.info.run_id
+            return run_id
     except Exception as e:
         # Se deja rastro del motivo aunque el forecast siga adelante.
         _ULTIMO_ERROR_MLFLOW.append(f"{type(e).__name__}: {str(e)[:200]}")

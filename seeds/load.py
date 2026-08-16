@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sys
 from datetime import date, datetime
+from typing import Any
 
 import pandas as pd
 
@@ -33,7 +34,7 @@ ORDEN_CARGA: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def _a_tipo_nativo(valor, fechas_como_texto: bool = False):
+def _a_tipo_nativo(valor: Any, fechas_como_texto: bool = False) -> Any:
     """Convierte tipos de NumPy/pandas a tipos que el driver ODBC entiende.
 
     pyodbc no sabe qué hacer con np.int64 ni con pd.Timestamp. Sin esta
@@ -62,7 +63,7 @@ def _a_tipo_nativo(valor, fechas_como_texto: bool = False):
 
 def _filas(
     df: pd.DataFrame, columnas: tuple[str, ...], fechas_como_texto: bool = False
-) -> list[tuple]:
+) -> list[tuple[Any, ...]]:
     return [
         tuple(_a_tipo_nativo(v, fechas_como_texto) for v in fila)
         for fila in df[list(columnas)].itertuples(index=False, name=None)

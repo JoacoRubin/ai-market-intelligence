@@ -15,12 +15,12 @@ riesgo de degradación y sin nada que pueda romperse.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import numpy as np
 
+from ml.tipos import SerieNumerica
 
-def baseline_naive(serie: Sequence[float], horizonte: int) -> np.ndarray:
+
+def baseline_naive(serie: SerieNumerica, horizonte: int) -> np.ndarray:
     """Repite el último valor observado. El competidor mínimo."""
     s = np.asarray(serie, dtype=float)
     if s.size == 0:
@@ -29,7 +29,7 @@ def baseline_naive(serie: Sequence[float], horizonte: int) -> np.ndarray:
 
 
 def baseline_media_movil(
-    serie: Sequence[float], horizonte: int, ventana: int = 7
+    serie: SerieNumerica, horizonte: int, ventana: int = 7
 ) -> np.ndarray:
     """Repite el promedio de los últimos `ventana` valores.
 
@@ -43,7 +43,7 @@ def baseline_media_movil(
 
 
 def baseline_estacional(
-    serie: Sequence[float], horizonte: int, periodo: int = 7
+    serie: SerieNumerica, horizonte: int, periodo: int = 7
 ) -> np.ndarray:
     """Repite el mismo día de la semana anterior.
 

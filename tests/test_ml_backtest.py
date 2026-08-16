@@ -25,22 +25,22 @@ from ml.metricas import mae, mape, rmse
 
 # --- Métricas ----------------------------------------------------------------
 
-def test_mae_calcula_el_error_absoluto_medio():
+def test_mae_calcula_el_error_absoluto_medio() -> None:
     assert mae([10, 20, 30], [12, 18, 33]) == pytest.approx((2 + 2 + 3) / 3)
 
 
-def test_rmse_penaliza_mas_los_errores_grandes():
+def test_rmse_penaliza_mas_los_errores_grandes() -> None:
     """Es la diferencia práctica con MAE: un error de 10 pesa más que diez de 1."""
     disperso = rmse([0, 0, 0], [1, 1, 1])
     concentrado = rmse([0, 0, 0], [0, 0, 3])
     assert concentrado > disperso
 
 
-def test_mape_devuelve_porcentaje():
+def test_mape_devuelve_porcentaje() -> None:
     assert mape([100, 200], [110, 180]) == pytest.approx(10.0)
 
 
-def test_mape_ignora_los_ceros_en_vez_de_explotar():
+def test_mape_ignora_los_ceros_en_vez_de_explotar() -> None:
     """Un día sin ventas hace 0 el denominador del MAPE.
 
     Dividir por cero daría infinito y contaminaría toda la métrica. Se excluyen
@@ -50,18 +50,18 @@ def test_mape_ignora_los_ceros_en_vez_de_explotar():
     assert valor == pytest.approx(10.0)
 
 
-def test_mape_sin_valores_distintos_de_cero_devuelve_none():
+def test_mape_sin_valores_distintos_de_cero_devuelve_none() -> None:
     """Si toda la ventana es cero, no hay MAPE que calcular. `None` dice eso;
     devolver 0 afirmaría una precisión perfecta que nadie midió."""
     assert mape([0, 0, 0], [1, 2, 3]) is None
 
 
-def test_las_metricas_rechazan_longitudes_distintas():
+def test_las_metricas_rechazan_longitudes_distintas() -> None:
     with pytest.raises(ValueError):
         mae([1, 2, 3], [1, 2])
 
 
-def test_una_prediccion_perfecta_da_error_cero():
+def test_una_prediccion_perfecta_da_error_cero() -> None:
     assert mae([1, 2, 3], [1, 2, 3]) == 0
     assert rmse([1, 2, 3], [1, 2, 3]) == 0
     assert mape([1, 2, 3], [1, 2, 3]) == 0
@@ -69,29 +69,29 @@ def test_una_prediccion_perfecta_da_error_cero():
 
 # --- Baselines ---------------------------------------------------------------
 
-def test_el_baseline_naive_repite_el_ultimo_valor():
+def test_el_baseline_naive_repite_el_ultimo_valor() -> None:
     """El competidor a vencer. Si el modelo no le gana, el modelo sobra."""
     assert list(baseline_naive([5, 8, 12], horizonte=3)) == [12, 12, 12]
 
 
-def test_el_baseline_de_media_movil_promedia_la_ventana():
+def test_el_baseline_de_media_movil_promedia_la_ventana() -> None:
     assert baseline_media_movil([10, 20, 30, 40], horizonte=2, ventana=2)[0] == 35
 
 
-def test_los_baselines_no_necesitan_entrenamiento():
+def test_los_baselines_no_necesitan_entrenamiento() -> None:
     """Su valor está justamente en ser gratis: cero costo de entrenamiento,
     cero mantenimiento, cero riesgo de degradación."""
     assert len(baseline_naive([1], horizonte=5)) == 5
 
 
-def test_un_baseline_sobre_serie_vacia_falla_claro():
+def test_un_baseline_sobre_serie_vacia_falla_claro() -> None:
     with pytest.raises(ValueError):
         baseline_naive([], horizonte=3)
 
 
 # --- Ventanas de backtesting -------------------------------------------------
 
-def test_ninguna_ventana_entrena_con_datos_del_futuro():
+def test_ninguna_ventana_entrena_con_datos_del_futuro() -> None:
     """EL test de este archivo.
 
     Todo índice de entrenamiento tiene que ser anterior a todo índice de
@@ -105,7 +105,7 @@ def test_ninguna_ventana_entrena_con_datos_del_futuro():
         )
 
 
-def test_las_ventanas_no_se_superponen_entre_si():
+def test_las_ventanas_no_se_superponen_entre_si() -> None:
     ventanas = ventanas_walk_forward(n=200, tamano_test=14, n_ventanas=4)
     usados = [set(test) for _, test in ventanas]
     for i in range(len(usados)):
@@ -113,7 +113,7 @@ def test_las_ventanas_no_se_superponen_entre_si():
             assert not usados[i] & usados[j]
 
 
-def test_la_ventana_de_entrenamiento_crece_con_el_tiempo():
+def test_la_ventana_de_entrenamiento_crece_con_el_tiempo() -> None:
     """Walk-forward: cada corte entrena con todo el histórico disponible hasta
     ese momento, que es lo que pasaría en producción."""
     ventanas = ventanas_walk_forward(n=200, tamano_test=14, n_ventanas=4)
@@ -121,12 +121,12 @@ def test_la_ventana_de_entrenamiento_crece_con_el_tiempo():
     assert tamanos == sorted(tamanos)
 
 
-def test_todas_las_ventanas_de_prueba_tienen_el_tamano_pedido():
+def test_todas_las_ventanas_de_prueba_tienen_el_tamano_pedido() -> None:
     for _, test in ventanas_walk_forward(n=200, tamano_test=14, n_ventanas=4):
         assert len(test) == 14
 
 
-def test_una_serie_demasiado_corta_no_genera_ventanas():
+def test_una_serie_demasiado_corta_no_genera_ventanas() -> None:
     """Antes que inventar un backtest sobre datos insuficientes, no hacerlo.
     Un backtest de una sola ventana de tres puntos no mide nada."""
     assert ventanas_walk_forward(n=20, tamano_test=14, n_ventanas=4) == []
@@ -136,10 +136,11 @@ def test_una_serie_demasiado_corta_no_genera_ventanas():
 
 def _serie_con_tendencia(n: int = 200) -> np.ndarray:
     dias = np.arange(n)
-    return 50 + 0.3 * dias + 10 * np.sin(2 * np.pi * dias / 7)
+    serie: np.ndarray = 50 + 0.3 * dias + 10 * np.sin(2 * np.pi * dias / 7)
+    return serie
 
 
-def test_el_backtest_evalua_modelo_y_baseline(_=None):
+def test_el_backtest_evalua_modelo_y_baseline() -> None:
     serie = _serie_con_tendencia()
     resultado = backtest(serie, horizonte=14, n_ventanas=3)
 
@@ -148,36 +149,42 @@ def test_el_backtest_evalua_modelo_y_baseline(_=None):
     assert resultado.ventanas == 3
 
 
-def test_el_backtest_declara_si_el_modelo_supera_al_baseline():
+def test_el_backtest_declara_si_el_modelo_supera_al_baseline() -> None:
     """La pregunta que decide si el modelo va a producción o a la basura."""
     resultado = backtest(_serie_con_tendencia(), horizonte=14, n_ventanas=3)
     assert isinstance(resultado.supera_al_baseline, bool)
 
 
-def test_sobre_una_serie_con_tendencia_clara_el_modelo_deberia_ganar():
+def test_sobre_una_serie_con_tendencia_clara_el_modelo_deberia_ganar() -> None:
     """Con tendencia y estacionalidad marcadas, repetir el último valor es una
     estrategia pobre. Si el modelo no gana acá, algo está mal en el modelo."""
     resultado = backtest(_serie_con_tendencia(), horizonte=14, n_ventanas=3)
+    # Los MAPE son None cuando todos los reales son cero. Acá no puede pasar,
+    # y si pasara el test tiene que decir eso y no comparar contra None.
+    assert resultado.mape_modelo is not None
+    assert resultado.mape_baseline is not None
     assert resultado.mape_modelo < resultado.mape_baseline
 
 
-def test_sobre_ruido_puro_el_modelo_no_deberia_ganar_por_mucho():
+def test_sobre_ruido_puro_el_modelo_no_deberia_ganar_por_mucho() -> None:
     """Contraprueba honesta: si el modelo "gana" sobre ruido blanco, está
     memorizando y el backtest tiene leakage."""
     rng = np.random.default_rng(42)
     ruido = 100 + rng.normal(0, 15, 200)
     resultado = backtest(ruido, horizonte=14, n_ventanas=3)
+    assert resultado.mape_modelo is not None
+    assert resultado.mape_baseline is not None
     assert resultado.mape_modelo > resultado.mape_baseline * 0.5
 
 
-def test_una_serie_corta_devuelve_un_resultado_sin_metricas():
+def test_una_serie_corta_devuelve_un_resultado_sin_metricas() -> None:
     resultado = backtest(np.array([1, 2, 3, 4, 5]), horizonte=14, n_ventanas=3)
     assert resultado.ventanas == 0
     assert resultado.mape_modelo is None
     assert "insuficiente" in resultado.motivo.lower()
 
 
-def test_el_forecast_acumula_predicciones_de_varios_productos():
+def test_el_forecast_acumula_predicciones_de_varios_productos() -> None:
     """Con un pronóstico por producto, guardar solo el último dejaba la mitad
     de las predicciones fuera del informe sin que nada lo indicara."""
     from agent.state import AnalysisState

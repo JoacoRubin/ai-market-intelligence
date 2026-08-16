@@ -27,20 +27,32 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from typing import Any
 
 import pytest
 
 from agent.graph import analizar
 from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
+from core.report import Report
 from eval.ground_truth import (
     casos_de_evaluacion,
     consulta_con_proyeccion,
     consulta_para,
     leer_eventos,
 )
-from eval.metricas import Proporcion, evaluar, resumir
+from eval.metricas import (
+    EventoSembrado,
+    Hallazgo,
+    Proporcion,
+    evaluar,
+    resumir,
+)
 from eval.registro import documento_de_corrida, guardar, procedencia
+
+# Lo que devuelve cada consulta del golden set: el evento sembrado, su clase,
+# el informe (None si el agente no produjo ninguno) y los hallazgos medidos.
+Corrida = tuple[EventoSembrado, str, Report | None, list[Hallazgo]]
 
 pytestmark = [pytest.mark.slow, pytest.mark.llm, pytest.mark.db]
 
@@ -89,7 +101,7 @@ CASOS_CON_PROYECCION = 3
 
 
 @pytest.fixture(scope="module")
-def cliente():
+def cliente() -> ClienteOllama:
     c = ClienteOllama()
     if not c.disponible():
         pytest.skip("Ollama no responde: levantalo con `ollama serve`")
@@ -97,7 +109,7 @@ def cliente():
 
 
 @pytest.fixture(scope="module")
-def procedencia_inicial() -> dict:
+def procedencia_inicial() -> dict[str, Any]:
     """Con qué código se mide, capturado ANTES de la primera consulta.
 
     Tomarla al final describiría un árbol que el propio archivo de registro ya
@@ -107,7 +119,7 @@ def procedencia_inicial() -> dict:
 
 
 @pytest.fixture(scope="module")
-def corridas(cliente, procedencia_inicial) -> list[list]:
+def corridas(cliente: ClienteOllama, procedencia_inicial: dict[str, Any]) -> list[Corrida]:
     """Interroga al agente sobre cada evento sembrado, una sola vez.
 
     Sin `scope="module"` cada test volvería a correr el grafo y la evaluación
@@ -141,7 +153,7 @@ def corridas(cliente, procedencia_inicial) -> list[list]:
     from rag.build import cargar_indice
     indice = cargar_indice()
 
-    resultados = []
+    resultados: list[Corrida] = []
     for i, (evento, clase, consulta) in enumerate(casos, 1):
         # El progreso se imprime porque cada caso tarda más de un minuto. Diez
         # minutos de silencio no se distinguen de un proceso colgado, y la
@@ -174,7 +186,7 @@ def _rotulo(cumple: bool | None) -> str:
 
 
 @pytest.fixture(scope="module")
-def resumen(corridas, procedencia_inicial) -> dict[str, Proporcion]:
+def resumen(corridas: list[Corrida], procedencia_inicial: dict[str, Any]) -> dict[str, Proporcion]:
     logrados = [h for *_, informe, h in corridas if informe is not None]
 
     print("\n" + "=" * 78)
@@ -215,7 +227,7 @@ def resumen(corridas, procedencia_inicial) -> dict[str, Proporcion]:
     return proporciones
 
 
-def test_todas_las_consultas_produjeron_un_informe(corridas):
+def test_todas_las_consultas_produjeron_un_informe(corridas: list[Corrida]) -> None:
     """Antes de juzgar la calidad hay que tener qué juzgar.
 
     Si el agente no llega a producir informe, las métricas de calidad no se
@@ -229,7 +241,9 @@ def test_todas_las_consultas_produjeron_un_informe(corridas):
 
 
 @pytest.mark.parametrize("nombre,umbral", sorted(UMBRALES.items()))
-def test_la_metrica_alcanza_su_umbral(resumen, nombre, umbral):
+def test_la_metrica_alcanza_su_umbral(
+    resumen: dict[str, Proporcion], nombre: str, umbral: float,
+) -> None:
     p = resumen.get(nombre)
     assert p is not None, f"la métrica '{nombre}' no se calculó en ninguna corrida"
 

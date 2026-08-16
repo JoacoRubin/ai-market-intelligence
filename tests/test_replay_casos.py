@@ -24,7 +24,7 @@ from replay.casos import (
 )
 
 
-def test_carga_el_golden_set_con_sus_campos():
+def test_carga_el_golden_set_con_sus_campos() -> None:
     casos = cargar_golden_set()
 
     assert len(casos) > 10
@@ -35,7 +35,7 @@ def test_carga_el_golden_set_con_sus_campos():
     assert primero.intencion == Intencion.PRODUCT_PERFORMANCE
 
 
-def test_la_seleccion_cubre_toda_intencion_que_el_agente_sabe_servir():
+def test_la_seleccion_cubre_toda_intencion_que_el_agente_sabe_servir() -> None:
     """Incluida `fuera_de_alcance`, que es la que nadie muestra.
 
     Si alguien recorta la selección y deja solo comparaciones, este test falla y
@@ -46,7 +46,7 @@ def test_la_seleccion_cubre_toda_intencion_que_el_agente_sabe_servir():
     assert intenciones == set(Intencion) - EXCLUIDAS
 
 
-def test_la_unica_intencion_excluida_es_la_que_el_planner_no_atiende():
+def test_la_unica_intencion_excluida_es_la_que_el_planner_no_atiende() -> None:
     """La exclusión tiene que seguir al código, no a una lista escrita a mano.
 
     `planner.py` rechaza COMPANY_RESEARCH porque la tool `public_research` está
@@ -59,18 +59,18 @@ def test_la_unica_intencion_excluida_es_la_que_el_planner_no_atiende():
     assert "public_research" not in [t.stem for t in TOOLS_IMPLEMENTADAS]
 
 
-def test_la_seleccion_respeta_el_orden_declarado():
+def test_la_seleccion_respeta_el_orden_declarado() -> None:
     """El orden es narrativo: la primera captura es la que se ve primero."""
     assert [c.id for c in casos_para_replay()] == list(SELECCION)
 
 
-def test_falla_ruidosamente_si_un_caso_seleccionado_no_existe():
+def test_falla_ruidosamente_si_un_caso_seleccionado_no_existe() -> None:
     """Un id mal escrito tiene que reventar acá, no producir un replay incompleto."""
     with pytest.raises(ValueError, match="no-existe"):
         casos_para_replay(seleccion=("cmp-01", "no-existe"))
 
 
-def test_los_casos_seleccionados_traen_su_nota_cuando_la_tienen():
+def test_los_casos_seleccionados_traen_su_nota_cuando_la_tienen() -> None:
     """La nota del golden set explica POR QUÉ ese caso es interesante.
 
     Es el texto que acompaña a la ejecución en el sitio: sin él, el visitante ve

@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -132,7 +133,7 @@ CAMPOS_MANIFIESTO = [
 ]
 
 
-def _resolver(datos, ruta: str):
+def _resolver(datos: Any, ruta: str) -> Any:
     actual = datos
     for tramo in ruta.split("."):
         if tramo.isdigit():
@@ -144,14 +145,14 @@ def _resolver(datos, ruta: str):
 
 
 @pytest.mark.parametrize("ruta", CAMPOS_CAPTURA)
-def test_la_captura_expone_cada_campo_que_el_sitio_lee(ruta):
+def test_la_captura_expone_cada_campo_que_el_sitio_lee(ruta: str) -> None:
     import json
     datos = json.loads(_captura_completa().model_dump_json())
     _resolver(datos, ruta)
 
 
 @pytest.mark.parametrize("ruta", CAMPOS_MANIFIESTO)
-def test_el_manifiesto_expone_cada_campo_que_el_sitio_lee(ruta):
+def test_el_manifiesto_expone_cada_campo_que_el_sitio_lee(ruta: str) -> None:
     import json
     manifiesto = Manifiesto.desde_capturas([_captura_completa()], capturado_en=AHORA)
     datos = json.loads(manifiesto.model_dump_json())
@@ -160,7 +161,7 @@ def test_el_manifiesto_expone_cada_campo_que_el_sitio_lee(ruta):
 
 # --- 2. las etapas que el sitio marca como "usa el modelo" ------------------
 
-def test_las_etapas_llm_del_sitio_son_nodos_reales_del_grafo():
+def test_las_etapas_llm_del_sitio_son_nodos_reales_del_grafo() -> None:
     """El sitio pinta de naranja `router` y `synthesizer`.
 
     Si el grafo renombra un nodo, el sitio seguiría pintando el nombre viejo —
@@ -184,7 +185,7 @@ def test_las_etapas_llm_del_sitio_son_nodos_reales_del_grafo():
 
 # --- 3. los comandos que el sitio le sugiere al visitante -------------------
 
-def test_todo_comando_que_el_sitio_sugiere_existe_en_tasks():
+def test_todo_comando_que_el_sitio_sugiere_existe_en_tasks() -> None:
     """Un mensaje de error que recomienda un comando inexistente es peor que
     no decir nada: manda a la persona a un callejón y le hace dudar del resto.
     """
@@ -201,7 +202,7 @@ def test_todo_comando_que_el_sitio_sugiere_existe_en_tasks():
     )
 
 
-def test_el_comando_de_reproduccion_del_manifiesto_existe_en_tasks():
+def test_el_comando_de_reproduccion_del_manifiesto_existe_en_tasks() -> None:
     """Lo mismo para la promesa que viaja en el manifiesto y se publica."""
     manifiesto = Manifiesto.desde_capturas([_captura_completa()], capturado_en=AHORA)
 
@@ -214,12 +215,12 @@ def test_el_comando_de_reproduccion_del_manifiesto_existe_en_tasks():
 
 # --- 4. el sitio está completo ----------------------------------------------
 
-def test_el_sitio_tiene_sus_tres_archivos():
+def test_el_sitio_tiene_sus_tres_archivos() -> None:
     for nombre in ("index.html", "estilos.css", "replay.js"):
         assert (SITIO / nombre).is_file(), f"falta {nombre}"
 
 
-def test_el_sitio_no_pide_recursos_externos():
+def test_el_sitio_no_pide_recursos_externos() -> None:
     """Cero dependencias de red.
 
     El proyecto entero corre sin servicios de terceros. Un sitio que se cae

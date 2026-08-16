@@ -36,7 +36,7 @@ from agent.nodes.comparaciones import Veredicto, verificar_comparacion
     "Alfa supera a Beta con 250 unidades contra 180",
     "Alfa está por encima con 45,2% frente al 30,1% de Beta",
 ])
-def test_acepta_comparaciones_de_superioridad_correctas(texto):
+def test_acepta_comparaciones_de_superioridad_correctas(texto: str) -> None:
     assert verificar_comparacion(texto) is Veredicto.CORRECTA
 
 
@@ -45,7 +45,7 @@ def test_acepta_comparaciones_de_superioridad_correctas(texto):
     "Beta supera a Alfa con 100 unidades contra 500",
     "Alfa alcanza mayor ingreso con 12.000, superando los 90.000 de Beta",
 ])
-def test_rechaza_comparaciones_de_superioridad_invertidas(texto):
+def test_rechaza_comparaciones_de_superioridad_invertidas(texto: str) -> None:
     """El caso que motivó todo este módulo."""
     assert verificar_comparacion(texto) is Veredicto.CONTRADICTORIA
 
@@ -57,7 +57,7 @@ def test_rechaza_comparaciones_de_superioridad_invertidas(texto):
     "Alfa registra menor devolución con 2,1% contra 5,7% de Beta",
     "Beta queda por debajo con 900 unidades frente a las 1.500 de Alfa",
 ])
-def test_acepta_comparaciones_de_inferioridad_correctas(texto):
+def test_acepta_comparaciones_de_inferioridad_correctas(texto: str) -> None:
     """La trampa del validador ingenuo.
 
     Con "más baja" la relación esperada se invierte. Exigir siempre que el
@@ -70,7 +70,7 @@ def test_acepta_comparaciones_de_inferioridad_correctas(texto):
     "Calma tiene una tasa más baja con 7,1%, frente a las 3,7% de Ribera",
     "Alfa registra menor devolución con 8,9% contra 2,1% de Beta",
 ])
-def test_rechaza_comparaciones_de_inferioridad_invertidas(texto):
+def test_rechaza_comparaciones_de_inferioridad_invertidas(texto: str) -> None:
     assert verificar_comparacion(texto) is Veredicto.CONTRADICTORIA
 
 
@@ -81,18 +81,18 @@ def test_rechaza_comparaciones_de_inferioridad_invertidas(texto):
     "El margen de Beta fue de 24,8%",
     "La tendencia del trimestre resultó favorable",
 ])
-def test_una_afirmacion_sin_comparacion_no_se_evalua(texto):
+def test_una_afirmacion_sin_comparacion_no_se_evalua(texto: str) -> None:
     assert verificar_comparacion(texto) is Veredicto.NO_APLICA
 
 
-def test_una_comparacion_sin_dos_numeros_no_se_evalua():
+def test_una_comparacion_sin_dos_numeros_no_se_evalua() -> None:
     """Sin dos cifras que comparar no hay relación que verificar."""
     assert verificar_comparacion(
         "Alfa lidera cómodamente en unidades sobre Beta"
     ) is Veredicto.NO_APLICA
 
 
-def test_con_mas_de_dos_numeros_no_se_evalua():
+def test_con_mas_de_dos_numeros_no_se_evalua() -> None:
     """Con tres o más cifras no se sabe cuáles se están comparando.
 
     Adivinar acá produciría falsos positivos, y un falso positivo borra una
@@ -103,7 +103,7 @@ def test_con_mas_de_dos_numeros_no_se_evalua():
     ) is Veredicto.NO_APLICA
 
 
-def test_numeros_iguales_no_contradicen_un_comparativo_debil():
+def test_numeros_iguales_no_contradicen_un_comparativo_debil() -> None:
     """Si los dos números son iguales, la afirmación es discutible pero no es
     una contradicción aritmética. No se rechaza."""
     assert verificar_comparacion(
@@ -111,7 +111,7 @@ def test_numeros_iguales_no_contradicen_un_comparativo_debil():
     ) is not Veredicto.CORRECTA
 
 
-def test_ignora_identificadores_al_contar_numeros():
+def test_ignora_identificadores_al_contar_numeros() -> None:
     """`P002` y `doc_112` no son cifras comparables.
 
     Es el mismo falso positivo que tenía el auditor prototipo, ahora en otro
@@ -126,11 +126,11 @@ def test_ignora_identificadores_al_contar_numeros():
 # --- Robustez ----------------------------------------------------------------
 
 @pytest.mark.parametrize("texto", ["", "   ", "lidera frente a"])
-def test_no_explota_con_texto_degenerado(texto):
+def test_no_explota_con_texto_degenerado(texto: str) -> None:
     assert isinstance(verificar_comparacion(texto), Veredicto)
 
 
-def test_maneja_negativos():
+def test_maneja_negativos() -> None:
     assert verificar_comparacion(
         "Alfa crece 18,4% mientras que Beta queda por debajo con -3,1%"
     ) is not Veredicto.CONTRADICTORIA

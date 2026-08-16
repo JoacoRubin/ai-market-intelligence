@@ -11,6 +11,7 @@ un error de alguien que no revisó lo que entregaba.
 """
 
 from datetime import datetime
+from typing import Any
 
 import pytest
 
@@ -19,8 +20,8 @@ from core.kpis import FUENTE
 from core.report import MetricaProducto
 
 
-def _m(pid: str, nombre: str, **kw) -> MetricaProducto:
-    base = dict(
+def _m(pid: str, nombre: str, **kw: Any) -> MetricaProducto:
+    base: dict[str, Any] = dict(
         product_id=pid, nombre=nombre, unidades=100, revenue=10000.0,
         margen_pct=30.0, crecimiento_pct=5.0, tasa_devolucion_pct=3.0,
         fuente=FUENTE,
@@ -31,7 +32,7 @@ def _m(pid: str, nombre: str, **kw) -> MetricaProducto:
 
 # --- Forma -------------------------------------------------------------------
 
-def test_no_se_rompen_las_comas_gramaticales():
+def test_no_se_rompen_las_comas_gramaticales() -> None:
     """El separador de miles no puede pisar la puntuación de la frase."""
     conclusiones = _conclusiones([
         _m("P001", "Alfa", unidades=1500),
@@ -42,7 +43,7 @@ def test_no_se_rompen_las_comas_gramaticales():
     assert ". respecto" not in texto
 
 
-def test_los_miles_se_separan_con_punto():
+def test_los_miles_se_separan_con_punto() -> None:
     conclusiones = _conclusiones([
         _m("P001", "Alfa", unidades=1500),
         _m("P002", "Beta", unidades=900),
@@ -51,7 +52,7 @@ def test_los_miles_se_separan_con_punto():
     assert "1.500" in texto, f"esperaba '1.500' con separador de miles: {texto}"
 
 
-def test_los_decimales_usan_coma():
+def test_los_decimales_usan_coma() -> None:
     conclusiones = _conclusiones([
         _m("P001", "Alfa", margen_pct=31.2),
         _m("P002", "Beta", margen_pct=24.8),
@@ -62,7 +63,7 @@ def test_los_decimales_usan_coma():
 
 # --- Contenido ---------------------------------------------------------------
 
-def test_toda_conclusion_es_un_hecho_con_fuente():
+def test_toda_conclusion_es_un_hecho_con_fuente() -> None:
     """Las conclusiones derivan de números consultados: son hechos, y cada uno
     tiene que poder rastrearse hasta la consulta que lo produjo."""
     for c in _conclusiones([_m("P001", "Alfa"), _m("P002", "Beta")]):
@@ -70,7 +71,7 @@ def test_toda_conclusion_es_un_hecho_con_fuente():
         assert c.fuentes == [FUENTE]
 
 
-def test_identifica_al_lider_en_unidades():
+def test_identifica_al_lider_en_unidades() -> None:
     conclusiones = _conclusiones([
         _m("P001", "Alfa", unidades=100),
         _m("P002", "Beta", unidades=500),
@@ -79,7 +80,7 @@ def test_identifica_al_lider_en_unidades():
     assert "Beta" in texto and "lidera en unidades" in texto
 
 
-def test_senala_cuando_el_lider_en_volumen_no_lidera_en_revenue():
+def test_senala_cuando_el_lider_en_volumen_no_lidera_en_revenue() -> None:
     """Es la observación comercial más valiosa que se puede derivar sin ML:
     vender más unidades no es vender mejor."""
     conclusiones = _conclusiones([
@@ -90,7 +91,7 @@ def test_senala_cuando_el_lider_en_volumen_no_lidera_en_revenue():
     assert "no es el líder en facturación" in texto
 
 
-def test_reporta_las_caidas():
+def test_reporta_las_caidas() -> None:
     conclusiones = _conclusiones([
         _m("P001", "Alfa", crecimiento_pct=12.0),
         _m("P002", "Beta", crecimiento_pct=-8.5),
@@ -99,14 +100,14 @@ def test_reporta_las_caidas():
     assert "Beta" in texto and "cae" in texto and "8,5%" in texto
 
 
-def test_un_solo_producto_no_produce_comparaciones():
+def test_un_solo_producto_no_produce_comparaciones() -> None:
     conclusiones = _conclusiones([_m("P001", "Alfa", unidades=1234)])
     assert len(conclusiones) == 1
     assert "1.234" in conclusiones[0].texto
     assert "lidera" not in conclusiones[0].texto
 
 
-def test_ignora_las_metricas_sin_dato():
+def test_ignora_las_metricas_sin_dato() -> None:
     """Un producto sin margen calculable no puede ganar la comparación de
     márgenes ni hacer explotar el generador."""
     conclusiones = _conclusiones([
@@ -120,7 +121,7 @@ def test_ignora_las_metricas_sin_dato():
 
 # --- Alertas -----------------------------------------------------------------
 
-def test_alerta_cuando_un_producto_devuelve_mucho_mas_que_el_resto():
+def test_alerta_cuando_un_producto_devuelve_mucho_mas_que_el_resto() -> None:
     alertas = _alertas_de_devolucion([
         _m("P001", "Alfa", tasa_devolucion_pct=2.0),
         _m("P002", "Beta", tasa_devolucion_pct=2.5),
@@ -130,7 +131,7 @@ def test_alerta_cuando_un_producto_devuelve_mucho_mas_que_el_resto():
     assert "Gama" in alertas[0]
 
 
-def test_sin_alerta_cuando_las_tasas_son_parejas():
+def test_sin_alerta_cuando_las_tasas_son_parejas() -> None:
     alertas = _alertas_de_devolucion([
         _m("P001", "Alfa", tasa_devolucion_pct=3.0),
         _m("P002", "Beta", tasa_devolucion_pct=3.4),
@@ -138,20 +139,20 @@ def test_sin_alerta_cuando_las_tasas_son_parejas():
     assert alertas == []
 
 
-def test_sin_alerta_con_un_solo_producto():
+def test_sin_alerta_con_un_solo_producto() -> None:
     """Con un único producto no hay grupo contra el cual comparar. Alertar ahí
     sería inventar una anomalía donde solo hay falta de contexto."""
     assert _alertas_de_devolucion([_m("P001", "Alfa", tasa_devolucion_pct=40.0)]) == []
 
 
 @pytest.mark.parametrize("tasas", [[0.0, 0.0], [None, None], [None, 5.0]])
-def test_alertas_no_explotan_con_datos_incompletos(tasas):
+def test_alertas_no_explotan_con_datos_incompletos(tasas: list[Any]) -> None:
     metricas = [_m(f"P{i:03d}", f"N{i}", tasa_devolucion_pct=t)
                 for i, t in enumerate(tasas, 1)]
     assert isinstance(_alertas_de_devolucion(metricas), list)
 
 
-def test_las_conclusiones_entran_en_un_informe_valido():
+def test_las_conclusiones_entran_en_un_informe_valido() -> None:
     """Contraprueba de integración: las afirmaciones generadas tienen que poder
     construir un Report sin violar sus invariantes de trazabilidad."""
     from core.report import Fuente, Report

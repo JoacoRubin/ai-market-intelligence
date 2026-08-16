@@ -17,6 +17,9 @@ dependencies = [
     "sqlalchemy>=2.0.51",
     "pyodbc>=5.3",
     "langgraph>=1.2",
+    # LangChain no orquesta nada acá: eso es de LangGraph (ADR-001). Está solo
+    # para el segundo adaptador del puerto ClienteLLM (ADR-007), que es lo que
+    # deja abierta la salida a otros proveedores sin tocar los nodos.
     "langchain>=1.3",
     "langchain-ollama>=1.0",
 ]
@@ -108,6 +111,37 @@ extend-immutable-calls = [
 python_version = "3.13"
 strict = true
 warn_return_any = true
+# Sin esto mypy entra a los entornos virtuales y reporta errores de código
+# ajeno. El patrón cubre .venv del proyecto y venvs externos (~/.venvs/...),
+# y no ancla en ^ porque mypy resuelve rutas absolutas.
+exclude = [
+    "[\\\\/]\\.?venvs?[\\\\/]",
+    "[\\\\/](build|dist)[\\\\/]",
+    # mypy resuelve este a un nombre de módulo sin separadores, así que los
+    # patrones de ruta de arriba no lo agarran. Es el script de activación de
+    # un virtualenv, no código del proyecto.
+    "activate_this\\.py$",
+]
+
+# Librerías de terceros que no publican tipos (sin py.typed ni stubs oficiales).
+# Se silencia el import y NO se instalan paquetes de stubs a propósito: los
+# stubs de pandas y reportlab arrastran decenas de errores que discuten con las
+# opiniones de quien los escribió, no con la correctitud de este código. El
+# valor de mypy acá está en las fronteras propias, no en re-tipar dependencias.
+[[tool.mypy.overrides]]
+module = [
+    "pyodbc.*",
+    "pandas.*",
+    "reportlab.*",
+    "sklearn.*",
+    "faiss.*",
+    "sentence_transformers.*",
+    "mlflow.*",
+    "matplotlib.*",
+    "faker.*",
+    "pypdf.*",
+]
+ignore_missing_imports = true
 
 [build-system]
 requires = ["hatchling"]

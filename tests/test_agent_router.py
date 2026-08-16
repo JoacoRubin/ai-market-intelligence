@@ -16,6 +16,7 @@ tarda minutos y se corre cuando se toca el prompt.
 """
 
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -28,8 +29,8 @@ def _estado(consulta: str = "Compará P001 y P002 en los últimos 30 días") -> 
     return AnalysisState(request_id="req-001", consulta=consulta)
 
 
-def _respuesta(**kw):
-    base = {
+def _respuesta(**kw: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
         "intencion": "product_performance",
         "product_ids": ["P001", "P002"],
         "dias": 30,
@@ -40,21 +41,22 @@ def _respuesta(**kw):
 
 # --- Camino feliz ------------------------------------------------------------
 
-def test_traslada_la_intencion_al_estado():
+def test_traslada_la_intencion_al_estado() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([_respuesta()]))
     assert estado.intencion == Intencion.PRODUCT_PERFORMANCE
     assert estado.entidades == ["P001", "P002"]
 
 
-def test_calcula_el_periodo_desde_los_dias_pedidos():
+def test_calcula_el_periodo_desde_los_dias_pedidos() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([_respuesta(dias=30)]), hoy=date(2026, 3, 31))
+    assert estado.periodo is not None
     assert estado.periodo.hasta == date(2026, 3, 31)
     assert estado.periodo.desde == date(2026, 3, 2)
 
 
-def test_registra_el_paso_en_el_trace():
+def test_registra_el_paso_en_el_trace() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([_respuesta()]))
     assert any(p.nodo == "router" for p in estado.trace)
@@ -62,7 +64,7 @@ def test_registra_el_paso_en_el_trace():
 
 # --- Defensa contra lo que el modelo puede devolver --------------------------
 
-def test_una_intencion_desconocida_no_rompe_el_grafo():
+def test_una_intencion_desconocida_no_rompe_el_grafo() -> None:
     """El modelo puede inventar un valor fuera del enum aunque el esquema lo
     restrinja. Se degrada a `fuera_de_alcance` y se advierte, en vez de
     explotar en un nodo posterior."""
@@ -72,7 +74,7 @@ def test_una_intencion_desconocida_no_rompe_el_grafo():
     assert any("intención" in w.lower() for w in estado.advertencias)
 
 
-def test_las_entidades_salen_de_la_consulta_no_del_modelo():
+def test_las_entidades_salen_de_la_consulta_no_del_modelo() -> None:
     """La extracción es determinística: el modelo ya no participa.
 
     Aunque el modelo devolviera identificadores inventados, se ignoran. La
@@ -85,7 +87,7 @@ def test_las_entidades_salen_de_la_consulta_no_del_modelo():
     assert estado.entidades == ["P001", "P002"]
 
 
-def test_el_texto_basura_de_la_consulta_no_produce_entidades():
+def test_el_texto_basura_de_la_consulta_no_produce_entidades() -> None:
     """Un intento de inyección en la consulta no genera identificadores.
 
     El regex describe qué ES un id de producto; todo lo demás simplemente no
@@ -96,7 +98,7 @@ def test_el_texto_basura_de_la_consulta_no_produce_entidades():
     assert estado.entidades == ["P001"]
 
 
-def test_company_research_con_productos_internos_se_corrige():
+def test_company_research_con_productos_internos_se_corrige() -> None:
     """La contradicción que el diagnóstico dejó a la vista.
 
     El modelo clasificaba "El P010 cayó fuerte..." como company_research. Ahora
@@ -111,7 +113,7 @@ def test_company_research_con_productos_internos_se_corrige():
         estado.advertencias
 
 
-def test_sin_entidades_validas_marca_fuera_de_alcance():
+def test_sin_entidades_validas_marca_fuera_de_alcance() -> None:
     """Sin productos no hay nada que consultar. Seguir adelante llevaría al
     sintetizador a redactar sobre la nada, que es como nacen los informes
     inventados."""
@@ -122,22 +124,24 @@ def test_sin_entidades_validas_marca_fuera_de_alcance():
     assert estado.intencion == Intencion.FUERA_DE_ALCANCE
 
 
-def test_dias_absurdos_se_acotan():
+def test_dias_absurdos_se_acotan() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([_respuesta(dias=99999)]),
             hoy=date(2026, 3, 31))
+    assert estado.periodo is not None
     assert (estado.periodo.hasta - estado.periodo.desde).days <= 366 * 3
 
 
-def test_dias_ausente_usa_el_default():
+def test_dias_ausente_usa_el_default() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([{"intencion": "product_performance",
                                    "product_ids": ["P001"]}]),
             hoy=date(2026, 3, 31))
+    assert estado.periodo is not None
     assert (estado.periodo.hasta - estado.periodo.desde).days == 29
 
 
-def test_demasiadas_entidades_se_recortan():
+def test_demasiadas_entidades_se_recortan() -> None:
     """Una consulta que nombra treinta productos no es un análisis comparativo.
     El tope evita que el informe sea ilegible y la consulta, cara."""
     consulta = "Compará " + " ".join(f"P{i:03d}" for i in range(1, 30))
@@ -148,7 +152,7 @@ def test_demasiadas_entidades_se_recortan():
 
 # --- Degradación -------------------------------------------------------------
 
-def test_si_el_modelo_no_responde_el_grafo_no_muere():
+def test_si_el_modelo_no_responde_el_grafo_no_muere() -> None:
     """Un LLM caído no puede tumbar el sistema.
 
     El estado queda marcado como fuera de alcance con el error registrado, y el
@@ -162,7 +166,7 @@ def test_si_el_modelo_no_responde_el_grafo_no_muere():
     assert any("modelo" in w.lower() for w in estado.advertencias)
 
 
-def test_un_json_incompleto_no_rompe():
+def test_un_json_incompleto_no_rompe() -> None:
     estado = _estado()
     enrutar(estado, ClienteFalso([{}]))
     assert estado.intencion == Intencion.FUERA_DE_ALCANCE
@@ -170,7 +174,7 @@ def test_un_json_incompleto_no_rompe():
 
 # --- El prompt ---------------------------------------------------------------
 
-def test_el_prompt_incluye_ejemplos():
+def test_el_prompt_incluye_ejemplos() -> None:
     """Los few-shots son la corrección al problema medido en el spike.
 
     Si alguien los borra al 'limpiar' el prompt, este test lo detecta. Un prompt
@@ -188,7 +192,7 @@ def test_el_prompt_incluye_ejemplos():
     )
 
 
-def test_el_prompt_aclara_que_comparar_productos_no_es_investigar_empresas():
+def test_el_prompt_aclara_que_comparar_productos_no_es_investigar_empresas() -> None:
     """La confusión exacta que el modelo tuvo en el spike, atacada de frente."""
     estado = _estado()
     cliente = ClienteFalso([_respuesta()])
@@ -198,9 +202,10 @@ def test_el_prompt_aclara_que_comparar_productos_no_es_investigar_empresas():
 
 
 @pytest.mark.parametrize("hoy", [date(2026, 3, 31), HOY_POR_DEFECTO])
-def test_la_fecha_de_referencia_es_inyectable(hoy):
+def test_la_fecha_de_referencia_es_inyectable(hoy: date) -> None:
     """Nada de `datetime.now()` adentro del nodo: un test que depende del reloj
     del sistema falla solo un martes cualquiera."""
     estado = _estado()
     enrutar(estado, ClienteFalso([_respuesta(dias=7)]), hoy=hoy)
+    assert estado.periodo is not None
     assert estado.periodo.hasta == hoy

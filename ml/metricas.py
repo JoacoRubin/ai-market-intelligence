@@ -18,12 +18,17 @@ la función devuelve `None` en vez de un número inventado.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
+
+from ml.tipos import SerieNumerica
 
 
-def _validar(reales: Sequence[float], predichos: Sequence[float]) -> tuple:
+def _validar(
+    reales: SerieNumerica, predichos: SerieNumerica
+) -> tuple[npt.NDArray[Any], npt.NDArray[Any]]:
     r, p = np.asarray(reales, dtype=float), np.asarray(predichos, dtype=float)
     if r.shape != p.shape:
         raise ValueError(
@@ -34,19 +39,19 @@ def _validar(reales: Sequence[float], predichos: Sequence[float]) -> tuple:
     return r, p
 
 
-def mae(reales: Sequence[float], predichos: Sequence[float]) -> float:
+def mae(reales: SerieNumerica, predichos: SerieNumerica) -> float:
     """Error absoluto medio, en las unidades de la serie."""
     r, p = _validar(reales, predichos)
     return float(np.mean(np.abs(r - p)))
 
 
-def rmse(reales: Sequence[float], predichos: Sequence[float]) -> float:
+def rmse(reales: SerieNumerica, predichos: SerieNumerica) -> float:
     """Raíz del error cuadrático medio. Castiga los desvíos grandes."""
     r, p = _validar(reales, predichos)
     return float(np.sqrt(np.mean((r - p) ** 2)))
 
 
-def mape(reales: Sequence[float], predichos: Sequence[float]) -> float | None:
+def mape(reales: SerieNumerica, predichos: SerieNumerica) -> float | None:
     """Error porcentual absoluto medio.
 
     Excluye los puntos donde el valor real es cero: no existe error porcentual

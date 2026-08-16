@@ -19,6 +19,7 @@ invariantes se cumplen sea cual sea la corrida.
 
 from datetime import date
 
+import pandas as pd
 import pytest
 
 from seeds.generate import DatasetConfig, generar_dataset
@@ -36,13 +37,13 @@ def config() -> DatasetConfig:
 
 
 @pytest.fixture(scope="module")
-def ds(config: DatasetConfig):
+def ds(config: DatasetConfig) -> dict[str, pd.DataFrame]:
     return generar_dataset(config)
 
 
 # --- Reproducibilidad --------------------------------------------------------
 
-def test_mismo_seed_produce_dataset_identico(config: DatasetConfig):
+def test_mismo_seed_produce_dataset_identico(config: DatasetConfig) -> None:
     """Sin esto no hay ciencia posible: si el dataset cambia entre corridas,
     ninguna métrica es comparable y ningún backtest es reproducible."""
     a = generar_dataset(config)
@@ -53,7 +54,7 @@ def test_mismo_seed_produce_dataset_identico(config: DatasetConfig):
         assert a[tabla].equals(b[tabla]), f"la tabla {tabla} no es reproducible"
 
 
-def test_seed_distinto_produce_dataset_distinto(config: DatasetConfig):
+def test_seed_distinto_produce_dataset_distinto(config: DatasetConfig) -> None:
     otro = generar_dataset(DatasetConfig(**{**config.__dict__, "seed": 43}))
     ds_base = generar_dataset(config)
     assert not otro["orders"].equals(ds_base["orders"])
@@ -61,49 +62,52 @@ def test_seed_distinto_produce_dataset_distinto(config: DatasetConfig):
 
 # --- Integridad referencial --------------------------------------------------
 
-def test_order_items_referencian_productos_existentes(ds):
+def test_order_items_referencian_productos_existentes(ds: dict[str, pd.DataFrame]) -> None:
     huerfanos = set(ds["order_items"]["product_id"]) - set(ds["products"]["id"])
     assert not huerfanos, f"order_items apunta a productos inexistentes: {huerfanos}"
 
 
-def test_order_items_referencian_ordenes_existentes(ds):
+def test_order_items_referencian_ordenes_existentes(ds: dict[str, pd.DataFrame]) -> None:
     huerfanos = set(ds["order_items"]["order_id"]) - set(ds["orders"]["id"])
     assert not huerfanos, f"order_items apunta a órdenes inexistentes: {huerfanos}"
 
 
-def test_orders_referencian_clientes_existentes(ds):
+def test_orders_referencian_clientes_existentes(ds: dict[str, pd.DataFrame]) -> None:
     huerfanos = set(ds["orders"]["customer_id"]) - set(ds["customers"]["id"])
     assert not huerfanos, f"orders apunta a clientes inexistentes: {huerfanos}"
 
 
-def test_returns_referencian_order_items_existentes(ds):
+def test_returns_referencian_order_items_existentes(ds: dict[str, pd.DataFrame]) -> None:
     huerfanos = set(ds["returns"]["order_item_id"]) - set(ds["order_items"]["id"])
     assert not huerfanos, f"returns apunta a items inexistentes: {huerfanos}"
 
 
 # --- Coherencia económica ----------------------------------------------------
 
-def test_precio_mayor_que_costo(ds):
+def test_precio_mayor_que_costo(ds: dict[str, pd.DataFrame]) -> None:
     """Un catálogo donde el costo supera al precio da márgenes negativos y
     convierte cualquier análisis de rentabilidad en un sinsentido."""
     perdida = ds["products"][ds["products"]["price"] <= ds["products"]["cost"]]
     assert perdida.empty, f"{len(perdida)} productos con precio <= costo"
 
 
-def test_cantidades_y_precios_positivos(ds):
+def test_cantidades_y_precios_positivos(ds: dict[str, pd.DataFrame]) -> None:
     assert (ds["order_items"]["quantity"] > 0).all()
     assert (ds["order_items"]["unit_price"] > 0).all()
 
 
 # --- Coherencia temporal -----------------------------------------------------
 
-def test_fechas_dentro_del_rango_configurado(ds, config: DatasetConfig):
+def test_fechas_dentro_del_rango_configurado(
+    ds: dict[str, pd.DataFrame],
+    config: DatasetConfig,
+) -> None:
     fechas = ds["orders"]["created_at"].dt.date
     assert fechas.min() >= config.fecha_inicio
     assert fechas.max() <= config.fecha_fin
 
 
-def test_devoluciones_posteriores_a_su_orden(ds):
+def test_devoluciones_posteriores_a_su_orden(ds: dict[str, pd.DataFrame]) -> None:
     """Una devolución anterior a la compra rompe cualquier cálculo de tasa de
     devolución por ventana temporal."""
     items = ds["order_items"].merge(
@@ -119,7 +123,7 @@ def test_devoluciones_posteriores_a_su_orden(ds):
 
 # --- Ground truth: eventos sembrados ----------------------------------------
 
-def test_expone_ground_truth_de_anomalias(ds):
+def test_expone_ground_truth_de_anomalias(ds: dict[str, pd.DataFrame]) -> None:
     """El dataset debe declarar qué anomalías contiene. Sin esto no se puede
     evaluar la detección: no habría contra qué comparar."""
     assert "ground_truth" in ds, "el dataset no expone su ground truth"
@@ -130,7 +134,7 @@ def test_expone_ground_truth_de_anomalias(ds):
         assert col in gt.columns, f"al ground truth le falta la columna {col}"
 
 
-def test_anomalias_sembradas_son_estadisticamente_detectables(ds):
+def test_anomalias_sembradas_son_estadisticamente_detectables(ds: dict[str, pd.DataFrame]) -> None:
     """No alcanza con anotar que hay una anomalía: tiene que notarse en los datos.
 
     Una anomalía que no se despega del ruido normal no sirve para evaluar nada,
@@ -163,7 +167,7 @@ def test_anomalias_sembradas_son_estadisticamente_detectables(ds):
     assert not no_detectables, f"anomalías indistinguibles del ruido: {no_detectables}"
 
 
-def test_hay_estacionalidad_semanal(ds):
+def test_hay_estacionalidad_semanal(ds: dict[str, pd.DataFrame]) -> None:
     """El blueprint pide estacionalidad. Sin ella, cualquier forecast se vuelve
     trivial y el baseline naïve sería imbatible: no habría nada que aprender."""
     items = ds["order_items"].merge(
@@ -182,7 +186,7 @@ def test_hay_estacionalidad_semanal(ds):
 
 # --- Realismo comercial ------------------------------------------------------
 
-def test_unidades_por_linea_son_realistas(ds):
+def test_unidades_por_linea_son_realistas(ds: dict[str, pd.DataFrame]) -> None:
     """En retail, una línea de pedido lleva una o dos unidades del producto.
 
     Si toda la demanda diaria de un producto se concentra en una sola línea, el
@@ -197,14 +201,14 @@ def test_unidades_por_linea_son_realistas(ds):
     )
 
 
-def test_ticket_promedio_en_rango_plausible(ds):
+def test_ticket_promedio_en_rango_plausible(ds: dict[str, pd.DataFrame]) -> None:
     items = ds["order_items"].copy()
     items["revenue"] = items["quantity"] * items["unit_price"]
     ticket = items.groupby("order_id")["revenue"].sum().mean()
     assert 40 <= ticket <= 700, f"ticket promedio de USD {ticket:,.2f}"
 
 
-def test_una_orden_no_repite_el_mismo_producto(ds):
+def test_una_orden_no_repite_el_mismo_producto(ds: dict[str, pd.DataFrame]) -> None:
     """Dos líneas del mismo producto en la misma orden inflarían artificialmente
     el conteo de líneas y romperían cualquier análisis de cesta."""
     dup = ds["order_items"].duplicated(subset=["order_id", "product_id"]).sum()
@@ -213,7 +217,10 @@ def test_una_orden_no_repite_el_mismo_producto(ds):
 
 # --- Volumen mínimo ----------------------------------------------------------
 
-def test_volumen_suficiente_para_analisis(ds, config: DatasetConfig):
+def test_volumen_suficiente_para_analisis(
+    ds: dict[str, pd.DataFrame],
+    config: DatasetConfig,
+) -> None:
     assert len(ds["products"]) == config.n_productos
     assert len(ds["customers"]) == config.n_clientes
     assert len(ds["orders"]) > 1000, "muy pocas órdenes para análisis temporal"

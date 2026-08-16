@@ -32,6 +32,7 @@ import pickle
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -86,7 +87,7 @@ def _mensaje_sin_cache(error: Exception) -> str:
     )
 
 
-def obtener_modelo():
+def obtener_modelo() -> Any:
     """Carga perezosa y única del modelo.
 
     Cargarlo tarda unos segundos; hacerlo una sola vez por proceso evita
@@ -167,7 +168,9 @@ class IndiceVectorial:
     """Índice FAISS sobre los chunks del corpus."""
 
     def __init__(self) -> None:
-        self._indice = None
+        # `Any` y no un tipo de faiss: la librería no publica tipos, así que
+        # cualquier anotación más precisa sería una ficción no verificada.
+        self._indice: Any = None
         self._chunks: list[Chunk] = []
 
     def __len__(self) -> int:

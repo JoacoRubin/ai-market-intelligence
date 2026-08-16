@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from rag.corpus import generar_corpus
+from rag.corpus import Corpus, generar_corpus
 from rag.indice import IndiceVectorial, chunkear
 from seeds.generate import DatasetConfig, generar_dataset
 
@@ -41,7 +41,7 @@ CONSULTAS = {
 
 
 @pytest.fixture(scope="module")
-def escenario():
+def escenario() -> tuple[Corpus, IndiceVectorial]:
     dataset = generar_dataset(DatasetConfig())
     corpus = generar_corpus(dataset, seed=42)
     indice = IndiceVectorial().construir(chunkear(corpus.documentos))
@@ -49,7 +49,7 @@ def escenario():
 
 
 @pytest.fixture(scope="module")
-def posiciones(escenario) -> list[int | None]:
+def posiciones(escenario: tuple[Corpus, IndiceVectorial]) -> list[int | None]:
     """Posición (1-based) del documento correcto en los resultados, o None."""
     corpus, indice = escenario
     salida: list[int | None] = []
@@ -69,13 +69,16 @@ def _hit_rate(posiciones: list[int | None], k: int) -> float:
     return aciertos / len(posiciones)
 
 
-def test_hit_rate_at_1(posiciones):
+def test_hit_rate_at_1(posiciones: list[int | None]) -> None:
     valor = _hit_rate(posiciones, 1)
     print(f"\n  HIT RATE @1: {valor:.0%}")
     assert valor >= MIN_HIT_1, f"hit rate @1 de {valor:.0%}, mínimo {MIN_HIT_1:.0%}"
 
 
-def test_hit_rate_at_3(posiciones, escenario):
+def test_hit_rate_at_3(
+    posiciones: list[int | None],
+    escenario: tuple[Corpus, IndiceVectorial],
+) -> None:
     """La métrica que decide si el informe va a tener la evidencia correcta.
 
     El agente recupera top_k=4, así que un documento que entra en el top-3
@@ -94,14 +97,17 @@ def test_hit_rate_at_3(posiciones, escenario):
     assert valor >= MIN_HIT_3, f"hit rate @3 de {valor:.0%}, mínimo {MIN_HIT_3:.0%}"
 
 
-def test_mean_reciprocal_rank(posiciones):
+def test_mean_reciprocal_rank(posiciones: list[int | None]) -> None:
     """Premia que el documento correcto esté arriba, no solo que esté."""
     mrr = sum(1 / p for p in posiciones if p is not None) / len(posiciones)
     print(f"\n  MRR: {mrr:.2f}")
     assert mrr >= MIN_MRR, f"MRR de {mrr:.2f}, mínimo {MIN_MRR}"
 
 
-def test_el_retrieval_funciona_para_los_tres_tipos_de_evento(escenario, posiciones):
+def test_el_retrieval_funciona_para_los_tres_tipos_de_evento(
+    escenario: tuple[Corpus, IndiceVectorial],
+    posiciones: list[int | None],
+) -> None:
     """Un promedio alto puede esconder un tipo de evento que nunca se recupera.
 
     Medir por tipo evita que el buen desempeño en el caso frecuente tape la
@@ -119,7 +125,9 @@ def test_el_retrieval_funciona_para_los_tres_tipos_de_evento(escenario, posicion
         assert valor >= 0.5, f"{tipo}: hit rate @3 de solo {valor:.0%}"
 
 
-def test_el_filtro_por_producto_mejora_la_precision(escenario):
+def test_el_filtro_por_producto_mejora_la_precision(
+    escenario: tuple[Corpus, IndiceVectorial],
+) -> None:
     """Acotar al producto correcto debería subir el acierto.
 
     Si no lo hiciera, el filtro sería decorativo y convendría sacarlo.

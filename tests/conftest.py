@@ -10,6 +10,8 @@ Por eso se les inyecta un doble por defecto. Los que necesiten un
 comportamiento específico lo sobrescriben con `dependency_overrides`.
 """
 
+from collections.abc import Iterator
+
 import pytest
 
 from agent.llm import ClientePredecible
@@ -17,7 +19,7 @@ from apps.api.main import app, obtener_cliente_llm
 
 
 @pytest.fixture(autouse=True)
-def sin_llm_real():
+def sin_llm_real() -> Iterator[None]:
     """Impide que un test toque el modelo real sin quererlo.
 
     Es `autouse` a propósito: si hubiera que acordarse de pedirlo, alcanzaría

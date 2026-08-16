@@ -16,6 +16,8 @@ entre el LLM va a tardar cerca de dos minutos en esta máquina. Fijar el contrat
 asíncrono ahora evita romper a todos los consumidores después.
 """
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -35,31 +37,32 @@ HASTA = "2026-03-31"
 
 
 @pytest.fixture(scope="module")
-def cliente():
+def cliente() -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
 
 
 @pytest.fixture(scope="module")
-def productos(cliente) -> list[str]:
+def productos(cliente: TestClient) -> list[str]:
     r = cliente.get("/products", params={"limite": 3})
     assert r.status_code == 200
     return [p["id"] for p in r.json()["items"]]
 
 
 @pytest.fixture
-def analisis(cliente, productos) -> str:
+def analisis(cliente: TestClient, productos: list[str]) -> str:
     """Crea un análisis y devuelve su id."""
     r = cliente.post("/analyses", json={
         "product_ids": productos[:2], "desde": DESDE, "hasta": HASTA,
     })
     assert r.status_code == 202
-    return r.json()["id"]
+    analysis_id: str = r.json()["id"]
+    return analysis_id
 
 
 # --- Salud -------------------------------------------------------------------
 
-def test_health_reporta_el_estado_de_las_dependencias(cliente):
+def test_health_reporta_el_estado_de_las_dependencias(cliente: TestClient) -> None:
     r = cliente.get("/health")
     assert r.status_code == 200
     cuerpo = r.json()
@@ -69,7 +72,7 @@ def test_health_reporta_el_estado_de_las_dependencias(cliente):
 
 # --- Recurso: products -------------------------------------------------------
 
-def test_listar_productos(cliente):
+def test_listar_productos(cliente: TestClient) -> None:
     r = cliente.get("/products")
     assert r.status_code == 200
     cuerpo = r.json()
@@ -78,20 +81,20 @@ def test_listar_productos(cliente):
     assert {"id", "brand", "category", "price"} <= set(cuerpo["items"][0])
 
 
-def test_obtener_un_producto(cliente, productos):
+def test_obtener_un_producto(cliente: TestClient, productos: list[str]) -> None:
     r = cliente.get(f"/products/{productos[0]}")
     assert r.status_code == 200
     assert r.json()["id"] == productos[0]
 
 
-def test_producto_inexistente_devuelve_404(cliente):
+def test_producto_inexistente_devuelve_404(cliente: TestClient) -> None:
     r = cliente.get("/products/NO-EXISTE")
     assert r.status_code == 404
 
 
 # --- Sub-recurso: métricas ---------------------------------------------------
 
-def test_metricas_de_un_producto(cliente, productos):
+def test_metricas_de_un_producto(cliente: TestClient, productos: list[str]) -> None:
     r = cliente.get(f"/products/{productos[0]}/metrics",
                     params={"desde": DESDE, "hasta": HASTA})
     assert r.status_code == 200
@@ -101,7 +104,10 @@ def test_metricas_de_un_producto(cliente, productos):
     assert m["fuente"].startswith("sql:")
 
 
-def test_metricas_con_rango_invertido_devuelve_422(cliente, productos):
+def test_metricas_con_rango_invertido_devuelve_422(
+    cliente: TestClient,
+    productos: list[str],
+) -> None:
     """`desde` posterior a `hasta` no es un error del servidor: es una entrada
     inválida, y el cliente tiene que enterarse con un 422, no con un 500."""
     r = cliente.get(f"/products/{productos[0]}/metrics",
@@ -109,7 +115,7 @@ def test_metricas_con_rango_invertido_devuelve_422(cliente, productos):
     assert r.status_code == 422
 
 
-def test_metricas_de_producto_inexistente_devuelve_404(cliente):
+def test_metricas_de_producto_inexistente_devuelve_404(cliente: TestClient) -> None:
     r = cliente.get("/products/NO-EXISTE/metrics",
                     params={"desde": DESDE, "hasta": HASTA})
     assert r.status_code == 404
@@ -117,7 +123,7 @@ def test_metricas_de_producto_inexistente_devuelve_404(cliente):
 
 # --- Recurso: analyses -------------------------------------------------------
 
-def test_crear_analisis_devuelve_202_y_location(cliente, productos):
+def test_crear_analisis_devuelve_202_y_location(cliente: TestClient, productos: list[str]) -> None:
     """202 Accepted, no 201 Created.
 
     El recurso existe desde el instante cero, pero todavía no está terminado.
@@ -133,7 +139,7 @@ def test_crear_analisis_devuelve_202_y_location(cliente, productos):
     assert r.json()["estado"] in ("pendiente", "procesando", "completado")
 
 
-def test_consultar_un_analisis(cliente, analisis):
+def test_consultar_un_analisis(cliente: TestClient, analisis: str) -> None:
     r = cliente.get(f"/analyses/{analisis}")
     assert r.status_code == 200
     cuerpo = r.json()
@@ -142,7 +148,11 @@ def test_consultar_un_analisis(cliente, analisis):
     assert len(cuerpo["informe"]["metricas"]) == 2
 
 
-def test_el_analisis_no_inventa_numeros(cliente, analisis, productos):
+def test_el_analisis_no_inventa_numeros(
+    cliente: TestClient,
+    analisis: str,
+    productos: list[str],
+) -> None:
     """Los KPIs del análisis tienen que ser los mismos que devuelve el endpoint
     de métricas. Dos caminos hacia el mismo número no pueden discrepar."""
     a = cliente.get(f"/analyses/{analisis}").json()
@@ -155,39 +165,42 @@ def test_el_analisis_no_inventa_numeros(cliente, analisis, productos):
         assert metrica["revenue"] == pytest.approx(directo["revenue"], abs=0.01)
 
 
-def test_listar_analisis(cliente, analisis):
+def test_listar_analisis(cliente: TestClient, analisis: str) -> None:
     r = cliente.get("/analyses")
     assert r.status_code == 200
     assert any(a["id"] == analisis for a in r.json()["items"])
 
 
-def test_analisis_inexistente_devuelve_404(cliente):
+def test_analisis_inexistente_devuelve_404(cliente: TestClient) -> None:
     r = cliente.get("/analyses/no-existe")
     assert r.status_code == 404
 
 
-def test_crear_analisis_con_producto_inexistente_devuelve_422(cliente):
+def test_crear_analisis_con_producto_inexistente_devuelve_422(cliente: TestClient) -> None:
     r = cliente.post("/analyses", json={
         "product_ids": ["NO-EXISTE"], "desde": DESDE, "hasta": HASTA,
     })
     assert r.status_code == 422
 
 
-def test_crear_analisis_con_rango_invertido_devuelve_422(cliente, productos):
+def test_crear_analisis_con_rango_invertido_devuelve_422(
+    cliente: TestClient,
+    productos: list[str],
+) -> None:
     r = cliente.post("/analyses", json={
         "product_ids": productos[:1], "desde": HASTA, "hasta": DESDE,
     })
     assert r.status_code == 422
 
 
-def test_eliminar_un_analisis(cliente, analisis):
+def test_eliminar_un_analisis(cliente: TestClient, analisis: str) -> None:
     assert cliente.delete(f"/analyses/{analisis}").status_code == 204
     assert cliente.get(f"/analyses/{analisis}").status_code == 404
 
 
 # --- Negociación de contenido ------------------------------------------------
 
-def test_el_mismo_recurso_se_sirve_como_pdf(cliente, analisis):
+def test_el_mismo_recurso_se_sirve_como_pdf(cliente: TestClient, analisis: str) -> None:
     """Un recurso, una URL, varias representaciones.
 
     El PDF no es otro recurso: es otra forma de mirar el mismo análisis. Si
@@ -200,7 +213,7 @@ def test_el_mismo_recurso_se_sirve_como_pdf(cliente, analisis):
     assert r.content.startswith(b"%PDF-")
 
 
-def test_la_extension_pdf_funciona_sin_headers(cliente, analisis):
+def test_la_extension_pdf_funciona_sin_headers(cliente: TestClient, analisis: str) -> None:
     """Un enlace de navegador no puede mandar el header Accept.
 
     Por eso la extensión en la URL convive con la negociación de contenido: no
@@ -212,12 +225,12 @@ def test_la_extension_pdf_funciona_sin_headers(cliente, analisis):
     assert "attachment" in r.headers.get("content-disposition", "")
 
 
-def test_pdf_de_analisis_inexistente_devuelve_404(cliente):
+def test_pdf_de_analisis_inexistente_devuelve_404(cliente: TestClient) -> None:
     r = cliente.get("/analyses/no-existe.pdf")
     assert r.status_code == 404
 
 
-def test_formato_no_soportado_devuelve_406(cliente, analisis):
+def test_formato_no_soportado_devuelve_406(cliente: TestClient, analisis: str) -> None:
     """406 Not Acceptable: el recurso existe, pero no en el formato pedido.
     Devolver JSON igual sería mentirle al cliente sobre lo que recibió."""
     r = cliente.get(f"/analyses/{analisis}",
@@ -227,7 +240,7 @@ def test_formato_no_soportado_devuelve_406(cliente, analisis):
 
 # --- Contrato documentado ----------------------------------------------------
 
-def test_la_api_publica_su_esquema_openapi(cliente):
+def test_la_api_publica_su_esquema_openapi(cliente: TestClient) -> None:
     """La documentación no se escribe aparte: se deriva de los modelos Pydantic.
     Una API cuyo contrato hay que mantener a mano se desincroniza siempre."""
     r = cliente.get("/openapi.json")

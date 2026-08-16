@@ -57,7 +57,7 @@ def ds() -> dict[str, pd.DataFrame]:
 
 
 @pytest.fixture(scope="module")
-def ventas(ds) -> pd.DataFrame:
+def ventas(ds: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Líneas de venta válidas, con su fecha y el costo del producto.
 
     REGLA: se excluyen las órdenes canceladas. Una cancelación no es una venta,
@@ -89,17 +89,21 @@ def _en_rango(ventas: pd.DataFrame, pid: str, desde: date, hasta: date) -> pd.Da
 
 
 @pytest.fixture(scope="module")
-def productos_de_prueba(ventas) -> list[str]:
+def productos_de_prueba(ventas: pd.DataFrame) -> list[str]:
     """Los cinco productos con más movimiento en el rango: si algo no cierra,
     conviene que sea sobre volumen alto, donde los errores se ven."""
     en_rango = ventas[(ventas["fecha"] >= DESDE) & (ventas["fecha"] <= HASTA)]
-    return (en_rango.groupby("product_id")["quantity"].sum()
-            .sort_values(ascending=False).head(5).index.tolist())
+    top: list[str] = (en_rango.groupby("product_id")["quantity"].sum()
+                      .sort_values(ascending=False).head(5).index.tolist())
+    return top
 
 
 # --- KPI 1: unidades vendidas -----------------------------------------------
 
-def test_unidades_coincide_con_el_calculo_independiente(ventas, productos_de_prueba):
+def test_unidades_coincide_con_el_calculo_independiente(
+    ventas: pd.DataFrame,
+    productos_de_prueba: list[str],
+) -> None:
     for pid in productos_de_prueba:
         esperado = int(_en_rango(ventas, pid, DESDE, HASTA)["quantity"].sum())
         obtenido = unidades_vendidas(pid, DESDE, HASTA)
@@ -108,7 +112,10 @@ def test_unidades_coincide_con_el_calculo_independiente(ventas, productos_de_pru
         )
 
 
-def test_unidades_excluye_las_ordenes_canceladas(ds, productos_de_prueba):
+def test_unidades_excluye_las_ordenes_canceladas(
+    ds: dict[str, pd.DataFrame],
+    productos_de_prueba: list[str],
+) -> None:
     """Contraprueba: si la query NO filtrara canceladas, daría más alto.
 
     Sin este test, una query sin el filtro pasaría el test anterior solo si el
@@ -136,7 +143,10 @@ def test_unidades_excluye_las_ordenes_canceladas(ds, productos_de_prueba):
 
 # --- KPI 2: revenue ----------------------------------------------------------
 
-def test_revenue_coincide_con_el_calculo_independiente(ventas, productos_de_prueba):
+def test_revenue_coincide_con_el_calculo_independiente(
+    ventas: pd.DataFrame,
+    productos_de_prueba: list[str],
+) -> None:
     for pid in productos_de_prueba:
         esperado = float(_en_rango(ventas, pid, DESDE, HASTA)["revenue"].sum())
         obtenido = revenue(pid, DESDE, HASTA)
@@ -145,7 +155,10 @@ def test_revenue_coincide_con_el_calculo_independiente(ventas, productos_de_prue
         )
 
 
-def test_revenue_usa_el_precio_pagado_no_el_de_lista(ds, ventas):
+def test_revenue_usa_el_precio_pagado_no_el_de_lista(
+    ds: dict[str, pd.DataFrame],
+    ventas: pd.DataFrame,
+) -> None:
     """Con campañas de descuento activas, calcular sobre el precio de lista
     infla el revenue.
 
@@ -186,7 +199,10 @@ def test_revenue_usa_el_precio_pagado_no_el_de_lista(ds, ventas):
 
 # --- KPI 3: margen -----------------------------------------------------------
 
-def test_margen_coincide_con_el_calculo_independiente(ventas, productos_de_prueba):
+def test_margen_coincide_con_el_calculo_independiente(
+    ventas: pd.DataFrame,
+    productos_de_prueba: list[str],
+) -> None:
     for pid in productos_de_prueba:
         filas = _en_rango(ventas, pid, DESDE, HASTA)
         rev = float(filas["revenue"].sum())
@@ -200,7 +216,7 @@ def test_margen_coincide_con_el_calculo_independiente(ventas, productos_de_prueb
         )
 
 
-def test_margen_esta_en_rango_plausible(productos_de_prueba):
+def test_margen_esta_en_rango_plausible(productos_de_prueba: list[str]) -> None:
     """El generador construye los costos con márgenes entre 28% y 62%.
 
     Un margen fuera de ese rango significa que la query está mezclando algo
@@ -209,12 +225,18 @@ def test_margen_esta_en_rango_plausible(productos_de_prueba):
     """
     for pid in productos_de_prueba:
         m = margen_pct(pid, DESDE, HASTA)
+        # margen_pct devuelve None si no hay ventas: sin este chequeo la
+        # comparación explotaría con un TypeError que no dice nada del KPI.
+        assert m is not None, f"{pid}: no se pudo calcular el margen"
         assert -20 <= m <= 80, f"{pid}: margen de {m:.1f}%, sospechoso"
 
 
 # --- KPI 4: crecimiento ------------------------------------------------------
 
-def test_crecimiento_coincide_con_el_calculo_independiente(ventas, productos_de_prueba):
+def test_crecimiento_coincide_con_el_calculo_independiente(
+    ventas: pd.DataFrame,
+    productos_de_prueba: list[str],
+) -> None:
     """Compara el rango contra el período inmediatamente anterior de igual largo."""
     dias = (HASTA - DESDE).days
     from datetime import timedelta
@@ -233,7 +255,7 @@ def test_crecimiento_coincide_con_el_calculo_independiente(ventas, productos_de_
         )
 
 
-def test_crecimiento_sin_periodo_previo_devuelve_none():
+def test_crecimiento_sin_periodo_previo_devuelve_none() -> None:
     """Un producto sin ventas previas no tiene crecimiento 0%: no tiene
     crecimiento. Devolver 0 sería afirmar algo que no se sabe, y el informe
     lo mostraría como un hecho."""
@@ -244,8 +266,8 @@ def test_crecimiento_sin_periodo_previo_devuelve_none():
 # --- KPI 5: tasa de devolución ----------------------------------------------
 
 def test_tasa_devolucion_coincide_con_el_calculo_independiente(
-    ds, ventas, productos_de_prueba
-):
+    ds: dict[str, pd.DataFrame], ventas: pd.DataFrame, productos_de_prueba: list[str]
+) -> None:
     devoluciones = set(ds["returns"]["order_item_id"])
     for pid in productos_de_prueba:
         filas = _en_rango(ventas, pid, DESDE, HASTA)
@@ -259,7 +281,7 @@ def test_tasa_devolucion_coincide_con_el_calculo_independiente(
         )
 
 
-def test_tasa_devolucion_nunca_supera_el_cien_por_ciento(productos_de_prueba):
+def test_tasa_devolucion_nunca_supera_el_cien_por_ciento(productos_de_prueba: list[str]) -> None:
     for pid in productos_de_prueba:
         t = tasa_devolucion_pct(pid, DESDE, HASTA)
         assert t is None or 0 <= t <= 100, f"{pid}: tasa de devolución de {t}%"
@@ -267,7 +289,7 @@ def test_tasa_devolucion_nunca_supera_el_cien_por_ciento(productos_de_prueba):
 
 # --- Integración: el KPI completo alimenta el modelo Report ------------------
 
-def test_metricas_de_producto_devuelve_un_modelo_valido(productos_de_prueba):
+def test_metricas_de_producto_devuelve_un_modelo_valido(productos_de_prueba: list[str]) -> None:
     """La función que usa la tool del agente devuelve directamente el modelo
     del informe. Sin traducciones intermedias donde se pierdan reglas."""
     pid = productos_de_prueba[0]
@@ -278,7 +300,7 @@ def test_metricas_de_producto_devuelve_un_modelo_valido(productos_de_prueba):
     assert m.fuente.startswith("sql:")
 
 
-def test_metricas_coinciden_con_los_kpis_individuales(productos_de_prueba):
+def test_metricas_coinciden_con_los_kpis_individuales(productos_de_prueba: list[str]) -> None:
     """El agregado no puede diferir de sus partes: si difiere, hay dos caminos
     de cálculo y tarde o temprano se contradicen."""
     pid = productos_de_prueba[0]

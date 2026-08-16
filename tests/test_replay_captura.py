@@ -92,7 +92,7 @@ def _estado_fuera_de_alcance() -> AnalysisState:
 
 # --- lo que el replay muestra ------------------------------------------------
 
-def test_preserva_los_tiempos_reales_de_cada_nodo():
+def test_preserva_los_tiempos_reales_de_cada_nodo() -> None:
     """Los `duracion_ms` del trace viajan intactos.
 
     Es el corazón del replay: la animación del grafo se anima con estos números.
@@ -112,7 +112,7 @@ def test_preserva_los_tiempos_reales_de_cada_nodo():
     assert captura.duracion_total_ms == 53_695
 
 
-def test_preserva_el_informe_con_sus_fuentes_y_citas():
+def test_preserva_el_informe_con_sus_fuentes_y_citas() -> None:
     """Sin las fuentes no hay trazabilidad, y sin trazabilidad no hay demo."""
     captura = Captura.desde_estado("cmp-01", _estado_completo(),
                                    capturada_en=AHORA, modelo_llm=MODELO)
@@ -123,7 +123,7 @@ def test_preserva_el_informe_con_sus_fuentes_y_citas():
     assert captura.informe.metricas[0].unidades == 340
 
 
-def test_conserva_el_plan_con_la_razon_de_cada_herramienta():
+def test_conserva_el_plan_con_la_razon_de_cada_herramienta() -> None:
     """El `razon` de cada paso es lo que hace auditable la elección del agente.
 
     Un replay que muestre 'llamó a product_metrics' sin decir por qué, muestra
@@ -136,7 +136,7 @@ def test_conserva_el_plan_con_la_razon_de_cada_herramienta():
     assert "SQL" in captura.plan[0].razon
 
 
-def test_registra_el_presupuesto_consumido():
+def test_registra_el_presupuesto_consumido() -> None:
     """Cuántas herramientas usó y cuántas veces replanificó."""
     captura = Captura.desde_estado("cmp-01", _estado_completo(),
                                    capturada_en=AHORA, modelo_llm=MODELO)
@@ -145,7 +145,7 @@ def test_registra_el_presupuesto_consumido():
     assert captura.reintentos == 0
 
 
-def test_declara_el_modelo_y_el_momento_de_la_captura():
+def test_declara_el_modelo_y_el_momento_de_la_captura() -> None:
     """Es lo que sostiene la honestidad del replay.
 
     Se publica como ejecución grabada, no como sistema en vivo. Sin estos dos
@@ -160,7 +160,7 @@ def test_declara_el_modelo_y_el_momento_de_la_captura():
 
 # --- el caso que casi nadie muestra -----------------------------------------
 
-def test_fuera_de_alcance_produce_una_captura_valida_sin_informe():
+def test_fuera_de_alcance_produce_una_captura_valida_sin_informe() -> None:
     """Que el agente diga "esto no me corresponde" es una CAPACIDAD.
 
     El harness tiene que poder capturarlo igual que un caso exitoso. Si tratara
@@ -177,7 +177,7 @@ def test_fuera_de_alcance_produce_una_captura_valida_sin_informe():
     assert captura.trace[0].nodo == "router"
 
 
-def test_propaga_las_advertencias_del_estado():
+def test_propaga_las_advertencias_del_estado() -> None:
     estado = _estado_completo()
     estado._advertir("La predicción de P001 no tiene backtesting.")
 
@@ -189,7 +189,7 @@ def test_propaga_las_advertencias_del_estado():
 
 # --- contrato con el sitio estático -----------------------------------------
 
-def test_la_captura_sobrevive_un_viaje_de_ida_y_vuelta_por_json():
+def test_la_captura_sobrevive_un_viaje_de_ida_y_vuelta_por_json() -> None:
     """El sitio estático consume exactamente este JSON.
 
     Si un campo no serializa —una fecha, un enum, un modelo anidado— el sitio
@@ -205,7 +205,7 @@ def test_la_captura_sobrevive_un_viaje_de_ida_y_vuelta_por_json():
     assert vuelta == original
 
 
-def test_el_json_serializado_no_tiene_tipos_que_javascript_no_entienda():
+def test_el_json_serializado_no_tiene_tipos_que_javascript_no_entienda() -> None:
     """Fechas y enums tienen que salir como strings, no como objetos Python."""
     captura = Captura.desde_estado("cmp-01", _estado_completo(),
                                    capturada_en=AHORA, modelo_llm=MODELO)
@@ -219,7 +219,7 @@ def test_el_json_serializado_no_tiene_tipos_que_javascript_no_entienda():
 
 # --- el manifiesto -----------------------------------------------------------
 
-def test_el_manifiesto_lista_las_capturas_y_dice_como_reproducirlas():
+def test_el_manifiesto_lista_las_capturas_y_dice_como_reproducirlas() -> None:
     """El manifiesto es la declaración pública de qué es este demo.
 
     Sin el comando de reproducción, el replay es una afirmación sin respaldo.
@@ -240,7 +240,7 @@ def test_el_manifiesto_lista_las_capturas_y_dice_como_reproducirlas():
     assert "docker compose up" in manifiesto.reproducible_con
 
 
-def test_el_manifiesto_resume_cada_caso_sin_arrastrar_el_informe_entero():
+def test_el_manifiesto_resume_cada_caso_sin_arrastrar_el_informe_entero() -> None:
     """El índice se carga primero y tiene que ser liviano.
 
     Si el manifiesto trajera los informes completos, el navegador descargaría
@@ -257,13 +257,13 @@ def test_el_manifiesto_resume_cada_caso_sin_arrastrar_el_informe_entero():
     assert crudo["casos"][0]["duracion_total_ms"] == 53_695
 
 
-def test_el_manifiesto_rechaza_una_lista_vacia():
+def test_el_manifiesto_rechaza_una_lista_vacia() -> None:
     """Publicar un replay sin ejecuciones es publicar una promesa vacía."""
     with pytest.raises(ValueError, match="al menos una captura"):
         Manifiesto.desde_capturas([], capturado_en=AHORA)
 
 
-def test_el_manifiesto_rechaza_capturas_de_modelos_distintos():
+def test_el_manifiesto_rechaza_capturas_de_modelos_distintos() -> None:
     """Un manifiesto declara UN modelo. Mezclar corridas lo vuelve mentira.
 
     El replay se publica diciendo "generado por llama3.2:3b". Si la mitad de las

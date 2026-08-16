@@ -11,6 +11,7 @@ alguien mandó por mail.
 """
 
 from datetime import date, datetime
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -48,8 +49,8 @@ def _metrica(pid: str = "P001") -> MetricaProducto:
     )
 
 
-def _report_minimo(**kw) -> Report:
-    base = dict(
+def _report_minimo(**kw: Any) -> Report:
+    base: dict[str, Any] = dict(
         request_id="req-001",
         consulta="Compará Producto A vs B en los últimos 30 días",
         generado_en=datetime(2026, 8, 9, 15, 0),
@@ -63,7 +64,7 @@ def _report_minimo(**kw) -> Report:
 
 # --- Trazabilidad: la regla que sostiene todo -------------------------------
 
-def test_un_hecho_sin_fuente_es_rechazado():
+def test_un_hecho_sin_fuente_es_rechazado() -> None:
     """Un hecho sin respaldo es exactamente lo que el sistema debe impedir.
 
     Si esto se pudiera construir, el LLM podría afirmar cualquier cosa y el
@@ -77,7 +78,7 @@ def test_un_hecho_sin_fuente_es_rechazado():
         )
 
 
-def test_un_hecho_con_fuente_inexistente_es_rechazado():
+def test_un_hecho_con_fuente_inexistente_es_rechazado() -> None:
     """Citar una fuente que no está en la lista de fuentes es peor que no citar:
     aparenta rigor y no lo tiene."""
     with pytest.raises(ValidationError, match=r"no declarada|inexistente"):
@@ -92,7 +93,7 @@ def test_un_hecho_con_fuente_inexistente_es_rechazado():
         )
 
 
-def test_una_recomendacion_no_requiere_fuente():
+def test_una_recomendacion_no_requiere_fuente() -> None:
     """Una recomendación es un juicio derivado, no un dato. Puede no tener
     fuente directa — pero el informe la marca como recomendación, y por eso
     el lector sabe que no es un hecho."""
@@ -105,11 +106,11 @@ def test_una_recomendacion_no_requiere_fuente():
     assert r.recomendaciones[0].tipo == "recomendacion"
 
 
-def test_el_modelo_llm_es_obligatorio():
+def test_el_modelo_llm_es_obligatorio() -> None:
     """Sin saber qué modelo lo escribió, el informe no es reproducible ni
     auditable."""
     with pytest.raises(ValidationError):
-        Report(
+        Report(  # type: ignore[call-arg]
             request_id="req-002",
             consulta="x",
             generado_en=datetime(2026, 8, 9, 15, 0),
@@ -120,7 +121,7 @@ def test_el_modelo_llm_es_obligatorio():
 
 # --- Predicciones -----------------------------------------------------------
 
-def test_prediccion_sin_backtest_genera_advertencia_automatica():
+def test_prediccion_sin_backtest_genera_advertencia_automatica() -> None:
     """Un forecast sin baseline ni backtesting no se puede interpretar.
 
     No se rechaza —a veces no hay histórico suficiente— pero el informe DEBE
@@ -136,7 +137,7 @@ def test_prediccion_sin_backtest_genera_advertencia_automatica():
                for w in r.advertencias), r.advertencias
 
 
-def test_prediccion_peor_que_el_baseline_genera_advertencia():
+def test_prediccion_peor_que_el_baseline_genera_advertencia() -> None:
     """Si el modelo pierde contra el baseline naïve, el informe tiene que decirlo.
     Presentar como predicción algo peor que 'repetir el último valor' es
     directamente engañoso."""
@@ -150,7 +151,7 @@ def test_prediccion_peor_que_el_baseline_genera_advertencia():
     assert any("baseline" in w.lower() for w in r.advertencias), r.advertencias
 
 
-def test_prediccion_mejor_que_baseline_no_genera_advertencia():
+def test_prediccion_mejor_que_baseline_no_genera_advertencia() -> None:
     r = _report_minimo(
         predicciones=[
             Prediccion(product_id="P001", horizonte_dias=30, valor=1470.0,
@@ -163,7 +164,7 @@ def test_prediccion_mejor_que_baseline_no_genera_advertencia():
 
 # --- Separación de naturaleza -----------------------------------------------
 
-def test_el_resumen_no_admite_recomendaciones():
+def test_el_resumen_no_admite_recomendaciones() -> None:
     """El Executive Summary reporta lo que pasó. Mezclar ahí una sugerencia de
     acción borra la frontera entre lo que ocurrió y lo que alguien opina que
     habría que hacer."""
@@ -175,7 +176,7 @@ def test_el_resumen_no_admite_recomendaciones():
         )
 
 
-def test_las_recomendaciones_no_admiten_hechos():
+def test_las_recomendaciones_no_admiten_hechos() -> None:
     with pytest.raises(ValidationError):
         _report_minimo(
             recomendaciones=[
@@ -187,7 +188,7 @@ def test_las_recomendaciones_no_admiten_hechos():
 
 # --- Anomalías --------------------------------------------------------------
 
-def test_anomalia_con_evidencia_valida_se_construye():
+def test_anomalia_con_evidencia_valida_se_construye() -> None:
     r = _report_minimo(
         fuentes=[_fuente("sql:product_metrics"), _fuente("doc_112")],
         anomalias=[
@@ -204,7 +205,7 @@ def test_anomalia_con_evidencia_valida_se_construye():
     assert r.anomalias[0].desvios == 3.4
 
 
-def test_anomalia_con_evidencia_inexistente_es_rechazada():
+def test_anomalia_con_evidencia_inexistente_es_rechazada() -> None:
     with pytest.raises(ValidationError, match=r"no declarada|inexistente"):
         _report_minimo(
             anomalias=[
@@ -217,7 +218,7 @@ def test_anomalia_con_evidencia_inexistente_es_rechazada():
 
 # --- Caso completo ----------------------------------------------------------
 
-def test_informe_completo_valido():
+def test_informe_completo_valido() -> None:
     r = _report_minimo(
         fuentes=[_fuente("sql:product_metrics"), _fuente("doc_112")],
         resumen_ejecutivo=[

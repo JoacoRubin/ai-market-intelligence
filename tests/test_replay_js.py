@@ -26,6 +26,7 @@ import shutil
 import subprocess
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -128,20 +129,21 @@ def sitio(tmp_path: Path) -> Path:
     return destino
 
 
-def _correr(sitio: Path) -> dict:
+def _correr(sitio: Path) -> dict[str, Any]:
     proceso = subprocess.run(
-        [NODE, str(HARNESS), str(sitio)],
+        [str(NODE), str(HARNESS), str(sitio)],
         capture_output=True, text=True, timeout=60,
     )
     salida = proceso.stdout.strip().splitlines()
     assert salida, f"el harness no devolvió nada. stderr: {proceso.stderr[:400]}"
-    return json.loads(salida[-1])
+    datos: dict[str, Any] = json.loads(salida[-1])
+    return datos
 
 
 # --- los tests ---------------------------------------------------------------
 
 @sin_node
-def test_el_sitio_arranca_sin_lanzar_excepciones(sitio):
+def test_el_sitio_arranca_sin_lanzar_excepciones(sitio: Path) -> None:
     """La red que faltaba. Cualquier TypeError de runtime cae acá."""
     resultado = _correr(sitio)
 
@@ -151,7 +153,7 @@ def test_el_sitio_arranca_sin_lanzar_excepciones(sitio):
 
 
 @sin_node
-def test_construye_un_boton_por_caso_del_manifiesto(sitio):
+def test_construye_un_boton_por_caso_del_manifiesto(sitio: Path) -> None:
     """El síntoma exacto del bug: el índice quedaba vacío y nada más pasaba.
 
     Verificar 'no explotó' no alcanzaba — la excepción se tragaba dentro de un
@@ -163,7 +165,7 @@ def test_construye_un_boton_por_caso_del_manifiesto(sitio):
 
 
 @sin_node
-def test_renderiza_todos_los_casos_incluido_el_que_no_tiene_informe(sitio):
+def test_renderiza_todos_los_casos_incluido_el_que_no_tiene_informe(sitio: Path) -> None:
     """El caso sin informe recorre otro camino entero (construirRechazo).
 
     Es el que muestra al agente negándose, o sea el más valioso del replay, y
@@ -177,7 +179,7 @@ def test_renderiza_todos_los_casos_incluido_el_que_no_tiene_informe(sitio):
 # --- el sitio que se publica de verdad ----------------------------------------
 
 @sin_node
-def test_el_sitio_publicado_renderiza_las_capturas_del_repo():
+def test_el_sitio_publicado_renderiza_las_capturas_del_repo() -> None:
     """Los tests de arriba arman un sitio sintético en un directorio temporal.
 
     Eso alcanza para validar el JavaScript, y no alcanza para validar lo que se

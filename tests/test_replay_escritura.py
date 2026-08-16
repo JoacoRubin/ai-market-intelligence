@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from core.report import Afirmacion, Fuente, Report
 from replay.captura import Captura
@@ -37,7 +38,7 @@ def _captura(caso_id: str, con_informe: bool = True) -> Captura:
     )
 
 
-def test_escribe_un_json_por_caso_y_un_manifiesto(tmp_path):
+def test_escribe_un_json_por_caso_y_un_manifiesto(tmp_path: Path) -> None:
     escribir([_captura("cmp-01"), _captura("out-03", con_informe=False)],
              destino=tmp_path, capturado_en=AHORA)
 
@@ -46,7 +47,7 @@ def test_escribe_un_json_por_caso_y_un_manifiesto(tmp_path):
     assert (tmp_path / "casos" / "out-03.json").exists()
 
 
-def test_el_manifiesto_escrito_es_json_valido_y_lista_los_casos(tmp_path):
+def test_el_manifiesto_escrito_es_json_valido_y_lista_los_casos(tmp_path: Path) -> None:
     escribir([_captura("cmp-01")], destino=tmp_path, capturado_en=AHORA)
 
     datos = json.loads((tmp_path / "manifiesto.json").read_text(encoding="utf-8"))
@@ -56,7 +57,7 @@ def test_el_manifiesto_escrito_es_json_valido_y_lista_los_casos(tmp_path):
     assert "docker compose up" in datos["reproducible_con"]
 
 
-def test_genera_el_pdf_solo_de_los_casos_que_tienen_informe(tmp_path):
+def test_genera_el_pdf_solo_de_los_casos_que_tienen_informe(tmp_path: Path) -> None:
     """Sin informe no hay PDF, y eso no es un fallo.
 
     Un caso fuera de alcance termina sin informe a propósito. Si la escritura
@@ -69,7 +70,7 @@ def test_genera_el_pdf_solo_de_los_casos_que_tienen_informe(tmp_path):
     assert not (tmp_path / "pdf" / "out-03.pdf").exists()
 
 
-def test_el_pdf_escrito_es_un_pdf_de_verdad(tmp_path):
+def test_el_pdf_escrito_es_un_pdf_de_verdad(tmp_path: Path) -> None:
     escribir([_captura("cmp-01")], destino=tmp_path, capturado_en=AHORA)
 
     crudo = (tmp_path / "pdf" / "cmp-01.pdf").read_bytes()
@@ -77,7 +78,7 @@ def test_el_pdf_escrito_es_un_pdf_de_verdad(tmp_path):
     assert crudo.startswith(b"%PDF-")
 
 
-def test_crea_el_destino_si_no_existe(tmp_path):
+def test_crea_el_destino_si_no_existe(tmp_path: Path) -> None:
     destino = tmp_path / "docs" / "replay" / "data"
 
     escribir([_captura("cmp-01")], destino=destino, capturado_en=AHORA)
@@ -85,7 +86,7 @@ def test_crea_el_destino_si_no_existe(tmp_path):
     assert (destino / "manifiesto.json").exists()
 
 
-def test_el_json_de_cada_caso_trae_el_informe_completo(tmp_path):
+def test_el_json_de_cada_caso_trae_el_informe_completo(tmp_path: Path) -> None:
     """A diferencia del manifiesto, que es solo el índice."""
     escribir([_captura("cmp-01")], destino=tmp_path, capturado_en=AHORA)
 

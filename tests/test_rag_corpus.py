@@ -17,32 +17,33 @@ evento, cualquier búsqueda acertaría por descarte y la métrica de retrieval n
 mediría nada.
 """
 
+import pandas as pd
 import pytest
 
-from rag.corpus import ROLES_DISTRACTOR, generar_corpus
+from rag.corpus import ROLES_DISTRACTOR, Corpus, generar_corpus
 from seeds.generate import DatasetConfig, generar_dataset
 
 
 @pytest.fixture(scope="module")
-def dataset():
+def dataset() -> dict[str, pd.DataFrame]:
     return generar_dataset(DatasetConfig())
 
 
 @pytest.fixture(scope="module")
-def corpus(dataset):
+def corpus(dataset: dict[str, pd.DataFrame]) -> Corpus:
     return generar_corpus(dataset, seed=42)
 
 
 # --- Reproducibilidad --------------------------------------------------------
 
-def test_el_corpus_es_reproducible(dataset):
+def test_el_corpus_es_reproducible(dataset: dict[str, pd.DataFrame]) -> None:
     a = generar_corpus(dataset, seed=42)
     b = generar_corpus(dataset, seed=42)
     assert [d.id for d in a.documentos] == [d.id for d in b.documentos]
     assert [d.texto for d in a.documentos] == [d.texto for d in b.documentos]
 
 
-def test_semillas_distintas_producen_corpus_distintos(dataset):
+def test_semillas_distintas_producen_corpus_distintos(dataset: dict[str, pd.DataFrame]) -> None:
     a = generar_corpus(dataset, seed=42)
     b = generar_corpus(dataset, seed=99)
     assert [d.texto for d in a.documentos] != [d.texto for d in b.documentos]
@@ -50,7 +51,10 @@ def test_semillas_distintas_producen_corpus_distintos(dataset):
 
 # --- Cobertura de los eventos ------------------------------------------------
 
-def test_cada_evento_del_ground_truth_tiene_su_documento(dataset, corpus):
+def test_cada_evento_del_ground_truth_tiene_su_documento(
+    dataset: dict[str, pd.DataFrame],
+    corpus: Corpus,
+) -> None:
     """Sin esto, el RAG no puede explicar nada de lo que el SQL detecta."""
     eventos = len(dataset["ground_truth"])
     explicados = {e.evento_idx for e in corpus.explicaciones}
@@ -60,13 +64,16 @@ def test_cada_evento_del_ground_truth_tiene_su_documento(dataset, corpus):
     )
 
 
-def test_cada_explicacion_apunta_a_un_documento_existente(corpus):
+def test_cada_explicacion_apunta_a_un_documento_existente(corpus: Corpus) -> None:
     ids = {d.id for d in corpus.documentos}
     huerfanas = [e.doc_id for e in corpus.explicaciones if e.doc_id not in ids]
     assert not huerfanas, f"explicaciones que apuntan a documentos inexistentes: {huerfanas}"
 
 
-def test_el_documento_menciona_el_producto_que_explica(dataset, corpus):
+def test_el_documento_menciona_el_producto_que_explica(
+    dataset: dict[str, pd.DataFrame],
+    corpus: Corpus,
+) -> None:
     """Un documento que explica un evento de P002 tiene que nombrar a P002.
 
     Si no, el retrieval por producto nunca lo encontraría y la explicación sería
@@ -81,7 +88,10 @@ def test_el_documento_menciona_el_producto_que_explica(dataset, corpus):
         )
 
 
-def test_la_fecha_del_documento_es_coherente_con_el_evento(dataset, corpus):
+def test_la_fecha_del_documento_es_coherente_con_el_evento(
+    dataset: dict[str, pd.DataFrame],
+    corpus: Corpus,
+) -> None:
     """Un reporte fechado dos meses después del evento no lo explica: lo
     recuerda. La cercanía temporal es parte de la evidencia."""
     gt = dataset["ground_truth"]
@@ -97,7 +107,7 @@ def test_la_fecha_del_documento_es_coherente_con_el_evento(dataset, corpus):
 
 # --- Distractores ------------------------------------------------------------
 
-def test_hay_documentos_que_no_explican_nada(corpus):
+def test_hay_documentos_que_no_explican_nada(corpus: Corpus) -> None:
     """Sin ruido, cualquier búsqueda acierta por descarte.
 
     Un corpus donde todo documento es relevante no mide la calidad del
@@ -111,7 +121,7 @@ def test_hay_documentos_que_no_explican_nada(corpus):
     )
 
 
-def test_los_distractores_son_verosimiles(corpus):
+def test_los_distractores_son_verosimiles(corpus: Corpus) -> None:
     """Un distractor obvio tampoco sirve: tiene que ser el tipo de documento
     que un buscador semántico podría confundir."""
     explicativos = {e.doc_id for e in corpus.explicaciones}
@@ -122,30 +132,30 @@ def test_los_distractores_son_verosimiles(corpus):
 
 # --- Estructura de los documentos --------------------------------------------
 
-def test_todo_documento_tiene_metadata_completa(corpus):
+def test_todo_documento_tiene_metadata_completa(corpus: Corpus) -> None:
     for d in corpus.documentos:
         assert d.id and d.tipo and d.titulo and d.texto
         assert d.fecha is not None
         assert d.seccion
 
 
-def test_los_identificadores_son_unicos(corpus):
+def test_los_identificadores_son_unicos(corpus: Corpus) -> None:
     ids = [d.id for d in corpus.documentos]
     assert len(ids) == len(set(ids))
 
 
-def test_los_documentos_tienen_longitud_util(corpus):
+def test_los_documentos_tienen_longitud_util(corpus: Corpus) -> None:
     """Ni tan cortos que no aporten contexto ni tan largos que un chunk pierda
     el hilo."""
     for d in corpus.documentos:
         assert 200 <= len(d.texto) <= 4000, f"{d.id}: {len(d.texto)} caracteres"
 
 
-def test_el_corpus_tiene_volumen_suficiente(corpus):
+def test_el_corpus_tiene_volumen_suficiente(corpus: Corpus) -> None:
     assert len(corpus.documentos) >= 30
 
 
-def test_incluye_documentos_de_politica_general(corpus):
+def test_incluye_documentos_de_politica_general(corpus: Corpus) -> None:
     """Políticas y fichas: son los que responden preguntas que no son sobre un
     evento puntual."""
     tipos = {d.tipo for d in corpus.documentos}
@@ -154,7 +164,7 @@ def test_incluye_documentos_de_politica_general(corpus):
 
 # --- El prompt no puede contener respuestas del examen ------------------------
 
-def test_ningun_doc_id_de_los_ejemplos_del_prompt_existe_en_el_corpus(corpus):
+def test_ningun_doc_id_de_los_ejemplos_del_prompt_existe_en_el_corpus(corpus: Corpus) -> None:
     """La regla 5 del método del proyecto, aplicada al sintetizador.
 
         "El conjunto de evaluación no puede contaminarse con el prompt. Un caso
@@ -189,7 +199,7 @@ def test_ningun_doc_id_de_los_ejemplos_del_prompt_existe_en_el_corpus(corpus):
     )
 
 
-def test_los_ejemplos_del_prompt_conservan_el_formato_de_un_doc_id(corpus):
+def test_los_ejemplos_del_prompt_conservan_el_formato_de_un_doc_id(corpus: Corpus) -> None:
     """La contraprueba: no alcanza con que sean falsos, tienen que seguir
     pareciéndose a los reales. El ejemplo enseña la FORMA de la cita, y si deja
     de parecerse el modelo pierde la referencia de qué se espera que escriba."""

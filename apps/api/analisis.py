@@ -16,7 +16,7 @@ modelo para tener razón. Este no.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from core.conclusiones import _alertas_de_devolucion, _conclusiones
 from core.kpis import FUENTE, metricas_de_producto
@@ -26,7 +26,8 @@ MODELO_DETERMINISTICO = "sin-llm:analisis-deterministico-v1"
 
 
 def construir_informe(
-    request_id: str, consulta: str, product_ids: list[str], desde, hasta
+    request_id: str, consulta: str, product_ids: list[str],
+    desde: date, hasta: date,
 ) -> Report:
     """Arma el informe completo consultando los KPIs de cada producto."""
     inicio = datetime.now()

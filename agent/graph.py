@@ -23,8 +23,10 @@ suite que invocara el modelo sería una suite que nadie corre.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from agent.llm import ClienteLLM
 from agent.nodes.ejecutor import ejecutar_plan
@@ -39,15 +41,23 @@ def construir_grafo(
     cliente: ClienteLLM,
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
-    indice=None,
+    indice: Any = None,
     con_ml: bool = True,
-):
+) -> CompiledStateGraph[AnalysisState]:
     """Arma el grafo con el cliente de modelo ya inyectado."""
 
-    def nodo_router(estado: AnalysisState) -> AnalysisState:
-        return enrutar(estado, cliente, hoy=hoy)
+    # El parámetro de los nodos se llama `state` y no `estado`, que es la única
+    # excepción al castellano en este archivo. No es un capricho: LangGraph
+    # define los nodos con un Protocol cuyo parámetro se llama `state` y admite
+    # ser pasado por nombre. Con otro nombre, el código queda dependiendo de que
+    # LangGraph invoque siempre posicionalmente — hoy lo hace, pero es un
+    # detalle interno que puede cambiar sin aviso en una versión menor.
+    # Respetar el nombre es implementar el protocolo; no hacerlo es apostar.
 
-    def nodo_planner(estado: AnalysisState) -> AnalysisState:
+    def nodo_router(state: AnalysisState) -> AnalysisState:
+        return enrutar(state, cliente, hoy=hoy)
+
+    def nodo_planner(state: AnalysisState) -> AnalysisState:
         """Arma el plan. Si ya hubo una ejecución, esto es una replanificación.
 
         El contador de reintentos se incrementa ACÁ y no en la arista
@@ -56,26 +66,26 @@ def construir_grafo(
         contador ahí dejaba `puede_reintentar()` en True para siempre y el grafo
         giraba en círculos — el límite que creíamos tener no existía.
         """
-        replan = estado.ya_ejecutado
+        replan = state.ya_ejecutado
         if replan:
-            estado.registrar_reintento()
-        return planificar(estado, replanificando=replan,
+            state.registrar_reintento()
+        return planificar(state, replanificando=replan,
                           con_rag=indice is not None, con_ml=con_ml)
 
-    def nodo_ejecutor(estado: AnalysisState) -> AnalysisState:
-        return ejecutar_plan(estado, indice=indice)
+    def nodo_ejecutor(state: AnalysisState) -> AnalysisState:
+        return ejecutar_plan(state, indice=indice)
 
-    def nodo_synthesizer(estado: AnalysisState) -> AnalysisState:
-        return sintetizar(estado, cliente, ahora=ahora)
+    def nodo_synthesizer(state: AnalysisState) -> AnalysisState:
+        return sintetizar(state, cliente, ahora=ahora)
 
-    def nodo_validator(estado: AnalysisState) -> AnalysisState:
-        if estado.informe is None:
-            return estado
-        resultado = validar_informe(estado.informe, estado.resultados_tools,
-                                    estado.evidencia)
-        estado.informe = resultado.informe
-        estado.advertencias = list(estado.informe.advertencias)
-        return estado
+    def nodo_validator(state: AnalysisState) -> AnalysisState:
+        if state.informe is None:
+            return state
+        resultado = validar_informe(state.informe, state.resultados_tools,
+                                    state.evidencia)
+        state.informe = resultado.informe
+        state.advertencias = list(state.informe.advertencias)
+        return state
 
     # --- ramas condicionales ---
 
@@ -136,7 +146,7 @@ def ejecutar(
     cliente: ClienteLLM,
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
-    indice=None,
+    indice: Any = None,
 ) -> AnalysisState:
     """Corre el grafo sobre un estado ya construido.
 
@@ -156,7 +166,7 @@ def analizar(
     request_id: str = "req-local",
     hoy: date = HOY_POR_DEFECTO,
     ahora: datetime | None = None,
-    indice=None,
+    indice: Any = None,
 ) -> AnalysisState:
     """Ejecuta el análisis desde una consulta en lenguaje natural."""
     return ejecutar(

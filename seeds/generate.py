@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -62,7 +63,7 @@ class DatasetConfig:
     n_caidas_ventas: int = 3
     n_picos_devoluciones: int = 4
     factor_pico: tuple[float, float] = (8.0, 13.0)
-    eventos: list = field(default_factory=list)
+    eventos: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _rango_fechas(cfg: DatasetConfig) -> pd.DatetimeIndex:
@@ -168,7 +169,10 @@ def _matriz_demanda(
     gt = []
     ventana_valida = n_dias - 45  # lejos de los bordes: deja contexto a ambos lados
 
-    def _elegir_dia_con_demanda(rng, intensidad, j, lo, hi, minimo=0.6):
+    def _elegir_dia_con_demanda(
+        rng: np.random.Generator, intensidad: np.ndarray, j: int, lo: int,
+        hi: int, minimo: float = 0.6,
+    ) -> int | None:
         """Devuelve un día del rango donde el producto TIENE demanda, o None.
 
         Sembrar un evento en un día sin demanda (producto aún no lanzado, o
@@ -182,18 +186,25 @@ def _matriz_demanda(
             return None
         return int(validos[int(rng.integers(0, len(validos)))]) + lo
 
-    def _producto_con_demanda(rng, intensidad, lo, hi, intentos=60):
+    def _producto_con_demanda(
+        rng: np.random.Generator, intensidad: np.ndarray, lo: int, hi: int,
+        intentos: int = 60,
+    ) -> tuple[int, int] | None:
         for _ in range(intentos):
             j = int(rng.integers(0, n_prod))
             i = _elegir_dia_con_demanda(rng, intensidad, j, lo, hi)
             if i is not None:
                 return j, i
-        return None, None
+        # `None` y no `(None, None)`: el sentinel de dos elementos obliga a
+        # desempaquetar antes de saber si hubo resultado, y deja al que llama
+        # chequeando `j is None` sobre algo que ya se dijo que era un int.
+        return None
 
     for _ in range(cfg.n_picos_ventas):
-        j, i = _producto_con_demanda(rng, intensidad, 30, ventana_valida)
-        if j is None:
+        elegido = _producto_con_demanda(rng, intensidad, 30, ventana_valida)
+        if elegido is None:
             continue
+        j, i = elegido
         factor = float(rng.uniform(*cfg.factor_pico))
         intensidad[i, j] *= factor
         gt.append({
@@ -205,9 +216,10 @@ def _matriz_demanda(
         })
 
     for _ in range(cfg.n_caidas_ventas):
-        j, i = _producto_con_demanda(rng, intensidad, 30, ventana_valida)
-        if j is None:
+        elegido = _producto_con_demanda(rng, intensidad, 30, ventana_valida)
+        if elegido is None:
             continue
+        j, i = elegido
         largo = int(rng.integers(3, 8))
         intensidad[i:i + largo, j] *= 0.12
         gt.append({
@@ -265,7 +277,7 @@ def _generar_ordenes(
         actual: list[int] = []
         objetivo = int(rng.integers(1, 4))
 
-        def _emitir(lote: list[int], i=i) -> None:
+        def _emitir(lote: list[int], i: int = i) -> None:
             nonlocal n_orden, n_item
             if not lote:
                 return

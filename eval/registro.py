@@ -22,6 +22,7 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from core.report import Report
 from eval.metricas import EventoSembrado, Hallazgo, Proporcion
@@ -155,8 +156,8 @@ def guardar(documento: dict[str, object], destino: Path = CORRIDAS) -> Path:
     return archivo
 
 
-def comparar(anterior: dict[str, object],
-             actual: dict[str, object]) -> list[dict[str, object]]:
+def comparar(anterior: dict[str, Any],
+             actual: dict[str, Any]) -> list[dict[str, Any]]:
     """Diferencia métrica por métrica entre dos corridas.
 
     Se niega a comparar corridas de modelos distintos, y eso no es rigidez: es
@@ -171,9 +172,9 @@ def comparar(anterior: dict[str, object],
             f"La diferencia no sería atribuible a ningún cambio del sistema."
         )
 
-    antes = {m["nombre"]: m["valor"] for m in anterior["metricas"]}  # type: ignore[union-attr]
+    antes = {m["nombre"]: m["valor"] for m in anterior["metricas"]}
     diferencias = []
-    for metrica in actual["metricas"]:  # type: ignore[union-attr]
+    for metrica in actual["metricas"]:
         previo, ahora = antes.get(metrica["nombre"]), metrica["valor"]
         diferencias.append({
             "nombre": metrica["nombre"],

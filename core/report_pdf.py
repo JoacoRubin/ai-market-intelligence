@@ -10,14 +10,16 @@ verifica extrayendo el texto del PDF generado.
 
 Elección de ReportLab: WeasyPrint sería más lindo (HTML/CSS a PDF) pero depende
 de GTK/Pango nativos que no vienen en el wheel y no están en Windows. Verificado
-en la máquina, no supuesto. Ver ADR-004.
+en la máquina, no supuesto — no hay ADR para esto porque la razón entra en dos
+renglones y es la que está acá arriba.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from functools import partial
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
@@ -34,7 +36,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from core.report import Report
+from core.report import Afirmacion, Report
 
 TINTA = colors.HexColor("#1f2937")
 SUAVE = colors.HexColor("#6b7280")
@@ -73,7 +75,7 @@ def _estilos() -> dict[str, ParagraphStyle]:
     }
 
 
-def _pie_de_pagina(canvas, doc, informe: Report) -> None:
+def _pie_de_pagina(canvas: Any, doc: Any, informe: Report) -> None:
     """Se dibuja en TODAS las páginas.
 
     Un PDF se parte: alguien imprime y reparte hojas sueltas en una reunión.
@@ -98,7 +100,8 @@ def _pie_de_pagina(canvas, doc, informe: Report) -> None:
     canvas.restoreState()
 
 
-def _tabla(datos: list[list], anchos: list[float], alinear_derecha: bool = True):
+def _tabla(datos: list[list[Any]], anchos: list[float],
+           alinear_derecha: bool = True) -> Table:
     t = Table(datos, colWidths=anchos, repeatRows=1)
     estilo = [
         ("BACKGROUND", (0, 0), (-1, 0), TINTA),
@@ -123,7 +126,8 @@ def _num(valor: float, decimales: int = 1) -> str:
     return texto.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
 
 
-def _afirmaciones(bloque, est, mostrar_fuentes: bool = True) -> list:
+def _afirmaciones(bloque: Iterable[Afirmacion], est: dict[str, Any],
+                  mostrar_fuentes: bool = True) -> list[Any]:
     salida = []
     for a in bloque:
         texto = a.texto
@@ -141,14 +145,20 @@ def render_pdf(informe: Report, destino: str | Path | BinaryIO) -> Path | Binary
     después leerlo y borrarlo es trabajo de disco que nadie pidió, y deja basura
     cuando algo falla en el medio.
     """
-    es_buffer = hasattr(destino, "write")
-    if not es_buffer:
-        destino = Path(destino)
-        destino.parent.mkdir(parents=True, exist_ok=True)
+    # Se resuelve a una variable nueva en vez de reasignar `destino`: al
+    # pisarla, el tipo declarado sigue incluyendo `str` y todo lo que venga
+    # después tiene que volver a demostrar que ya no puede serlo.
+    if isinstance(destino, str | Path):
+        ruta = Path(destino)
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        salida: Path | BinaryIO = ruta
+    else:
+        salida = destino
+    es_buffer = not isinstance(salida, Path)
     est = _estilos()
 
     doc = SimpleDocTemplate(
-        destino if es_buffer else str(destino), pagesize=A4,
+        salida if es_buffer else str(salida), pagesize=A4,
         leftMargin=18 * mm, rightMargin=18 * mm,
         topMargin=16 * mm, bottomMargin=22 * mm,
         title=f"Informe {informe.request_id}",
@@ -156,7 +166,7 @@ def render_pdf(informe: Report, destino: str | Path | BinaryIO) -> Path | Binary
         subject=informe.consulta,
     )
 
-    hist: list = []
+    hist: list[Any] = []
     ancho = doc.width
 
     # --- encabezado --------------------------------------------------------
@@ -302,4 +312,4 @@ def render_pdf(informe: Report, destino: str | Path | BinaryIO) -> Path | Binary
 
     dibujar = partial(_pie_de_pagina, informe=informe)
     doc.build(hist, onFirstPage=dibujar, onLaterPages=dibujar)
-    return destino
+    return salida

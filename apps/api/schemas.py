@@ -8,6 +8,7 @@ refactor rompe a los consumidores.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from enum import StrEnum
 
@@ -75,8 +76,12 @@ class SolicitudAnalisis(BaseModel):
 
     @model_validator(mode="after")
     def _forma_coherente(self) -> SolicitudAnalisis:
+        # Se liga a locales en vez de usar `bool(...)`: un flag booleano pierde
+        # la información de que el atributo no es None, y después hay que
+        # volver a chequearlo o mentirle al verificador de tipos.
+        ids = self.product_ids
         tiene_consulta = bool(self.consulta and self.consulta.strip())
-        tiene_ids = bool(self.product_ids)
+        tiene_ids = bool(ids)
 
         if tiene_consulta and tiene_ids:
             raise ValueError(
@@ -89,7 +94,7 @@ class SolicitudAnalisis(BaseModel):
                 "'desde' y 'hasta'"
             )
 
-        if tiene_ids:
+        if ids:
             if self.desde is None or self.hasta is None:
                 raise ValueError("'product_ids' requiere 'desde' y 'hasta'")
             if self.desde > self.hasta:
@@ -97,7 +102,7 @@ class SolicitudAnalisis(BaseModel):
                     f"el rango está invertido: 'desde' ({self.desde}) es "
                     f"posterior a 'hasta' ({self.hasta})"
                 )
-            if len(set(self.product_ids)) != len(self.product_ids):
+            if len(set(ids)) != len(ids):
                 raise ValueError("hay productos repetidos en la solicitud")
 
         return self
@@ -149,7 +154,11 @@ class Analisis(AnalisisResumen):
 
 class ListaAnalisis(BaseModel):
     total: int
-    items: list[AnalisisResumen]
+    # Sequence y no list: `list` es invariante, así que un `list[Analisis]`
+    # —que ES un AnalisisResumen— no encaja en un `list[AnalisisResumen]`. El
+    # almacén guarda análisis completos y el listado los muestra resumidos, que
+    # es exactamente el caso covariante que `Sequence` modela bien.
+    items: Sequence[AnalisisResumen]
 
 
 class Salud(BaseModel):

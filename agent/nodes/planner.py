@@ -35,17 +35,26 @@ MAX_DIAS = 366 * 3
 HOY_POR_DEFECTO = date(2026, 6, 30)
 
 
-def _asegurar_periodo(estado: AnalysisState) -> None:
+def _asegurar_periodo(estado: AnalysisState) -> Periodo:
+    """Garantiza que el estado tenga período y **lo devuelve**.
+
+    Devolverlo no es un detalle de estilo: una función que asegura algo pero no
+    entrega nada obliga a quien la llama a volver a leer el atributo, que sigue
+    siendo opcional. La garantía queda en el comentario en vez de en el tipo, y
+    un comentario no se verifica.
+    """
     if estado.periodo is not None:
-        return
-    estado.periodo = Periodo(
+        return estado.periodo
+    periodo = Periodo(
         desde=HOY_POR_DEFECTO - timedelta(days=DIAS_POR_DEFECTO - 1),
         hasta=HOY_POR_DEFECTO,
     )
+    estado.periodo = periodo
     estado._advertir(
         f"No se identificó un período en la consulta. Se usaron los últimos "
         f"{DIAS_POR_DEFECTO} días hasta {HOY_POR_DEFECTO.isoformat()}."
     )
+    return periodo
 
 
 def _ampliar_periodo(estado: AnalysisState) -> None:
@@ -113,17 +122,17 @@ def planificar(
         return estado
 
     if estado.entidades:
-        _asegurar_periodo(estado)
+        periodo = _asegurar_periodo(estado)
         estado.plan.append(PasoPlan(
             tool="product_metrics",
             argumentos={
                 "product_ids": list(estado.entidades),
-                "desde": estado.periodo.desde,
-                "hasta": estado.periodo.hasta,
+                "desde": periodo.desde,
+                "hasta": periodo.hasta,
             },
             razon=(
                 f"Obtener los KPIs de {', '.join(estado.entidades)} entre "
-                f"{estado.periodo.desde} y {estado.periodo.hasta} para "
+                f"{periodo.desde} y {periodo.hasta} para "
                 "sustentar el análisis con datos reales."
             ),
         ))

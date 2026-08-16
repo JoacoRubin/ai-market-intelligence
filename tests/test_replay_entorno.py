@@ -10,6 +10,8 @@ requisito, es una decoración.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from replay.entorno import problemas_de_entorno
 
 
@@ -27,28 +29,28 @@ class _ClienteCaido:
         return False
 
 
-def _base_con(n: int):
+def _base_con(n: int) -> Callable[[], int]:
     return lambda: n
 
 
-def _base_caida():
+def _base_caida() -> Callable[[], int]:
     def sonda() -> int:
         raise RuntimeError("no se pudo conectar")
     return sonda
 
 
-def test_sin_problemas_devuelve_lista_vacia():
+def test_sin_problemas_devuelve_lista_vacia() -> None:
     assert problemas_de_entorno(_ClienteVivo(), _base_con(120)) == []
 
 
-def test_detecta_ollama_caido():
+def test_detecta_ollama_caido() -> None:
     problemas = problemas_de_entorno(_ClienteCaido(), _base_con(120))
 
     assert len(problemas) == 1
     assert "Ollama" in problemas[0]
 
 
-def test_detecta_la_base_inaccesible():
+def test_detecta_la_base_inaccesible() -> None:
     problemas = problemas_de_entorno(_ClienteVivo(), _base_caida())
 
     assert len(problemas) == 1
@@ -56,7 +58,7 @@ def test_detecta_la_base_inaccesible():
     assert "db-up" in problemas[0]
 
 
-def test_detecta_la_base_vacia():
+def test_detecta_la_base_vacia() -> None:
     """Una base levantada pero sin sembrar es el caso más traicionero.
 
     Conecta, responde, no falla — y el agente produce informes correctos sobre
@@ -69,7 +71,7 @@ def test_detecta_la_base_vacia():
     assert "seed" in problemas[0]
 
 
-def test_informa_todos_los_problemas_juntos():
+def test_informa_todos_los_problemas_juntos() -> None:
     """Arreglar de a uno obliga a esperar la conexión de nuevo cada vez."""
     problemas = problemas_de_entorno(_ClienteCaido(), _base_caida())
 
@@ -78,7 +80,7 @@ def test_informa_todos_los_problemas_juntos():
     assert any("SQL Server" in p for p in problemas)
 
 
-def test_los_mensajes_dicen_que_comando_lo_arregla():
+def test_los_mensajes_dicen_que_comando_lo_arregla() -> None:
     """Un diagnóstico sin la acción que lo corrige deja a la persona igual."""
     for problemas in (
         problemas_de_entorno(_ClienteCaido(), _base_con(120)),

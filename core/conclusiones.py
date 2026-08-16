@@ -75,10 +75,15 @@ def _conclusiones(metricas: list[MetricaProducto]) -> list[Afirmacion]:
         ))
 
     lider_margen = _mejor_por(metricas, "margen_pct")
-    if lider_margen:
+    # `_mejor_por` ya descartó los None, pero lo hace por `getattr` con un campo
+    # dinámico: esa garantía no sobrevive al verificador de tipos. Se vuelve a
+    # chequear acá en vez de silenciarlo — es una línea, y deja el invariante
+    # escrito donde se usa.
+    margen = lider_margen.margen_pct if lider_margen else None
+    if lider_margen and margen is not None:
         conclusiones.append(hecho(
             f"{lider_margen.nombre} ({lider_margen.product_id}) tiene el mejor "
-            f"margen del grupo: {_pct(lider_margen.margen_pct)}"
+            f"margen del grupo: {_pct(margen)}"
         ))
 
     for m in metricas:

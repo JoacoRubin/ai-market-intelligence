@@ -13,6 +13,9 @@ convierten "el usuario es read-only" de una afirmación del README en un hecho
 verificado en cada corrida de CI.
 """
 
+from collections.abc import Iterator
+from typing import Any
+
 import pyodbc
 import pytest
 
@@ -28,7 +31,7 @@ pytestmark = [
 
 
 @pytest.fixture
-def lectura():
+def lectura() -> Iterator[Any]:
     con = conectar_lectura()
     yield con
     con.close()
@@ -36,12 +39,12 @@ def lectura():
 
 # --- Lo que SÍ tiene que poder hacer ----------------------------------------
 
-def test_lector_puede_consultar_productos(lectura):
+def test_lector_puede_consultar_productos(lectura: Any) -> None:
     """Si esto falla, el agente no puede trabajar: sin SELECT no hay KPIs."""
     lectura.cursor().execute("SELECT COUNT(*) FROM dbo.products").fetchone()
 
 
-def test_lector_puede_hacer_joins_analiticos(lectura):
+def test_lector_puede_hacer_joins_analiticos(lectura: Any) -> None:
     lectura.cursor().execute("""
         SELECT TOP 5 p.id, SUM(oi.quantity) AS unidades
         FROM dbo.products p
@@ -52,7 +55,7 @@ def test_lector_puede_hacer_joins_analiticos(lectura):
 
 # --- Lo que NO tiene que poder hacer ----------------------------------------
 
-def test_lector_no_puede_insertar(lectura):
+def test_lector_no_puede_insertar(lectura: Any) -> None:
     with pytest.raises(pyodbc.Error):
         lectura.cursor().execute(
             "INSERT INTO dbo.products (id, brand, category, price, cost, launch_date) "
@@ -60,28 +63,28 @@ def test_lector_no_puede_insertar(lectura):
         )
 
 
-def test_lector_no_puede_actualizar(lectura):
+def test_lector_no_puede_actualizar(lectura: Any) -> None:
     with pytest.raises(pyodbc.Error):
         lectura.cursor().execute("UPDATE dbo.products SET price = 0")
 
 
-def test_lector_no_puede_borrar(lectura):
+def test_lector_no_puede_borrar(lectura: Any) -> None:
     """El caso que todo el mundo teme: un DELETE sin WHERE."""
     with pytest.raises(pyodbc.Error):
         lectura.cursor().execute("DELETE FROM dbo.order_items")
 
 
-def test_lector_no_puede_dropear_tablas(lectura):
+def test_lector_no_puede_dropear_tablas(lectura: Any) -> None:
     with pytest.raises(pyodbc.Error):
         lectura.cursor().execute("DROP TABLE dbo.returns")
 
 
-def test_lector_no_puede_crear_tablas(lectura):
+def test_lector_no_puede_crear_tablas(lectura: Any) -> None:
     with pytest.raises(pyodbc.Error):
         lectura.cursor().execute("CREATE TABLE dbo.puerta_trasera (x INT)")
 
 
-def test_lector_no_puede_leer_el_ground_truth(lectura):
+def test_lector_no_puede_leer_el_ground_truth(lectura: Any) -> None:
     """El agente NO puede consultar la lista de anomalías sembradas.
 
     Si pudiera, cualquier evaluación de detección dejaría de medir algo: sería
@@ -91,7 +94,7 @@ def test_lector_no_puede_leer_el_ground_truth(lectura):
         lectura.cursor().execute("SELECT * FROM dbo.ground_truth")
 
 
-def test_el_ground_truth_si_es_accesible_para_evaluacion(lectura):
+def test_el_ground_truth_si_es_accesible_para_evaluacion(lectura: Any) -> None:
     """Contraprueba: la tabla existe y el rol admin sí la ve.
 
     Sin esto, el test anterior pasaría igual si la tabla no existiera —

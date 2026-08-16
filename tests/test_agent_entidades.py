@@ -15,6 +15,7 @@ sola tarea: clasificar.
 """
 
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -37,42 +38,42 @@ from agent.state import Intencion, Periodo
     ("Compará Apple vs Microsoft", []),
     ("Contame un chiste", []),
 ])
-def test_extrae_los_identificadores_presentes(consulta, esperado):
+def test_extrae_los_identificadores_presentes(consulta: str, esperado: list[Any]) -> None:
     assert extraer_product_ids(consulta) == esperado
 
 
-def test_es_insensible_a_mayusculas():
+def test_es_insensible_a_mayusculas() -> None:
     assert extraer_product_ids("compará p001 con P002") == ["P001", "P002"]
 
 
-def test_conserva_el_orden_de_aparicion():
+def test_conserva_el_orden_de_aparicion() -> None:
     """El orden importa para el informe: el primero mencionado suele ser el
     producto sobre el que se pregunta."""
     assert extraer_product_ids("Compará P050 contra P002") == ["P050", "P002"]
 
 
-def test_elimina_duplicados():
+def test_elimina_duplicados() -> None:
     assert extraer_product_ids("P001 vs P001 y P002") == ["P001", "P002"]
 
 
-def test_no_confunde_palabras_que_empiezan_con_p():
+def test_no_confunde_palabras_que_empiezan_con_p() -> None:
     """'Producto 10' no es un identificador; 'PYME2024' tampoco."""
     assert extraer_product_ids("El producto 10 de la PYME2024") == []
 
 
-def test_no_captura_identificadores_pegados_a_otras_palabras():
+def test_no_captura_identificadores_pegados_a_otras_palabras() -> None:
     assert extraer_product_ids("REPO01 y XP001Y no son productos") == []
 
 
-def test_respeta_los_limites_de_palabra_con_puntuacion():
+def test_respeta_los_limites_de_palabra_con_puntuacion() -> None:
     assert extraer_product_ids("¿Y el P003? Comparalo con (P004).") == ["P003", "P004"]
 
 
-def test_rechaza_identificadores_demasiado_largos():
+def test_rechaza_identificadores_demasiado_largos() -> None:
     assert extraer_product_ids("El P1234567890 no existe") == []
 
 
-def test_limita_la_cantidad():
+def test_limita_la_cantidad() -> None:
     """Una consulta con cincuenta productos no es un análisis comparativo."""
     consulta = " ".join(f"P{i:03d}" for i in range(1, 40))
     assert len(extraer_product_ids(consulta)) <= 10
@@ -80,7 +81,7 @@ def test_limita_la_cantidad():
 
 # --- Corrección de intención -------------------------------------------------
 
-def test_company_research_con_productos_internos_se_corrige_a_hybrid():
+def test_company_research_con_productos_internos_se_corrige_a_hybrid() -> None:
     """La contradicción que el diagnóstico dejó a la vista.
 
     `company_research` significa, por definición, una consulta sobre empresas
@@ -97,7 +98,7 @@ def test_company_research_con_productos_internos_se_corrige_a_hybrid():
     assert motivo is not None
 
 
-def test_company_research_sin_productos_se_mantiene():
+def test_company_research_sin_productos_se_mantiene() -> None:
     corregida, motivo = corregir_intencion_por_entidades(
         Intencion.COMPANY_RESEARCH, []
     )
@@ -105,14 +106,14 @@ def test_company_research_sin_productos_se_mantiene():
     assert motivo is None
 
 
-def test_product_performance_con_productos_se_mantiene():
+def test_product_performance_con_productos_se_mantiene() -> None:
     corregida, _ = corregir_intencion_por_entidades(
         Intencion.PRODUCT_PERFORMANCE, ["P001", "P002"]
     )
     assert corregida == Intencion.PRODUCT_PERFORMANCE
 
 
-def test_product_performance_sin_productos_queda_fuera_de_alcance():
+def test_product_performance_sin_productos_queda_fuera_de_alcance() -> None:
     """Sin productos identificados no hay nada que consultar. Seguir llevaría al
     sintetizador a redactar sobre la nada."""
     corregida, motivo = corregir_intencion_por_entidades(
@@ -122,12 +123,12 @@ def test_product_performance_sin_productos_queda_fuera_de_alcance():
     assert motivo is not None
 
 
-def test_hybrid_sin_productos_queda_fuera_de_alcance():
+def test_hybrid_sin_productos_queda_fuera_de_alcance() -> None:
     corregida, _ = corregir_intencion_por_entidades(Intencion.HYBRID, [])
     assert corregida == Intencion.FUERA_DE_ALCANCE
 
 
-def test_fuera_de_alcance_con_productos_no_se_fuerza():
+def test_fuera_de_alcance_con_productos_no_se_fuerza() -> None:
     """Si el modelo entendió que la consulta no corresponde, la presencia de un
     identificador no lo contradice: "borrá el P001" nombra un producto y sigue
     estando fuera de alcance.
@@ -157,14 +158,14 @@ def test_fuera_de_alcance_con_productos_no_se_fuerza():
 HOY = date(2026, 6, 30)
 
 
-def test_extrae_un_mes_escrito_como_aaaa_mm():
+def test_extrae_un_mes_escrito_como_aaaa_mm() -> None:
     """El caso exacto de las consultas del eval."""
     assert extraer_periodo("Analizá el desempeño de P010 durante 2025-06", HOY) == (
         Periodo(desde=date(2025, 6, 1), hasta=date(2025, 6, 30))
     )
 
 
-def test_el_mes_termina_el_ultimo_dia_que_le_corresponde():
+def test_el_mes_termina_el_ultimo_dia_que_le_corresponde() -> None:
     """Febrero de un año no bisiesto tiene 28. Calcularlo con un `timedelta(30)`
     es la clase de error que después aparece como un dato faltante."""
     assert extraer_periodo("ventas de P001 en 2026-02", HOY) == Periodo(
@@ -172,7 +173,7 @@ def test_el_mes_termina_el_ultimo_dia_que_le_corresponde():
     )
 
 
-def test_reconoce_el_mes_escrito_en_castellano():
+def test_reconoce_el_mes_escrito_en_castellano() -> None:
     assert extraer_periodo("¿Cuál fue el margen del P012 en junio de 2025?", HOY) == (
         Periodo(desde=date(2025, 6, 1), hasta=date(2025, 6, 30))
     )
@@ -181,41 +182,41 @@ def test_reconoce_el_mes_escrito_en_castellano():
 @pytest.mark.parametrize("texto", [
     "marzo 2026", "en Marzo de 2026", "durante marzo del 2026",
 ])
-def test_acepta_las_formas_naturales_de_escribir_un_mes(texto):
+def test_acepta_las_formas_naturales_de_escribir_un_mes(texto: str) -> None:
     assert extraer_periodo(f"P001 {texto}", HOY) == Periodo(
         desde=date(2026, 3, 1), hasta=date(2026, 3, 31)
     )
 
 
-def test_un_rango_explicito_se_respeta_tal_cual():
+def test_un_rango_explicito_se_respeta_tal_cual() -> None:
     assert extraer_periodo("P001 entre 2025-03-15 y 2025-04-10", HOY) == Periodo(
         desde=date(2025, 3, 15), hasta=date(2025, 4, 10)
     )
 
 
-def test_sin_periodo_explicito_devuelve_none():
+def test_sin_periodo_explicito_devuelve_none() -> None:
     """`None` significa "no hay nada que extraer", y ahí sí decide el modelo con
     su cantidad de días. No se inventa un rango: eso es lo que hacía el bug."""
     assert extraer_periodo("Compará P001 y P002 en los últimos 30 días", HOY) is None
 
 
-def test_un_identificador_de_producto_no_se_confunde_con_un_ano():
+def test_un_identificador_de_producto_no_se_confunde_con_un_ano() -> None:
     """`P2025` es un producto. Leerlo como año sería el mismo error que contar
     `doc_112` como una cifra de negocio."""
     assert extraer_periodo("Analizá P2025 y P2026", HOY) is None
 
 
-def test_un_mes_imposible_no_se_acepta():
+def test_un_mes_imposible_no_se_acepta() -> None:
     assert extraer_periodo("P001 durante 2025-13", HOY) is None
 
 
-def test_un_rango_invertido_no_se_acepta():
+def test_un_rango_invertido_no_se_acepta() -> None:
     """Si `desde` es posterior a `hasta`, el `Periodo` sería inválido. Devolver
     `None` deja que el flujo normal siga en vez de reventar tres capas después."""
     assert extraer_periodo("P001 entre 2025-04-10 y 2025-03-15", HOY) is None
 
 
-def test_no_devuelve_un_periodo_futuro():
+def test_no_devuelve_un_periodo_futuro() -> None:
     """El dataset termina en `hoy`. Un período enteramente posterior no tiene
     datos que analizar, y arrastrarlo produce un informe vacío sin explicación."""
     assert extraer_periodo("P001 durante 2027-01", HOY) is None

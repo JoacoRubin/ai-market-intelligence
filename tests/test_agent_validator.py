@@ -17,25 +17,30 @@ con falsos positivos es peor que no tener eval: da confianza donde no la hay.
 Por eso hay tests específicos para eso.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 import pytest
 
-from agent.nodes.validator import extraer_numeros_de_negocio, validar_informe
+from agent.nodes.numeros import extraer_numeros_de_negocio
+from agent.nodes.validator import validar_informe
 from core.report import Afirmacion, Fuente, MetricaProducto, Report
 
 FUENTE_SQL = "sql:product_metrics"
 
 
-def _metrica(pid="P001", **kw) -> MetricaProducto:
-    base = dict(product_id=pid, nombre="Alfa", unidades=1243, revenue=87010.0,
+def _metrica(pid: str = "P001", **kw: Any) -> MetricaProducto:
+    base: dict[str, Any] = dict(product_id=pid, nombre="Alfa", unidades=1243, revenue=87010.0,
                 margen_pct=31.2, crecimiento_pct=18.4, tasa_devolucion_pct=2.1,
                 fuente=FUENTE_SQL)
     base.update(kw)
     return MetricaProducto(**base)
 
 
-def _informe(afirmaciones=None, metricas=None, docs=()) -> Report:
+def _informe(afirmaciones: list[Afirmacion] | None = None,
+             metricas: list[MetricaProducto] | None = None,
+             docs: Sequence[str] = ()) -> Report:
     """`docs` declara fuentes documentales: `Report` rechaza toda cita a una
     fuente no declarada, así que citar un documento exige declararlo primero."""
     return Report(
@@ -54,7 +59,7 @@ def _informe(afirmaciones=None, metricas=None, docs=()) -> Report:
 
 # --- Extracción de números: el bug del auditor v1 ---------------------------
 
-def test_ignora_identificadores_de_documento():
+def test_ignora_identificadores_de_documento() -> None:
     """`doc_112` no es un claim numérico: es una referencia.
 
     Contarlo inflaba la métrica de groundedness cerca del doble en el prototipo.
@@ -62,31 +67,31 @@ def test_ignora_identificadores_de_documento():
     assert extraer_numeros_de_negocio("Según doc_112 y doc_087, la tendencia") == set()
 
 
-def test_ignora_numeros_de_seccion():
+def test_ignora_numeros_de_seccion() -> None:
     assert extraer_numeros_de_negocio("Ver §3.2 y §1.1 del reporte") == set()
 
 
-def test_ignora_identificadores_de_producto():
+def test_ignora_identificadores_de_producto() -> None:
     """`P001` contiene un 001 que no es una cantidad."""
     assert extraer_numeros_de_negocio("El P001 supera al P002") == set()
 
 
-def test_ignora_versiones_de_modelo():
+def test_ignora_versiones_de_modelo() -> None:
     assert extraer_numeros_de_negocio("Generado con llama3.2:3b y sales_v3") == set()
 
 
-def test_extrae_las_magnitudes_reales():
+def test_extrae_las_magnitudes_reales() -> None:
     numeros = extraer_numeros_de_negocio(
         "Vendió 1.243 unidades por USD 87.010,00 con 31,2% de margen"
     )
     assert numeros == {1243.0, 87010.0, 31.2}
 
 
-def test_maneja_negativos():
+def test_maneja_negativos() -> None:
     assert -3.1 in extraer_numeros_de_negocio("Cayó -3,1% en el período")
 
 
-def test_combina_referencias_y_magnitudes():
+def test_combina_referencias_y_magnitudes() -> None:
     """El caso realista: una afirmación con cita y cifras."""
     numeros = extraer_numeros_de_negocio(
         "El P002 (ver doc_112 §3.2) devolvió 5,7% de las unidades"
@@ -124,7 +129,7 @@ EVIDENCIA = [{
 }]
 
 
-def test_acepta_una_cifra_que_figura_en_el_documento_citado():
+def test_acepta_una_cifra_que_figura_en_el_documento_citado() -> None:
     informe = _informe([
         Afirmacion(texto="La campaña de descuento del 30% explica el salto",
                    tipo="hecho", fuentes=[FUENTE_DOC])
@@ -139,7 +144,7 @@ def test_acepta_una_cifra_que_figura_en_el_documento_citado():
     ]
 
 
-def test_la_cita_es_lo_que_habilita_la_cifra():
+def test_la_cita_es_lo_que_habilita_la_cifra() -> None:
     """Sin cita no hay permiso. Si cualquier número del corpus quedara
     disponible para cualquier afirmación, el guardrail se aflojaría de más: una
     frase sin fuente podría tomar prestada una cifra que nunca miró."""
@@ -155,7 +160,7 @@ def test_la_cita_es_lo_que_habilita_la_cifra():
     assert "30" in resultado.afirmaciones_rechazadas[0]
 
 
-def test_citar_un_documento_no_habilita_las_cifras_de_otro():
+def test_citar_un_documento_no_habilita_las_cifras_de_otro() -> None:
     """El permiso es por documento, no por informe."""
     otro = [{"doc_id": "doc_prov_009", "texto": "Se detectaron desvíos en el 30% del lote."}]
     informe = _informe([
@@ -169,7 +174,7 @@ def test_citar_un_documento_no_habilita_las_cifras_de_otro():
     assert resultado.informe.resumen_ejecutivo == []
 
 
-def test_sin_evidencia_el_validador_se_comporta_igual_que_antes():
+def test_sin_evidencia_el_validador_se_comporta_igual_que_antes() -> None:
     """La contraprueba: el permiso nuevo no debilita nada por sí solo."""
     informe = _informe([
         Afirmacion(texto="La campaña de descuento del 30% explica el salto",
@@ -181,7 +186,7 @@ def test_sin_evidencia_el_validador_se_comporta_igual_que_antes():
     assert resultado.informe.resumen_ejecutivo == []
 
 
-def test_una_cifra_que_no_esta_ni_en_los_datos_ni_en_el_documento_se_rechaza():
+def test_una_cifra_que_no_esta_ni_en_los_datos_ni_en_el_documento_se_rechaza() -> None:
     """Lo que el nodo vino a atrapar sigue atrapado: el documento amplía las
     fuentes legítimas, no las suspende."""
     informe = _informe([
@@ -198,7 +203,7 @@ def test_una_cifra_que_no_esta_ni_en_los_datos_ni_en_el_documento_se_rechaza():
 
 # --- Detección de números inventados ----------------------------------------
 
-def test_aprueba_un_informe_con_numeros_respaldados():
+def test_aprueba_un_informe_con_numeros_respaldados() -> None:
     informe = _informe([
         Afirmacion(texto="Alfa vendió 1.243 unidades con 31,2% de margen",
                    tipo="hecho", fuentes=[FUENTE_SQL])
@@ -208,7 +213,7 @@ def test_aprueba_un_informe_con_numeros_respaldados():
     assert resultado.afirmaciones_rechazadas == []
 
 
-def test_rechaza_una_afirmacion_con_un_numero_inventado():
+def test_rechaza_una_afirmacion_con_un_numero_inventado() -> None:
     """El caso que el validador existe para atrapar.
 
     El modelo escribe una cifra plausible que no salió de ninguna herramienta.
@@ -225,7 +230,7 @@ def test_rechaza_una_afirmacion_con_un_numero_inventado():
            "9.999" in str(resultado.afirmaciones_rechazadas[0])
 
 
-def test_una_afirmacion_rechazada_no_llega_al_informe():
+def test_una_afirmacion_rechazada_no_llega_al_informe() -> None:
     """No alcanza con advertir: la afirmación falsa se saca.
 
     Dejarla con una nota al pie confía en que alguien lea la nota. El informe
@@ -242,7 +247,7 @@ def test_una_afirmacion_rechazada_no_llega_al_informe():
     assert "1.243" in resultado.informe.resumen_ejecutivo[0].texto
 
 
-def test_el_rechazo_queda_documentado_en_las_advertencias():
+def test_el_rechazo_queda_documentado_en_las_advertencias() -> None:
     """Una corrección silenciosa es una corrección que nadie puede auditar."""
     informe = _informe([
         Afirmacion(texto="Alfa vendió 9.999 unidades", tipo="hecho",
@@ -253,7 +258,7 @@ def test_el_rechazo_queda_documentado_en_las_advertencias():
                for w in resultado.informe.advertencias), resultado.informe.advertencias
 
 
-def test_las_recomendaciones_no_se_validan_numericamente():
+def test_las_recomendaciones_no_se_validan_numericamente() -> None:
     """Una recomendación es un juicio, no un dato. Exigirle respaldo numérico
     la eliminaría siempre, y el informe perdería su parte accionable."""
     informe = _informe()
@@ -265,7 +270,7 @@ def test_las_recomendaciones_no_se_validan_numericamente():
     assert len(resultado.informe.recomendaciones) == 1
 
 
-def test_tolera_diferencias_de_redondeo():
+def test_tolera_diferencias_de_redondeo() -> None:
     """El modelo puede escribir 31,2% donde la métrica dice 31,23%. Eso es
     redondeo, no invención: rechazarlo vaciaría informes correctos."""
     informe = _informe([
@@ -280,7 +285,7 @@ def test_tolera_diferencias_de_redondeo():
 
 # --- Sin datos ---------------------------------------------------------------
 
-def test_sin_resultados_de_herramientas_se_rechaza_todo_hecho():
+def test_sin_resultados_de_herramientas_se_rechaza_todo_hecho() -> None:
     """Si no hubo datos, ninguna afirmación factual puede estar respaldada.
 
     Es el escenario donde el LLM más inventa: sin información, igual encuentra
@@ -295,14 +300,14 @@ def test_sin_resultados_de_herramientas_se_rechaza_todo_hecho():
     assert resultado.informe.resumen_ejecutivo == []
 
 
-def test_un_informe_sin_afirmaciones_se_aprueba():
+def test_un_informe_sin_afirmaciones_se_aprueba() -> None:
     resultado = validar_informe(_informe(), {"product_metrics": {"P001": _metrica()}})
     assert resultado.aprobado
 
 
 # --- Segunda capa: la comparación se sostiene --------------------------------
 
-def test_rechaza_una_comparacion_invertida_con_numeros_reales():
+def test_rechaza_una_comparacion_invertida_con_numeros_reales() -> None:
     """El caso exacto que produjo el modelo en una corrida real.
 
     Ambas cifras salen de SQL, así que la verificación numérica las aprueba.
@@ -323,7 +328,7 @@ def test_rechaza_una_comparacion_invertida_con_numeros_reales():
     assert any("aritm" in w.lower() for w in resultado.informe.advertencias)
 
 
-def test_acepta_una_comparacion_correcta():
+def test_acepta_una_comparacion_correcta() -> None:
     informe = _informe(
         [Afirmacion(texto="Calma lidera en unidades con 257, frente a las 242 "
                           "de Ribera", tipo="hecho", fuentes=[FUENTE_SQL])],
@@ -337,7 +342,7 @@ def test_acepta_una_comparacion_correcta():
     assert len(resultado.informe.resumen_ejecutivo) == 1
 
 
-def test_acepta_un_comparativo_de_inferioridad_correcto():
+def test_acepta_un_comparativo_de_inferioridad_correcto() -> None:
     """El validador no puede borrar afirmaciones verdaderas.
 
     Con "más baja" la relación esperada se invierte, y 3,7 < 7,1 la cumple.
@@ -356,7 +361,7 @@ def test_acepta_un_comparativo_de_inferioridad_correcto():
 
 # --- Métrica de groundedness -------------------------------------------------
 
-def test_reporta_la_tasa_de_groundedness():
+def test_reporta_la_tasa_de_groundedness() -> None:
     informe = _informe([
         Afirmacion(texto="Vendió 1.243 unidades", tipo="hecho", fuentes=[FUENTE_SQL]),
         Afirmacion(texto="Vendió 9.999 unidades", tipo="hecho", fuentes=[FUENTE_SQL]),
@@ -365,7 +370,7 @@ def test_reporta_la_tasa_de_groundedness():
     assert resultado.groundedness == pytest.approx(0.5)
 
 
-def test_groundedness_de_un_informe_sin_numeros_es_uno():
+def test_groundedness_de_un_informe_sin_numeros_es_uno() -> None:
     """Sin cifras que verificar, no hay nada que pueda estar inventado."""
     informe = _informe([
         Afirmacion(texto="El producto muestra una tendencia favorable",
@@ -392,11 +397,11 @@ def test_groundedness_de_un_informe_sin_numeros_es_uno():
     ("Fueron 423 unidades", 423.0),
     ("El valor es 0.5", 0.5),
 ])
-def test_interpreta_numeros_en_ambos_formatos(texto, esperado):
+def test_interpreta_numeros_en_ambos_formatos(texto: str, esperado: float) -> None:
     assert esperado in extraer_numeros_de_negocio(texto)
 
 
-def test_no_descarta_una_afirmacion_por_el_formato_del_numero():
+def test_no_descarta_una_afirmacion_por_el_formato_del_numero() -> None:
     """El caso real: el modelo escribió en formato inglés y el validador la
     eliminó. Un falso positivo del validador borra información correcta."""
     informe = _informe([
@@ -409,7 +414,7 @@ def test_no_descarta_una_afirmacion_por_el_formato_del_numero():
     assert resultado.aprobado, resultado.afirmaciones_rechazadas
 
 
-def test_ignora_identificadores_alfanumericos_de_cualquier_tipo():
+def test_ignora_identificadores_alfanumericos_de_cualquier_tipo() -> None:
     """`L1829` es un número de lote, no una magnitud.
 
     Es el mismo falso positivo que tenían `doc_112` y `§3.2`, con otro prefijo.
@@ -421,7 +426,7 @@ def test_ignora_identificadores_alfanumericos_de_cualquier_tipo():
     ) == set()
 
 
-def test_una_afirmacion_con_un_numero_de_lote_no_se_descarta():
+def test_una_afirmacion_con_un_numero_de_lote_no_se_descarta() -> None:
     informe = _informe([
         Afirmacion(texto="Las devoluciones se relacionan con defectos "
                          "detectados en el lote L1829", tipo="hecho",
@@ -431,7 +436,7 @@ def test_una_afirmacion_con_un_numero_de_lote_no_se_descarta():
     assert resultado.aprobado, resultado.afirmaciones_rechazadas
 
 
-def test_sigue_detectando_magnitudes_junto_a_identificadores():
+def test_sigue_detectando_magnitudes_junto_a_identificadores() -> None:
     """Contraprueba: generalizar el filtro no puede cegar al validador."""
     numeros = extraer_numeros_de_negocio(
         "El lote L1829 del P002 acumuló 1.243 devoluciones"
@@ -448,7 +453,7 @@ def test_sigue_detectando_magnitudes_junto_a_identificadores():
     "Sería conveniente revisar la política de descuentos",
     "Se sugiere reforzar el control de calidad",
 ])
-def test_detecta_una_recomendacion_redactada_como_hecho(texto):
+def test_detecta_una_recomendacion_redactada_como_hecho(texto: str) -> None:
     """El modelo etiqueta mal y el informe no lo nota.
 
     `Report` valida la ETIQUETA, no el texto: una recomendación marcada como
@@ -465,12 +470,12 @@ def test_detecta_una_recomendacion_redactada_como_hecho(texto):
     "Las devoluciones aumentaron en el período",
     "El proveedor reportó defectos en el lote",
 ])
-def test_no_confunde_un_hecho_con_una_recomendacion(texto):
+def test_no_confunde_un_hecho_con_una_recomendacion(texto: str) -> None:
     from agent.nodes.validator import parece_recomendacion
     assert not parece_recomendacion(texto)
 
 
-def test_una_recomendacion_mal_etiquetada_se_mueve_a_su_seccion():
+def test_una_recomendacion_mal_etiquetada_se_mueve_a_su_seccion() -> None:
     """No se descarta: se reubica. La información es útil, el problema es dónde
     estaba puesta."""
     informe = _informe([

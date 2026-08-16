@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
+from typing import Any
 
 from agent.llm import ClienteLLM
 from agent.nodes.entidades import (
@@ -139,7 +140,7 @@ Devolvé únicamente la intención y la cantidad de días del período pedido.
 """
 
 
-def _normalizar_intencion(valor, estado: AnalysisState) -> Intencion:
+def _normalizar_intencion(valor: Any, estado: AnalysisState) -> Intencion:
     try:
         return Intencion(valor)
     except ValueError:
@@ -150,7 +151,7 @@ def _normalizar_intencion(valor, estado: AnalysisState) -> Intencion:
         return Intencion.FUERA_DE_ALCANCE
 
 
-def _normalizar_periodo(dias, hoy: date) -> Periodo:
+def _normalizar_periodo(dias: Any, hoy: date) -> Periodo:
     try:
         dias = int(dias)
     except (TypeError, ValueError):

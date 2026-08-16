@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -47,8 +49,8 @@ UMBRALES = {
 }
 
 
-def _documento(**cambios):
-    base = dict(
+def _documento(**cambios: Any) -> dict[str, Any]:
+    base: dict[str, Any] = dict(
         corridas=[(EVENTO, "analisis", _informe(), HALLAZGOS)],
         proporciones=PROPORCIONES,
         umbrales=UMBRALES,
@@ -73,7 +75,7 @@ def _informe() -> Report:
 
 # --- qué se guarda ------------------------------------------------------------
 
-def test_guarda_el_valor_la_cobertura_y_el_umbral_de_cada_metrica():
+def test_guarda_el_valor_la_cobertura_y_el_umbral_de_cada_metrica() -> None:
     """Sin el umbral al lado, el valor no se puede volver a interpretar.
 
     Un 50% guardado suelto no dice si pasó o no: el umbral podría haber sido
@@ -89,7 +91,7 @@ def test_guarda_el_valor_la_cobertura_y_el_umbral_de_cada_metrica():
     }
 
 
-def test_una_metrica_que_no_aplico_guarda_null_y_no_un_cero():
+def test_una_metrica_que_no_aplico_guarda_null_y_no_un_cero() -> None:
     """La distinción que costó una versión entera del eval.
 
     `None` significa que la métrica no juzgó nada. Un 0 diría que juzgó y salió
@@ -103,7 +105,7 @@ def test_una_metrica_que_no_aplico_guarda_null_y_no_un_cero():
     assert sin_aplicar["alcanza"] is None
 
 
-def test_guarda_el_detalle_por_caso_y_no_solo_el_promedio():
+def test_guarda_el_detalle_por_caso_y_no_solo_el_promedio() -> None:
     """El promedio dice que algo anda mal; el detalle dice dónde.
 
     Que P012 fallara por no citar la ficha del producto no se ve en un 17%.
@@ -117,7 +119,7 @@ def test_guarda_el_detalle_por_caso_y_no_solo_el_promedio():
             "detalle": "citó ningún documento de 2"} in caso["hallazgos"]
 
 
-def test_un_caso_sin_informe_queda_registrado_como_tal():
+def test_un_caso_sin_informe_queda_registrado_como_tal() -> None:
     """Un hueco es un dato. Si el agente no produjo informe, el registro tiene
     que poder distinguirlo de un caso que se evaluó y salió mal."""
     documento = _documento(corridas=[(EVENTO, "analisis", None, [])])
@@ -126,7 +128,7 @@ def test_un_caso_sin_informe_queda_registrado_como_tal():
     assert documento["casos"][0]["hallazgos"] == []
 
 
-def test_guarda_que_consulta_se_le_hizo_al_agente():
+def test_guarda_que_consulta_se_le_hizo_al_agente() -> None:
     """Desde que el eval mezcla consultas de análisis con consultas de
     proyección, un promedio sobre todos los casos junta dos poblaciones. Sin
     este campo el registro no permite separarlas después."""
@@ -138,7 +140,7 @@ def test_guarda_que_consulta_se_le_hizo_al_agente():
         "analisis", "proyeccion"]
 
 
-def test_guarda_el_modelo_que_se_evaluo():
+def test_guarda_el_modelo_que_se_evaluo() -> None:
     """Comparar dos corridas de modelos distintos y llamarlo progreso es el
     error que este campo previene."""
     assert _documento()["modelo_llm"] == "llama3.2:3b"
@@ -146,7 +148,7 @@ def test_guarda_el_modelo_que_se_evaluo():
 
 # --- la procedencia: contra qué código se midió -------------------------------
 
-def test_guarda_el_commit_y_si_el_arbol_estaba_limpio():
+def test_guarda_el_commit_y_si_el_arbol_estaba_limpio() -> None:
     """Sin esto el número no se puede reproducir ni atribuir.
 
     `limpio=False` es la marca de que la corrida se hizo sobre cambios sin
@@ -160,7 +162,7 @@ def test_guarda_el_commit_y_si_el_arbol_estaba_limpio():
     assert isinstance(documento["arbol_limpio"], bool)
 
 
-def test_la_procedencia_se_puede_capturar_antes_de_la_corrida():
+def test_la_procedencia_se_puede_capturar_antes_de_la_corrida() -> None:
     """El instrumento se ensuciaba a sí mismo.
 
     La corrida del commit 60925fb se lanzó con el árbol commiteado y quedó
@@ -178,14 +180,14 @@ def test_la_procedencia_se_puede_capturar_antes_de_la_corrida():
     assert documento["arbol_limpio"] is True
 
 
-def test_sin_procedencia_explicita_se_captura_sola():
+def test_sin_procedencia_explicita_se_captura_sola() -> None:
     """No se rompe a quien la llame sin el dato."""
     documento = _documento()
 
     assert "commit" in documento and "arbol_limpio" in documento
 
 
-def test_procedencia_informa_el_commit_y_el_estado_del_arbol():
+def test_procedencia_informa_el_commit_y_el_estado_del_arbol() -> None:
     from eval.registro import procedencia
 
     p = procedencia()
@@ -196,7 +198,7 @@ def test_procedencia_informa_el_commit_y_el_estado_del_arbol():
 
 # --- persistencia -------------------------------------------------------------
 
-def test_guardar_escribe_un_json_legible_por_corrida(tmp_path):
+def test_guardar_escribe_un_json_legible_por_corrida(tmp_path: Path) -> None:
     """Un archivo por corrida, indentado, y no una línea JSONL.
 
     El historial de corridas es parte del entregable: alguien lo va a leer en
@@ -211,7 +213,7 @@ def test_guardar_escribe_un_json_legible_por_corrida(tmp_path):
     assert json.loads(destino.read_text(encoding="utf-8"))["modelo_llm"] == "llama3.2:3b"
 
 
-def test_el_nombre_del_archivo_ordena_cronologicamente(tmp_path):
+def test_el_nombre_del_archivo_ordena_cronologicamente(tmp_path: Path) -> None:
     """Ordenar por nombre tiene que ser ordenar por fecha: es como se van a
     comparar dos corridas sin escribir una herramienta."""
     primero = guardar(_documento(generado_en=datetime(2026, 8, 12, 9, 0, 0)), tmp_path)
@@ -220,7 +222,7 @@ def test_el_nombre_del_archivo_ordena_cronologicamente(tmp_path):
     assert sorted([segundo.name, primero.name]) == [primero.name, segundo.name]
 
 
-def test_dos_corridas_no_se_pisan(tmp_path):
+def test_dos_corridas_no_se_pisan(tmp_path: Path) -> None:
     """Append-only: una corrida nueva no borra la anterior. Si se pisaran, el
     historial tendría siempre un solo elemento y no sería un historial."""
     guardar(_documento(generado_en=datetime(2026, 8, 12, 9, 0, 0)), tmp_path)
@@ -229,14 +231,14 @@ def test_dos_corridas_no_se_pisan(tmp_path):
     assert len(list(tmp_path.glob("*.json"))) == 2
 
 
-def test_guardar_crea_el_directorio_si_no_existe(tmp_path):
+def test_guardar_crea_el_directorio_si_no_existe(tmp_path: Path) -> None:
     """La primera corrida en una máquina nueva no puede fallar por un mkdir."""
     destino = guardar(_documento(), tmp_path / "corridas")
 
     assert destino.exists()
 
 
-def test_el_documento_es_serializable_sin_conversores(tmp_path):
+def test_el_documento_es_serializable_sin_conversores(tmp_path: Path) -> None:
     """Si algo del documento necesitara `default=str`, el registro tendría
     fechas que a veces son texto y a veces no. Se serializa tal cual o no se
     guarda."""
@@ -245,7 +247,7 @@ def test_el_documento_es_serializable_sin_conversores(tmp_path):
 
 # --- comparación entre corridas -----------------------------------------------
 
-def test_no_se_puede_comparar_una_corrida_con_un_modelo_distinto():
+def test_no_se_puede_comparar_una_corrida_con_un_modelo_distinto() -> None:
     """El chequeo que evita la conclusión más tentadora y más falsa: cambiar el
     modelo, ver subir el número y atribuírselo al prompt."""
     from eval.registro import comparar
@@ -258,7 +260,7 @@ def test_no_se_puede_comparar_una_corrida_con_un_modelo_distinto():
         comparar(anterior, actual)
 
 
-def test_comparar_devuelve_la_diferencia_por_metrica():
+def test_comparar_devuelve_la_diferencia_por_metrica() -> None:
     from eval.registro import comparar
 
     anterior = _documento()
@@ -273,7 +275,7 @@ def test_comparar_devuelve_la_diferencia_por_metrica():
     assert diferencias["usa_la_evidencia_documental"]["delta"] == 0.5
 
 
-def test_una_metrica_que_no_aplico_en_ninguna_de_las_dos_no_tiene_delta():
+def test_una_metrica_que_no_aplico_en_ninguna_de_las_dos_no_tiene_delta() -> None:
     """Restar `None` menos `None` y escribir 0 diría que no cambió nada. No
     cambió nada porque no se midió nada, que no es lo mismo."""
     from eval.registro import comparar

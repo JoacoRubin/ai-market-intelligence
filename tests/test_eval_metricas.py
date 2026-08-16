@@ -27,6 +27,7 @@ validado.*
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
 from eval.metricas import EventoSembrado, evaluar, resumir
@@ -50,14 +51,14 @@ PREDICCION = Prediccion(product_id="P010", horizonte_dias=30, valor=900.0,
                         mape_backtest=8.3, mape_baseline=12.0)
 
 
-def _informe(**cambios) -> Report:
+def _informe(**cambios: Any) -> Report:
     """Informe correcto por defecto, que ejercita las CINCO métricas.
 
     Lleva predicción y evidencia documental a propósito: si el caso base dejara
     métricas sin aplicar, un informe "correcto" convivirían con medidores que
     nunca corrieron, que es justo el problema que estos tests vigilan.
     """
-    base = dict(
+    base: dict[str, Any] = dict(
         request_id="req-1",
         consulta="¿Por qué subieron las devoluciones de P010?",
         generado_en=AHORA,
@@ -86,13 +87,14 @@ def _informe(**cambios) -> Report:
     return Report(**base)
 
 
-def _por_nombre(informe, evento=EVENTO) -> dict[str, bool | None]:
+def _por_nombre(informe: Report,
+                evento: EventoSembrado = EVENTO) -> dict[str, bool | None]:
     return {h.nombre: h.cumple for h in evaluar(informe, evento)}
 
 
 # --- el caso base ejercita todo -----------------------------------------------
 
-def test_un_informe_correcto_cumple_las_cinco_metricas():
+def test_un_informe_correcto_cumple_las_cinco_metricas() -> None:
     """Sin este test, una métrica rota siempre daría 'incumple' y parecería que
     el agente falla cuando el que falla es el medidor."""
     assert all(v is True for v in _por_nombre(_informe()).values())
@@ -100,7 +102,7 @@ def test_un_informe_correcto_cumple_las_cinco_metricas():
 
 # --- 1. el producto del evento ------------------------------------------------
 
-def test_detecta_que_el_informe_no_analiza_el_producto_del_evento():
+def test_detecta_que_el_informe_no_analiza_el_producto_del_evento() -> None:
     informe = _informe(
         metricas=[MetricaProducto(product_id="P999", nombre="Otro", unidades=10,
                                   revenue=100.0, fuente="sql-kpis")],
@@ -111,7 +113,7 @@ def test_detecta_que_el_informe_no_analiza_el_producto_del_evento():
 
 # --- 2. atribución: el defecto exacto del ADR-003 -----------------------------
 
-def test_detecta_una_recomendacion_dirigida_al_producto_equivocado():
+def test_detecta_una_recomendacion_dirigida_al_producto_equivocado() -> None:
     """El ADR-003 lo documentó textual: el informe sugería reducir devoluciones
     para el producto del 2,1% en vez del que tenía 5,7%."""
     informe = _informe(
@@ -123,7 +125,7 @@ def test_detecta_una_recomendacion_dirigida_al_producto_equivocado():
     assert _por_nombre(informe)["atribuye_al_producto_correcto"] is False
 
 
-def test_sin_recomendaciones_la_atribucion_no_aplica():
+def test_sin_recomendaciones_la_atribucion_no_aplica() -> None:
     """`None`, no `True`. Es la corrección que motivó este cambio.
 
     En la primera corrida real las seis ejecuciones dieron 100% en esta métrica
@@ -137,7 +139,7 @@ def test_sin_recomendaciones_la_atribucion_no_aplica():
 
 # --- 3. magnitudes absolutas --------------------------------------------------
 
-def test_detecta_un_informe_que_solo_habla_en_porcentajes():
+def test_detecta_un_informe_que_solo_habla_en_porcentajes() -> None:
     """Otro defecto textual del ADR-003: unidades, revenue y proyecciones no
     aparecían por ningún lado. El informe hablaba solo en porcentajes."""
     informe = _informe(
@@ -149,7 +151,7 @@ def test_detecta_un_informe_que_solo_habla_en_porcentajes():
     assert _por_nombre(informe)["reporta_magnitudes_absolutas"] is False
 
 
-def test_reconoce_la_magnitud_aunque_venga_con_separadores_de_miles():
+def test_reconoce_la_magnitud_aunque_venga_con_separadores_de_miles() -> None:
     """1243, 1.243 y 1 243 son el mismo número. Medir formato en vez de
     contenido daría un falso negativo en cada informe bien escrito."""
     informe = _informe(
@@ -161,7 +163,7 @@ def test_reconoce_la_magnitud_aunque_venga_con_separadores_de_miles():
     assert _por_nombre(informe)["reporta_magnitudes_absolutas"] is True
 
 
-def test_sin_metricas_las_magnitudes_no_aplican():
+def test_sin_metricas_las_magnitudes_no_aplican() -> None:
     informe = _informe(metricas=[], predicciones=[])
 
     assert _por_nombre(informe)["reporta_magnitudes_absolutas"] is None
@@ -169,7 +171,7 @@ def test_sin_metricas_las_magnitudes_no_aplican():
 
 # --- 4. evidencia integrada, no decorativa ------------------------------------
 
-def test_detecta_que_no_uso_ninguno_de_los_documentos_recuperados():
+def test_detecta_que_no_uso_ninguno_de_los_documentos_recuperados() -> None:
     """El ADR-003: 'tiene en el contexto dos documentos que explican el pico y
     concluye sugiere una posible causa externa'. Tenía la respuesta adelante.
 
@@ -188,7 +190,7 @@ def test_detecta_que_no_uso_ninguno_de_los_documentos_recuperados():
     assert _por_nombre(informe)["usa_la_evidencia_documental"] is False
 
 
-def test_alcanza_con_citar_uno_de_los_documentos_disponibles():
+def test_alcanza_con_citar_uno_de_los_documentos_disponibles() -> None:
     """Es lo que pide la regla 7 del prompt, y es lo correcto.
 
     Si el RAG recupera cuatro pasajes y solo uno explica el evento, exigir que
@@ -207,7 +209,7 @@ def test_alcanza_con_citar_uno_de_los_documentos_disponibles():
     assert _por_nombre(informe)["usa_la_evidencia_documental"] is True
 
 
-def test_sin_evidencia_documental_recuperada_la_metrica_no_aplica():
+def test_sin_evidencia_documental_recuperada_la_metrica_no_aplica() -> None:
     """Un análisis puramente numérico no tiene documentos que integrar. Eso no
     es cumplir: es que la pregunta no corresponde."""
     informe = _informe(
@@ -223,7 +225,7 @@ def test_sin_evidencia_documental_recuperada_la_metrica_no_aplica():
 
 # --- 4 bis. citar un documento no obliga a citarlos todos ---------------------
 
-def test_citar_uno_alcanza_aunque_queden_documentos_declarados_sin_citar():
+def test_citar_uno_alcanza_aunque_queden_documentos_declarados_sin_citar() -> None:
     """El reemplazo de `no_declara_documentos_sin_usar`, eliminada el 2026-08-12.
 
     Aquella métrica contaba como defecto cada documento declarado que ningún
@@ -247,7 +249,7 @@ def test_citar_uno_alcanza_aunque_queden_documentos_declarados_sin_citar():
     assert _por_nombre(informe)["usa_la_evidencia_documental"] is True
 
 
-def test_la_metrica_del_sobrante_ya_no_se_reporta():
+def test_la_metrica_del_sobrante_ya_no_se_reporta() -> None:
     """Una métrica eliminada no puede reaparecer en el resumen: si volviera,
     volvería con su umbral y con el 17% que no medía lo que decía medir."""
     assert "no_declara_documentos_sin_usar" not in _por_nombre(_informe())
@@ -255,7 +257,7 @@ def test_la_metrica_del_sobrante_ya_no_se_reporta():
 
 # --- 5. inversión del significado de una métrica ------------------------------
 
-def test_detecta_que_llama_precision_a_un_error():
+def test_detecta_que_llama_precision_a_un_error() -> None:
     """El ADR-003: 'describe un MAPE de 8,3% como precisión del 8,3%'. El número
     es correcto y la afirmación es falsa — el caso que un validador numérico no
     puede ver."""
@@ -269,11 +271,11 @@ def test_detecta_que_llama_precision_a_un_error():
     assert _por_nombre(informe)["no_invierte_el_sentido_del_error"] is False
 
 
-def test_acepta_que_hable_de_error_cuando_es_error():
+def test_acepta_que_hable_de_error_cuando_es_error() -> None:
     assert _por_nombre(_informe())["no_invierte_el_sentido_del_error"] is True
 
 
-def test_sin_predicciones_la_metrica_del_error_no_aplica():
+def test_sin_predicciones_la_metrica_del_error_no_aplica() -> None:
     """La otra métrica que daba 100% sin haber juzgado nada.
 
     En las seis corridas reales el agente no produjo una sola predicción, así
@@ -286,7 +288,7 @@ def test_sin_predicciones_la_metrica_del_error_no_aplica():
 
 # --- agregación ---------------------------------------------------------------
 
-def test_resumir_calcula_sobre_los_casos_donde_la_metrica_aplico():
+def test_resumir_calcula_sobre_los_casos_donde_la_metrica_aplico() -> None:
     bueno = evaluar(_informe(), EVENTO)
     malo = evaluar(
         _informe(metricas=[MetricaProducto(product_id="P999", nombre="Otro",
@@ -309,7 +311,7 @@ def test_resumir_calcula_sobre_los_casos_donde_la_metrica_aplico():
     assert resumen["atribuye_al_producto_correcto"].total == 3
 
 
-def test_una_metrica_que_nunca_aplico_vale_None_y_no_uno():
+def test_una_metrica_que_nunca_aplico_vale_None_y_no_uno() -> None:
     """El corazón de la corrección. Un 100% por abstención es una mentira."""
     corridas = [evaluar(_informe(predicciones=[]), EVENTO) for _ in range(6)]
 
@@ -321,6 +323,6 @@ def test_una_metrica_que_nunca_aplico_vale_None_y_no_uno():
     assert metrica.total == 6
 
 
-def test_resumir_sin_corridas_no_inventa_un_cien_por_ciento():
+def test_resumir_sin_corridas_no_inventa_un_cien_por_ciento() -> None:
     """Cero corridas no es calidad perfecta."""
     assert resumir([]) == {}

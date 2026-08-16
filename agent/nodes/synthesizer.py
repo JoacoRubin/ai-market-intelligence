@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from typing import Any
 
 from agent.llm import ClienteLLM
 from agent.state import AnalysisState
@@ -114,7 +115,7 @@ def _datos_para_el_modelo(metricas: list[MetricaProducto]) -> str:
     return "\n".join(lineas)
 
 
-def _evidencia_para_el_modelo(evidencia: list[dict]) -> str:
+def _evidencia_para_el_modelo(evidencia: list[dict[str, Any]]) -> str:
     """Pasajes recuperados, cada uno con su identificador a la vista.
 
     El identificador va pegado al texto para que el modelo pueda citarlo sin
@@ -129,7 +130,7 @@ def _evidencia_para_el_modelo(evidencia: list[dict]) -> str:
     )
 
 
-def _fuentes_de_modelo(predicciones: list, ahora: datetime) -> list[Fuente]:
+def _fuentes_de_modelo(predicciones: list[Prediccion], ahora: datetime) -> list[Fuente]:
     """Declara el modelo de ML como fuente citable.
 
     Una predicción es tan rastreable como un dato: tiene que poder decirse qué
@@ -147,7 +148,9 @@ def _fuentes_de_modelo(predicciones: list, ahora: datetime) -> list[Fuente]:
     return list(vistos.values())
 
 
-def _fuentes_documentales(evidencia: list[dict], ahora: datetime) -> list[Fuente]:
+def _fuentes_documentales(
+    evidencia: list[dict[str, Any]], ahora: datetime
+) -> list[Fuente]:
     """Declara cada documento recuperado como fuente citable del informe.
 
     El modelo `Report` rechaza toda cita a una fuente no declarada, así que esto

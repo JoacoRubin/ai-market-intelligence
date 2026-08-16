@@ -15,8 +15,10 @@ import y salta en la revisión. Esconder la conexión privilegiada detrás de un
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from typing import Any
 
 import pyodbc
 
@@ -92,7 +94,7 @@ def conectar_lectura(base: str | None = BASE) -> pyodbc.Connection:
 
 
 @contextmanager
-def cursor_lectura():
+def cursor_lectura() -> Iterator[Any]:
     """Cursor de solo lectura con cierre garantizado."""
     con = conectar_lectura()
     try:

@@ -15,6 +15,7 @@ quién decide: el software, sobre datos ya validados.
 """
 
 from datetime import date
+from typing import Any
 
 import pytest
 
@@ -22,9 +23,10 @@ from agent.nodes.planner import planificar
 from agent.state import AnalysisState, Intencion, Periodo
 
 
-def _estado(intencion=Intencion.PRODUCT_PERFORMANCE, entidades=None,
-            periodo=True, **kw) -> AnalysisState:
-    base = dict(
+def _estado(intencion: Intencion | None = Intencion.PRODUCT_PERFORMANCE,
+            entidades: list[str] | None = None,
+            periodo: bool = True, **kw: Any) -> AnalysisState:
+    base: dict[str, Any] = dict(
         request_id="req-001",
         consulta="Compará P001 y P002",
         intencion=intencion,
@@ -38,13 +40,13 @@ def _estado(intencion=Intencion.PRODUCT_PERFORMANCE, entidades=None,
 
 # --- Plan según intención ----------------------------------------------------
 
-def test_product_performance_planifica_consultar_metricas():
+def test_product_performance_planifica_consultar_metricas() -> None:
     estado = planificar(_estado())
     assert [p.tool for p in estado.plan] == ["product_metrics"]
     assert estado.plan[0].argumentos["product_ids"] == ["P001", "P002"]
 
 
-def test_hybrid_tambien_consulta_metricas_en_la_v1():
+def test_hybrid_tambien_consulta_metricas_en_la_v1() -> None:
     """La V1 no tiene RAG ni research público todavía.
 
     Una consulta híbrida se resuelve con lo que hay —las métricas internas— y
@@ -57,7 +59,7 @@ def test_hybrid_tambien_consulta_metricas_en_la_v1():
                for w in estado.advertencias), estado.advertencias
 
 
-def test_company_research_no_tiene_herramientas_en_la_v1():
+def test_company_research_no_tiene_herramientas_en_la_v1() -> None:
     """Sin acceso a fuentes públicas todavía, no hay nada que ejecutar.
 
     El plan queda vacío y el grafo va a cortar en el EvidenceGate. Inventar un
@@ -70,13 +72,13 @@ def test_company_research_no_tiene_herramientas_en_la_v1():
                for w in estado.advertencias), estado.advertencias
 
 
-def test_fuera_de_alcance_no_genera_plan():
+def test_fuera_de_alcance_no_genera_plan() -> None:
     estado = planificar(_estado(intencion=Intencion.FUERA_DE_ALCANCE,
                                 entidades=[]))
     assert estado.plan == []
 
 
-def test_sin_intencion_no_genera_plan():
+def test_sin_intencion_no_genera_plan() -> None:
     estado = _estado()
     estado.intencion = None
     assert planificar(estado).plan == []
@@ -84,7 +86,7 @@ def test_sin_intencion_no_genera_plan():
 
 # --- Validaciones ------------------------------------------------------------
 
-def test_sin_periodo_usa_uno_por_defecto():
+def test_sin_periodo_usa_uno_por_defecto() -> None:
     """Un plan sin período no se puede ejecutar. Antes que fallar, se completa
     con el default y se advierte: el usuario obtiene un resultado y sabe sobre
     qué ventana se calculó."""
@@ -93,19 +95,19 @@ def test_sin_periodo_usa_uno_por_defecto():
     assert estado.plan[0].argumentos["desde"] == estado.periodo.desde
 
 
-def test_sin_entidades_no_planifica_metricas():
+def test_sin_entidades_no_planifica_metricas() -> None:
     estado = planificar(_estado(entidades=[]))
     assert estado.plan == []
 
 
-def test_cada_paso_lleva_su_justificacion():
+def test_cada_paso_lleva_su_justificacion() -> None:
     """La razón se muestra en "Cómo se obtuvo" y permite auditar si el agente
     eligió bien la herramienta."""
     estado = planificar(_estado())
     assert all(p.razon for p in estado.plan)
 
 
-def test_el_plan_respeta_el_presupuesto_de_herramientas():
+def test_el_plan_respeta_el_presupuesto_de_herramientas() -> None:
     """Planificar más llamadas de las que el presupuesto admite es planificar
     un fracaso."""
     estado = _estado(max_llamadas_tools=0)
@@ -115,20 +117,21 @@ def test_el_plan_respeta_el_presupuesto_de_herramientas():
                for w in estado.advertencias), estado.advertencias
 
 
-def test_registra_el_paso_en_el_trace():
+def test_registra_el_paso_en_el_trace() -> None:
     estado = planificar(_estado())
     assert any(p.nodo == "planner" for p in estado.trace)
 
 
 # --- Replanificación ---------------------------------------------------------
 
-def test_replanificar_amplia_el_periodo():
+def test_replanificar_amplia_el_periodo() -> None:
     """Cuando el primer intento no encontró datos, la hipótesis más probable es
     que el período era demasiado corto. Ampliarlo es la corrección barata antes
     de darse por vencido.
     """
     estado = _estado()
     planificar(estado)
+    assert estado.periodo is not None
     ancho_inicial = (estado.periodo.hasta - estado.periodo.desde).days
 
     estado.registrar_reintento()
@@ -137,7 +140,7 @@ def test_replanificar_amplia_el_periodo():
     assert (estado.periodo.hasta - estado.periodo.desde).days > ancho_inicial
 
 
-def test_replanificar_deja_constancia():
+def test_replanificar_deja_constancia() -> None:
     estado = _estado()
     estado.registrar_reintento()
     planificar(estado, replanificando=True)
@@ -146,6 +149,8 @@ def test_replanificar_deja_constancia():
 
 
 @pytest.mark.parametrize("intencion", list(Intencion))
-def test_ninguna_intencion_hace_explotar_al_planificador(intencion):
+def test_ninguna_intencion_hace_explotar_al_planificador(
+    intencion: Intencion,
+) -> None:
     estado = planificar(_estado(intencion=intencion))
     assert isinstance(estado.plan, list)

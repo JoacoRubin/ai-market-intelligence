@@ -77,7 +77,7 @@ def _nombre(productos: pd.DataFrame, pid: str) -> str:
 
 
 def _texto_pico_devoluciones(pid: str, nombre: str, fecha: date,
-                             proveedor: str, rng) -> str:
+                             proveedor: str, rng: np.random.Generator) -> str:
     lote = f"L{rng.integers(1000, 9999)}"
     return (
         f"Comunicación recibida del proveedor {proveedor} respecto del artículo "
@@ -132,7 +132,9 @@ def _texto_pico_ventas(pid: str, nombre: str, fecha: date, factor: float,
     )
 
 
-def _distractores(productos: pd.DataFrame, rng, desde: date) -> list[Documento]:
+def _distractores(
+    productos: pd.DataFrame, rng: np.random.Generator, desde: date
+) -> list[Documento]:
     docs: list[Documento] = []
 
     docs.append(Documento(

@@ -22,12 +22,12 @@ from rag.indice import _activar_modo_offline, _mensaje_sin_cache
 
 
 @pytest.fixture(autouse=True)
-def sin_variable(monkeypatch):
+def sin_variable(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cada test arranca sin la variable, para no depender del entorno real."""
     monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
 
 
-def test_activa_el_modo_offline_cuando_nadie_lo_configuro(monkeypatch):
+def test_activa_el_modo_offline_cuando_nadie_lo_configuro(monkeypatch: pytest.MonkeyPatch) -> None:
     import os
 
     _activar_modo_offline()
@@ -35,7 +35,7 @@ def test_activa_el_modo_offline_cuando_nadie_lo_configuro(monkeypatch):
     assert os.environ["HF_HUB_OFFLINE"] == "1"
 
 
-def test_respeta_una_decision_explicita_en_contra(monkeypatch):
+def test_respeta_una_decision_explicita_en_contra(monkeypatch: pytest.MonkeyPatch) -> None:
     """Quien pone HF_HUB_OFFLINE=0 quiere descargar. No se le pisa.
 
     Es el caso de la primera instalación: sin esta salida, una clonación nueva
@@ -50,7 +50,7 @@ def test_respeta_una_decision_explicita_en_contra(monkeypatch):
     assert os.environ["HF_HUB_OFFLINE"] == "0"
 
 
-def test_no_pisa_un_offline_ya_declarado(monkeypatch):
+def test_no_pisa_un_offline_ya_declarado(monkeypatch: pytest.MonkeyPatch) -> None:
     import os
 
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
@@ -60,7 +60,7 @@ def test_no_pisa_un_offline_ya_declarado(monkeypatch):
     assert os.environ["HF_HUB_OFFLINE"] == "1"
 
 
-def test_el_error_sin_cache_dice_como_arreglarlo():
+def test_el_error_sin_cache_dice_como_arreglarlo() -> None:
     """Un fallo de red convertido en "no está en cache" sin instrucciones deja
     a la persona peor que antes: ahora falla y encima no sabe por qué.
     """
@@ -71,14 +71,14 @@ def test_el_error_sin_cache_dice_como_arreglarlo():
     assert "HF_HUB_OFFLINE" in mensaje
 
 
-def test_el_error_conserva_la_causa_original():
+def test_el_error_conserva_la_causa_original() -> None:
     """Sin el error de abajo, el diagnóstico real se pierde."""
     mensaje = _mensaje_sin_cache(OSError("connection refused"))
 
     assert "connection refused" in mensaje
 
 
-def test_el_comando_que_sugiere_el_error_existe_en_tasks():
+def test_el_comando_que_sugiere_el_error_existe_en_tasks() -> None:
     """Mandar a alguien a correr un comando inexistente es peor que callarse.
 
     Ya pasó una vez en este proyecto con el sitio del replay, y por eso el

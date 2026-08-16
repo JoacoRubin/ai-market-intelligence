@@ -12,13 +12,14 @@ rompe los lags: el "día anterior" dejaría de ser el día anterior.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import numpy as np
 
 from core.db import cursor_lectura
 
 
-def _a_date(valor) -> date:
+def _a_date(valor: Any) -> date:
     """Normaliza a `date` lo que devuelva el driver: date, datetime o string."""
     if isinstance(valor, date) and not isinstance(valor, datetime):
         return valor

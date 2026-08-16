@@ -83,7 +83,7 @@ def informe() -> Report:
 
 
 @pytest.fixture(scope="module")
-def pdf(informe: Report, tmp_path_factory) -> tuple[bytes, list[str]]:
+def pdf(informe: Report, tmp_path_factory: pytest.TempPathFactory) -> tuple[bytes, list[str]]:
     ruta = tmp_path_factory.mktemp("pdf") / "informe.pdf"
     render_pdf(informe, ruta)
     contenido = ruta.read_bytes()
@@ -93,7 +93,7 @@ def pdf(informe: Report, tmp_path_factory) -> tuple[bytes, list[str]]:
 
 # --- Que exista y sea un PDF de verdad ---------------------------------------
 
-def test_genera_un_pdf_valido(pdf):
+def test_genera_un_pdf_valido(pdf: tuple[bytes, list[str]]) -> None:
     contenido, paginas = pdf
     assert contenido.startswith(b"%PDF-"), "el archivo no es un PDF"
     assert len(contenido) > 2000
@@ -102,7 +102,7 @@ def test_genera_un_pdf_valido(pdf):
 
 # --- Que se sostenga solo ----------------------------------------------------
 
-def test_todas_las_paginas_identifican_el_origen(pdf):
+def test_todas_las_paginas_identifican_el_origen(pdf: tuple[bytes, list[str]]) -> None:
     """El pie tiene que estar en TODAS las páginas.
 
     Si alguien imprime el informe y reparte hojas sueltas en una reunión, cada
@@ -118,7 +118,7 @@ def test_todas_las_paginas_identifican_el_origen(pdf):
         )
 
 
-def test_incluye_todas_las_secciones(pdf):
+def test_incluye_todas_las_secciones(pdf: tuple[bytes, list[str]]) -> None:
     _, paginas = pdf
     todo = " ".join(paginas)
     for seccion in ("Resumen", "Performance", "Predic", "Anomal",
@@ -126,7 +126,10 @@ def test_incluye_todas_las_secciones(pdf):
         assert seccion.lower() in todo.lower(), f"falta la sección {seccion}"
 
 
-def test_toda_fuente_declarada_aparece_en_el_documento(pdf, informe: Report):
+def test_toda_fuente_declarada_aparece_en_el_documento(
+    pdf: tuple[bytes, list[str]],
+    informe: Report,
+) -> None:
     """Las fuentes no son un adorno del final: son lo que hace verificable el
     informe. Si una fuente se cita en el cuerpo pero no figura en la lista, el
     lector no puede rastrearla."""
@@ -136,7 +139,7 @@ def test_toda_fuente_declarada_aparece_en_el_documento(pdf, informe: Report):
         assert f.id in todo, f"la fuente {f.id} no aparece en el PDF"
 
 
-def test_las_predicciones_estan_marcadas_como_tales(pdf):
+def test_las_predicciones_estan_marcadas_como_tales(pdf: tuple[bytes, list[str]]) -> None:
     """Un número de forecast que se lee igual que un dato histórico es la forma
     más simple de que un informe engañe sin mentir."""
     _, paginas = pdf
@@ -146,7 +149,7 @@ def test_las_predicciones_estan_marcadas_como_tales(pdf):
     assert "baseline" in todo, "no se informa contra qué baseline se comparó"
 
 
-def test_las_recomendaciones_estan_separadas_de_los_hechos(pdf):
+def test_las_recomendaciones_estan_separadas_de_los_hechos(pdf: tuple[bytes, list[str]]) -> None:
     _, paginas = pdf
     todo = " ".join(paginas)
     assert "Recomendaciones" in todo
@@ -155,7 +158,7 @@ def test_las_recomendaciones_estan_separadas_de_los_hechos(pdf):
     )
 
 
-def test_incluye_las_limitaciones(pdf):
+def test_incluye_las_limitaciones(pdf: tuple[bytes, list[str]]) -> None:
     _, paginas = pdf
     todo = " ".join(paginas)
     assert "sintétic" in todo.lower(), "no advierte que los datos son sintéticos"
@@ -163,7 +166,10 @@ def test_incluye_las_limitaciones(pdf):
 
 # --- Groundedness del renderer ----------------------------------------------
 
-def test_ningun_numero_del_pdf_esta_inventado(pdf, informe: Report):
+def test_ningun_numero_del_pdf_esta_inventado(
+    pdf: tuple[bytes, list[str]],
+    informe: Report,
+) -> None:
     """El renderer no puede introducir números que no estén en el modelo.
 
     Este test existe por lo que aprendimos auditando al LLM: un informe puede

@@ -32,7 +32,7 @@ PICO = EventoSembrado(
 )
 
 
-def test_la_fecha_que_llega_como_texto_se_convierte_a_date():
+def test_la_fecha_que_llega_como_texto_se_convierte_a_date() -> None:
     """El driver ODBC devuelve las columnas DATE como string.
 
     Con un `@dataclass` la anotación `fecha: date` no valida nada y el string
@@ -41,7 +41,7 @@ def test_la_fecha_que_llega_como_texto_se_convierte_a_date():
     entra — el mismo criterio que sostiene a `Report` y a `AnalysisState`.
     """
     evento = EventoSembrado(
-        tipo="pico_devoluciones", product_id="P038", fecha="2025-05-04",
+        tipo="pico_devoluciones", product_id="P038", fecha=date(2025, 5, 4),
         magnitud=0.42, descripcion="lote defectuoso",
     )
 
@@ -49,21 +49,21 @@ def test_la_fecha_que_llega_como_texto_se_convierte_a_date():
     assert "2025-05" in consulta_para(evento)
 
 
-def test_la_consulta_nombra_el_producto_y_el_periodo():
+def test_la_consulta_nombra_el_producto_y_el_periodo() -> None:
     consulta = consulta_para(CAIDA)
 
     assert "P010" in consulta
     assert "2026-02" in consulta
 
 
-def test_la_consulta_no_revela_el_tipo_de_evento():
+def test_la_consulta_no_revela_el_tipo_de_evento() -> None:
     consulta = consulta_para(CAIDA).lower()
 
     assert "caida_ventas" not in consulta
     assert "caída" not in consulta
 
 
-def test_la_consulta_no_revela_la_descripcion_del_evento():
+def test_la_consulta_no_revela_la_descripcion_del_evento() -> None:
     """La descripción ES la respuesta. Si viaja en la pregunta, el agente
     solamente tiene que devolverla."""
     consulta = consulta_para(PICO).lower()
@@ -72,14 +72,14 @@ def test_la_consulta_no_revela_la_descripcion_del_evento():
     assert "proveedor" not in consulta
 
 
-def test_la_consulta_no_revela_la_magnitud():
+def test_la_consulta_no_revela_la_magnitud() -> None:
     consulta = consulta_para(PICO)
 
     assert "5,7" not in consulta
     assert "5.7" not in consulta
 
 
-def test_dos_eventos_distintos_producen_la_misma_pregunta():
+def test_dos_eventos_distintos_producen_la_misma_pregunta() -> None:
     """La prueba más fuerte de que el enunciado no depende de la respuesta.
 
     Mismo producto y mismo mes, anomalías opuestas —una caída de ventas y un
@@ -113,7 +113,7 @@ OTRO_MES = EventoSembrado(
 )
 
 
-def test_dos_eventos_del_mismo_producto_y_mes_son_un_solo_caso():
+def test_dos_eventos_del_mismo_producto_y_mes_son_un_solo_caso() -> None:
     """Repetir la pregunta no agranda la muestra: infla el denominador.
 
     Seis corridas sobre cinco preguntas no son seis observaciones. La repetida
@@ -126,7 +126,7 @@ def test_dos_eventos_del_mismo_producto_y_mes_son_un_solo_caso():
     assert len({consulta_para(c) for c in casos}) == 1
 
 
-def test_cada_caso_produce_una_consulta_distinta():
+def test_cada_caso_produce_una_consulta_distinta() -> None:
     """La invariante que define la función, y la que hay que poder afirmar
     antes de dividir cualquier cosa por la cantidad de casos."""
     casos = casos_de_evaluacion([CAIDA, MISMO_MES, OTRO_MES])
@@ -134,7 +134,7 @@ def test_cada_caso_produce_una_consulta_distinta():
     assert len({consulta_para(c) for c in casos}) == len(casos)
 
 
-def test_un_producto_y_mes_con_dos_anomalias_opuestas_se_descarta():
+def test_un_producto_y_mes_con_dos_anomalias_opuestas_se_descarta() -> None:
     """Acá no alcanza con quedarse con uno: el oráculo sería ambiguo.
 
     `CAIDA` y `PICO` comparten producto y mes con anomalías de distinto tipo.
@@ -145,7 +145,7 @@ def test_un_producto_y_mes_con_dos_anomalias_opuestas_se_descarta():
     assert casos_de_evaluacion([CAIDA, PICO]) == []
 
 
-def test_el_orden_de_los_casos_es_estable():
+def test_el_orden_de_los_casos_es_estable() -> None:
     """Mismo motivo que el `ORDER BY` de `leer_eventos`: dos corridas tienen que
     recorrer los mismos casos en la misma secuencia."""
     eventos = [OTRO_MES, CAIDA, MISMO_MES]
@@ -165,7 +165,7 @@ def test_el_orden_de_los_casos_es_estable():
 # agente hacía lo correcto —no entrenar un modelo para quien solo pidió KPIs— y
 # la métrica juzgaba un informe que nunca podía existir.
 
-def test_la_consulta_de_proyeccion_activa_el_plan_de_forecast():
+def test_la_consulta_de_proyeccion_activa_el_plan_de_forecast() -> None:
     """El test que impide que esto vuelva a pasar en silencio.
 
     Ata el enunciado del eval al criterio real del planner. Si alguien edita
@@ -176,7 +176,7 @@ def test_la_consulta_de_proyeccion_activa_el_plan_de_forecast():
     assert not _pide_proyeccion(consulta_para(CAIDA))
 
 
-def test_la_consulta_de_proyeccion_sigue_sin_revelar_el_evento():
+def test_la_consulta_de_proyeccion_sigue_sin_revelar_el_evento() -> None:
     """La disciplina del enunciado no se afloja porque el caso sea otro."""
     consulta = consulta_con_proyeccion(PICO).lower()
 
@@ -186,20 +186,20 @@ def test_la_consulta_de_proyeccion_sigue_sin_revelar_el_evento():
     assert "pico_devoluciones" not in consulta
 
 
-def test_la_consulta_de_proyeccion_conserva_el_producto_y_el_periodo():
+def test_la_consulta_de_proyeccion_conserva_el_producto_y_el_periodo() -> None:
     consulta = consulta_con_proyeccion(CAIDA)
 
     assert "P010" in consulta
     assert "2026-02" in consulta
 
 
-def test_las_dos_consultas_del_mismo_evento_son_distintas():
+def test_las_dos_consultas_del_mismo_evento_son_distintas() -> None:
     """Si fueran iguales, los casos de proyección serían repeticiones y volvería
     el problema del denominador inflado que la deduplicación vino a resolver."""
     assert consulta_con_proyeccion(CAIDA) != consulta_para(CAIDA)
 
 
-def test_la_consulta_pide_explicar_lo_anomalo_sin_afirmar_que_lo_hay():
+def test_la_consulta_pide_explicar_lo_anomalo_sin_afirmar_que_lo_hay() -> None:
     """Se invita a mirar, no se avisa que hay algo.
 
     Si la consigna afirmara que hubo una anomalía, el agente encontraría una

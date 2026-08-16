@@ -20,6 +20,7 @@ cumplir SQL Server, que no tiene bugs de nuestro lado.
 """
 
 from datetime import date
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -35,8 +36,8 @@ DESDE = date(2026, 1, 1)
 HASTA = date(2026, 3, 31)
 
 
-def _estado(**kw) -> AnalysisState:
-    base = dict(request_id="req-001", consulta="Compará P001 y P002")
+def _estado(**kw: Any) -> AnalysisState:
+    base: dict[str, Any] = dict(request_id="req-001", consulta="Compará P001 y P002")
     base.update(kw)
     return AnalysisState(**base)
 
@@ -52,7 +53,7 @@ def _estado(**kw) -> AnalysisState:
     "<script>alert(1)</script>",
     "P001 UNION SELECT password FROM users",
 ])
-def test_rechaza_identificadores_que_no_son_identificadores(malicioso):
+def test_rechaza_identificadores_que_no_son_identificadores(malicioso: str) -> None:
     """El formato del id es una lista blanca, no una lista negra.
 
     No se intenta detectar ataques —esa carrera se pierde siempre— sino
@@ -63,17 +64,17 @@ def test_rechaza_identificadores_que_no_son_identificadores(malicioso):
         EntradaProductMetrics(product_ids=[malicioso], desde=DESDE, hasta=HASTA)
 
 
-def test_acepta_identificadores_bien_formados():
+def test_acepta_identificadores_bien_formados() -> None:
     e = EntradaProductMetrics(product_ids=["P001", "P042"], desde=DESDE, hasta=HASTA)
     assert e.product_ids == ["P001", "P042"]
 
 
-def test_rechaza_lista_vacia():
+def test_rechaza_lista_vacia() -> None:
     with pytest.raises(ValidationError):
         EntradaProductMetrics(product_ids=[], desde=DESDE, hasta=HASTA)
 
 
-def test_rechaza_demasiados_productos():
+def test_rechaza_demasiados_productos() -> None:
     """Un tope explícito evita que una alucinación del modelo se convierta en
     una consulta de cientos de productos y un informe ilegible."""
     with pytest.raises(ValidationError):
@@ -81,12 +82,12 @@ def test_rechaza_demasiados_productos():
                               desde=DESDE, hasta=HASTA)
 
 
-def test_rechaza_rango_invertido():
+def test_rechaza_rango_invertido() -> None:
     with pytest.raises(ValidationError):
         EntradaProductMetrics(product_ids=["P001"], desde=HASTA, hasta=DESDE)
 
 
-def test_rechaza_rangos_absurdamente_largos():
+def test_rechaza_rangos_absurdamente_largos() -> None:
     """Un rango de veinte años no es un análisis: es un escaneo completo de la
     tabla que va a tardar y no le sirve a nadie."""
     with pytest.raises(ValidationError):
@@ -94,7 +95,7 @@ def test_rechaza_rangos_absurdamente_largos():
                               desde=date(2000, 1, 1), hasta=date(2026, 1, 1))
 
 
-def test_elimina_duplicados_en_vez_de_fallar():
+def test_elimina_duplicados_en_vez_de_fallar() -> None:
     """Que el modelo repita un producto es un error inocente y previsible.
     Normalizarlo es mejor que rechazar la llamada entera y gastar un reintento.
     """
@@ -107,7 +108,7 @@ def test_elimina_duplicados_en_vez_de_fallar():
 
 @pytest.mark.db
 @pytest.mark.skipif(not hay_base_disponible(), reason="SQL Server no está levantado")
-def test_devuelve_metricas_de_los_productos_pedidos():
+def test_devuelve_metricas_de_los_productos_pedidos() -> None:
     estado = _estado()
     entrada = EntradaProductMetrics(product_ids=["P002", "P003"],
                                     desde=DESDE, hasta=HASTA)
@@ -120,7 +121,7 @@ def test_devuelve_metricas_de_los_productos_pedidos():
 
 @pytest.mark.db
 @pytest.mark.skipif(not hay_base_disponible(), reason="SQL Server no está levantado")
-def test_la_ejecucion_consume_presupuesto_de_herramientas():
+def test_la_ejecucion_consume_presupuesto_de_herramientas() -> None:
     estado = _estado(max_llamadas_tools=5)
     entrada = EntradaProductMetrics(product_ids=["P002"], desde=DESDE, hasta=HASTA)
     ejecutar_product_metrics(entrada, estado)
@@ -129,7 +130,7 @@ def test_la_ejecucion_consume_presupuesto_de_herramientas():
 
 @pytest.mark.db
 @pytest.mark.skipif(not hay_base_disponible(), reason="SQL Server no está levantado")
-def test_sin_presupuesto_no_se_ejecuta():
+def test_sin_presupuesto_no_se_ejecuta() -> None:
     """Agotado el presupuesto, la tool no corre y el estado queda advertido.
 
     Es el freno que impide que un loop de replanificación consuma la máquina.
@@ -147,7 +148,7 @@ def test_sin_presupuesto_no_se_ejecuta():
 
 @pytest.mark.db
 @pytest.mark.skipif(not hay_base_disponible(), reason="SQL Server no está levantado")
-def test_un_producto_inexistente_no_rompe_la_ejecucion():
+def test_un_producto_inexistente_no_rompe_la_ejecucion() -> None:
     """El modelo puede alucinar un id con formato válido pero sin existir.
 
     La tool devuelve lo que encontró y deja constancia de lo que no. Fallar
@@ -164,7 +165,7 @@ def test_un_producto_inexistente_no_rompe_la_ejecucion():
 
 @pytest.mark.db
 @pytest.mark.skipif(not hay_base_disponible(), reason="SQL Server no está levantado")
-def test_la_ejecucion_queda_registrada_en_el_trace():
+def test_la_ejecucion_queda_registrada_en_el_trace() -> None:
     estado = _estado()
     entrada = EntradaProductMetrics(product_ids=["P002"], desde=DESDE, hasta=HASTA)
     ejecutar_product_metrics(entrada, estado)
@@ -173,7 +174,7 @@ def test_la_ejecucion_queda_registrada_en_el_trace():
 
 # --- Contrato para el modelo -------------------------------------------------
 
-def test_la_tool_publica_su_esquema_para_tool_calling():
+def test_la_tool_publica_su_esquema_para_tool_calling() -> None:
     """El modelo necesita el esquema JSON para saber qué argumentos mandar.
 
     Se deriva del mismo Pydantic que valida la entrada: un esquema escrito a

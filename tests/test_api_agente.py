@@ -15,6 +15,9 @@ que estos tests corren en milisegundos con un doble. Sin eso, cada test
 esperaría los ~2m44s que tarda el agente real.
 """
 
+from collections.abc import Iterator
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -31,16 +34,17 @@ pytestmark = [
 DESDE, HASTA = "2026-01-01", "2026-03-31"
 
 
-def _router(intencion="product_performance", dias=90):
+def _router(intencion: str = "product_performance",
+            dias: int = 90) -> dict[str, Any]:
     return {"intencion": intencion, "dias": dias}
 
 
-def _sintesis(*textos):
+def _sintesis(*textos: Any) -> dict[str, Any]:
     return {"conclusiones": list(textos)}
 
 
 @pytest.fixture
-def cliente_falso():
+def cliente_falso() -> Iterator[ClienteFalso]:
     """Inyecta un doble del modelo en la app."""
     doble = ClienteFalso([_router(), _sintesis("Actividad registrada")])
     app.dependency_overrides[obtener_cliente_llm] = lambda: doble
@@ -49,14 +53,17 @@ def cliente_falso():
 
 
 @pytest.fixture
-def api():
+def api() -> Iterator[TestClient]:
     with TestClient(app) as c:
         yield c
 
 
 # --- Forma estructurada: sin router ------------------------------------------
 
-def test_con_product_ids_no_se_invoca_al_router(api, cliente_falso):
+def test_con_product_ids_no_se_invoca_al_router(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     """Si ya vienen los identificadores y el rango, interpretar es innecesario.
 
     Cada llamada evitada al modelo son decenas de segundos en esta máquina. El
@@ -72,7 +79,10 @@ def test_con_product_ids_no_se_invoca_al_router(api, cliente_falso):
     assert tipos.count("estructurado") == 1
 
 
-def test_la_forma_estructurada_produce_un_informe_completo(api, cliente_falso):
+def test_la_forma_estructurada_produce_un_informe_completo(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     aid = api.post("/analyses", json={
         "product_ids": ["P002", "P003"], "desde": DESDE, "hasta": HASTA,
     }).json()["id"]
@@ -84,7 +94,10 @@ def test_la_forma_estructurada_produce_un_informe_completo(api, cliente_falso):
 
 # --- Forma en lenguaje natural -----------------------------------------------
 
-def test_acepta_una_consulta_en_lenguaje_natural(api, cliente_falso):
+def test_acepta_una_consulta_en_lenguaje_natural(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     r = api.post("/analyses", json={
         "consulta": "Compará P002 y P003 en los últimos 90 días",
     })
@@ -97,14 +110,17 @@ def test_acepta_una_consulta_en_lenguaje_natural(api, cliente_falso):
     assert cuerpo["product_ids"] == ["P002", "P003"]
 
 
-def test_la_consulta_en_lenguaje_natural_si_invoca_al_router(api, cliente_falso):
+def test_la_consulta_en_lenguaje_natural_si_invoca_al_router(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     api.post("/analyses", json={
         "consulta": "Compará P002 y P003 en los últimos 90 días",
     })
     assert len(cliente_falso.llamadas) == 2  # router + síntesis
 
 
-def test_una_consulta_fuera_de_alcance_no_produce_informe(api):
+def test_una_consulta_fuera_de_alcance_no_produce_informe(api: TestClient) -> None:
     doble = ClienteFalso([_router(intencion="fuera_de_alcance", dias=0)])
     app.dependency_overrides[obtener_cliente_llm] = lambda: doble
     try:
@@ -119,12 +135,12 @@ def test_una_consulta_fuera_de_alcance_no_produce_informe(api):
 
 # --- Validación de la solicitud ----------------------------------------------
 
-def test_una_solicitud_vacia_es_rechazada(api):
+def test_una_solicitud_vacia_es_rechazada(api: TestClient) -> None:
     """Sin consulta ni identificadores no hay nada que analizar."""
     assert api.post("/analyses", json={}).status_code == 422
 
 
-def test_no_se_pueden_mezclar_las_dos_formas(api):
+def test_no_se_pueden_mezclar_las_dos_formas(api: TestClient) -> None:
     """Mandar las dos deja ambiguo qué manda. Rechazar es más honesto que
     elegir una en silencio y que el usuario descubra después cuál se usó."""
     r = api.post("/analyses", json={
@@ -134,7 +150,7 @@ def test_no_se_pueden_mezclar_las_dos_formas(api):
     assert r.status_code == 422
 
 
-def test_product_ids_sin_fechas_es_rechazado(api):
+def test_product_ids_sin_fechas_es_rechazado(api: TestClient) -> None:
     assert api.post("/analyses", json={
         "product_ids": ["P002"]
     }).status_code == 422
@@ -142,7 +158,7 @@ def test_product_ids_sin_fechas_es_rechazado(api):
 
 # --- Degradación -------------------------------------------------------------
 
-def test_con_el_modelo_caido_la_forma_estructurada_sigue_funcionando(api):
+def test_con_el_modelo_caido_la_forma_estructurada_sigue_funcionando(api: TestClient) -> None:
     """La degradación que justifica todo el diseño.
 
     Si Ollama no responde, la forma estructurada no necesita el router y el
@@ -168,7 +184,10 @@ def test_con_el_modelo_caido_la_forma_estructurada_sigue_funcionando(api):
 
 # --- El recurso expone el trabajo del agente ---------------------------------
 
-def test_el_analisis_expone_el_trace_del_grafo(api, cliente_falso):
+def test_el_analisis_expone_el_trace_del_grafo(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     """"Cómo se obtuvo" del blueprint: qué etapa corrió y cuánto tardó."""
     aid = api.post("/analyses", json={
         "product_ids": ["P002"], "desde": DESDE, "hasta": HASTA,
@@ -180,7 +199,10 @@ def test_el_analisis_expone_el_trace_del_grafo(api, cliente_falso):
     assert "synthesizer" in nodos
 
 
-def test_el_pdf_del_analisis_del_agente_se_descarga(api, cliente_falso):
+def test_el_pdf_del_analisis_del_agente_se_descarga(
+    api: TestClient,
+    cliente_falso: ClienteFalso,
+) -> None:
     aid = api.post("/analyses", json={
         "product_ids": ["P002"], "desde": DESDE, "hasta": HASTA,
     }).json()["id"]

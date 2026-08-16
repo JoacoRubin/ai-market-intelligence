@@ -115,6 +115,9 @@ def informe_de_ejemplo() -> Report:
 def main() -> int:
     informe = informe_de_ejemplo()
     ruta = render_pdf(informe, DESTINO)
+    # DESTINO es una ruta, así que render_pdf devuelve Path. El assert deja
+    # escrito ese acuerdo: si mañana cambia, falla acá y no en el .stat().
+    assert isinstance(ruta, Path)
     print(f"  PDF generado: {ruta}")
     print(f"  {ruta.stat().st_size:,} bytes")
     if informe.advertencias:

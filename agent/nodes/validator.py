@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from agent.nodes.comparaciones import Veredicto, explicar, verificar_comparacion
 from agent.nodes.numeros import (
@@ -54,7 +55,7 @@ def parece_recomendacion(texto: str) -> bool:
     return bool(RECOMENDACION.search(texto or ""))
 
 
-def _numeros_disponibles(resultados_tools: dict) -> set[float]:
+def _numeros_disponibles(resultados_tools: dict[str, Any]) -> set[float]:
     """Todas las magnitudes que las herramientas realmente produjeron."""
     disponibles: set[float] = set()
     for resultado in resultados_tools.values():
@@ -70,7 +71,9 @@ def _numeros_disponibles(resultados_tools: dict) -> set[float]:
     return disponibles
 
 
-def _numeros_del_documento(evidencia: list[dict], doc_ids: set[str]) -> set[float]:
+def _numeros_del_documento(
+    evidencia: list[dict[str, Any]], doc_ids: set[str]
+) -> set[float]:
     """Cifras que figuran textualmente en los pasajes que la afirmación cita.
 
     Un documento recuperado es una fuente, y este nodo no la estaba mirando:
@@ -117,7 +120,7 @@ class ResultadoValidacion:
 
 def _filtrar(
     afirmaciones: list[Afirmacion], disponibles: set[float],
-    evidencia: list[dict] | None = None,
+    evidencia: list[dict[str, Any]] | None = None,
 ) -> tuple[list[Afirmacion], list[str], int, int]:
     """Aplica las dos verificaciones a cada afirmación.
 
@@ -159,8 +162,9 @@ def _filtrar(
     return aceptadas, rechazadas, con_numeros, respaldadas
 
 
-def validar_informe(informe: Report, resultados_tools: dict,
-                    evidencia: list[dict] | None = None) -> ResultadoValidacion:
+def validar_informe(informe: Report, resultados_tools: dict[str, Any],
+                    evidencia: list[dict[str, Any]] | None = None
+                    ) -> ResultadoValidacion:
     """Verifica que cada cifra del informe provenga de una herramienta.
 
     Las afirmaciones que inventan números **se eliminan**, no se marcan.

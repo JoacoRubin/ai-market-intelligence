@@ -8,6 +8,8 @@ plan sin romper el grafo entero.
 
 from __future__ import annotations
 
+from typing import Any
+
 from agent.state import AnalysisState
 from agent.tools.forecast_sales import (
     EntradaForecastSales,
@@ -29,7 +31,7 @@ NOMBRE_A_TOOL = {
 }
 
 
-def ejecutar_plan(estado: AnalysisState, indice=None) -> AnalysisState:
+def ejecutar_plan(estado: AnalysisState, indice: Any = None) -> AnalysisState:
     estado.ya_ejecutado = True
 
     for paso in estado.plan:

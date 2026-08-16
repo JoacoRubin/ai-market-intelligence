@@ -26,7 +26,7 @@ pytestmark = [
 DESDE, HASTA = date(2025, 4, 1), date(2026, 3, 31)
 
 
-def test_la_serie_tiene_un_punto_por_dia_del_rango():
+def test_la_serie_tiene_un_punto_por_dia_del_rango() -> None:
     """Sin huecos: un día faltante correría la serie y el lag de 7 días dejaría
     de caer en el mismo día de la semana."""
     dias, valores = serie_diaria("P002", DESDE, HASTA)
@@ -34,7 +34,7 @@ def test_la_serie_tiene_un_punto_por_dia_del_rango():
     assert dias[0] == DESDE and dias[-1] == HASTA
 
 
-def test_la_serie_no_viene_toda_en_cero():
+def test_la_serie_no_viene_toda_en_cero() -> None:
     """El bug silencioso.
 
     P002 vendió cientos de unidades en el período. Una serie en cero significa
@@ -48,19 +48,19 @@ def test_la_serie_no_viene_toda_en_cero():
     )
 
 
-def test_los_dias_con_ventas_son_una_porcion_razonable():
+def test_los_dias_con_ventas_son_una_porcion_razonable() -> None:
     """Ni todos los días con ventas (sospechoso) ni casi ninguno (bug)."""
     _, valores = serie_diaria("P002", DESDE, HASTA)
     con_ventas = (valores > 0).mean()
     assert 0.1 < con_ventas < 1.0, f"solo {con_ventas:.0%} de los días con ventas"
 
 
-def test_los_dias_sin_ventas_son_cero_y_no_faltan():
+def test_los_dias_sin_ventas_son_cero_y_no_faltan() -> None:
     _, valores = serie_diaria("P002", DESDE, HASTA)
     assert (valores >= 0).all()
 
 
-def test_el_total_coincide_con_el_kpi_de_unidades():
+def test_el_total_coincide_con_el_kpi_de_unidades() -> None:
     """Doble contabilidad, otra vez: la serie y el KPI tienen que dar lo mismo.
 
     Si el forecast entrenara sobre una definición de "venta" distinta de la que
@@ -73,7 +73,7 @@ def test_el_total_coincide_con_el_kpi_de_unidades():
     assert int(valores.sum()) == unidades_vendidas("P002", desde, hasta)
 
 
-def test_un_producto_inexistente_devuelve_una_serie_de_ceros():
+def test_un_producto_inexistente_devuelve_una_serie_de_ceros() -> None:
     """No es un error: simplemente no vendió nada. Lo que importa es que la
     serie tenga la longitud correcta para que el resto no se rompa."""
     dias, valores = serie_diaria("P999", DESDE, HASTA)

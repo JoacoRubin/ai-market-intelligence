@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -53,13 +54,13 @@ MIN_ACCURACY_ENTIDADES = 0.70
 MIN_ACCURACY_HOLDOUT = 0.75
 
 
-def _casos() -> list[dict]:
+def _casos() -> list[dict[str, Any]]:
     return [json.loads(linea) for linea in
             GOLDEN.read_text(encoding="utf-8").splitlines() if linea.strip()]
 
 
 @pytest.fixture(scope="module")
-def cliente():
+def cliente() -> ClienteOllama:
     c = ClienteOllama()
     if not c.disponible():
         pytest.skip("Ollama no responde: levantalo con `ollama serve`")
@@ -67,7 +68,7 @@ def cliente():
 
 
 @pytest.fixture(scope="module")
-def resultados(cliente) -> list[dict]:
+def resultados(cliente: ClienteOllama) -> list[dict[str, Any]]:
     """Corre el golden set completo una sola vez y comparte los resultados.
 
     Sin `scope="module"` cada test volvería a invocar el modelo y la suite
@@ -94,14 +95,14 @@ def resultados(cliente) -> list[dict]:
 
 
 @pytest.fixture(scope="module")
-def holdout(resultados) -> list[dict]:
+def holdout(resultados: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Casos que NO aparecen como ejemplos en el prompt."""
     return [r for r in resultados if not r["en_prompt"]]
 
 
 # --- Métricas ----------------------------------------------------------------
 
-def test_accuracy_de_intencion(resultados):
+def test_accuracy_de_intencion(resultados: list[dict[str, Any]]) -> None:
     aciertos = sum(1 for r in resultados if r["ok_intencion"])
     accuracy = aciertos / len(resultados)
 
@@ -119,7 +120,7 @@ def test_accuracy_de_intencion(resultados):
     )
 
 
-def test_accuracy_de_extraccion_de_entidades(resultados):
+def test_accuracy_de_extraccion_de_entidades(resultados: list[dict[str, Any]]) -> None:
     aciertos = sum(1 for r in resultados if r["ok_entidades"])
     accuracy = aciertos / len(resultados)
 
@@ -138,7 +139,9 @@ def test_accuracy_de_extraccion_de_entidades(resultados):
     )
 
 
-def test_accuracy_en_holdout(holdout, resultados):
+def test_accuracy_en_holdout(
+    holdout: list[dict[str, Any]], resultados: list[dict[str, Any]],
+) -> None:
     """La métrica que de verdad importa.
 
     Los casos que están en el prompt los acierta por tenerlos escritos adelante.
@@ -173,7 +176,7 @@ def test_accuracy_en_holdout(holdout, resultados):
 
 # --- Casos que no se pueden fallar -------------------------------------------
 
-def test_el_caso_que_fallaba_en_el_spike_ahora_pasa(resultados):
+def test_el_caso_que_fallaba_en_el_spike_ahora_pasa(resultados: list[dict[str, Any]]) -> None:
     """Regresión explícita del hallazgo del spike.
 
     "Compará P001 y P002" se clasificaba como company_research. Si vuelve a
@@ -187,7 +190,7 @@ def test_el_caso_que_fallaba_en_el_spike_ahora_pasa(resultados):
     )
 
 
-def test_no_confunde_productos_con_empresas(resultados):
+def test_no_confunde_productos_con_empresas(resultados: list[dict[str, Any]]) -> None:
     """La distinción que el modelo no hacía. Se mide sobre el grupo entero:
     un acierto suelto puede ser casualidad."""
     productos = [r for r in resultados if r["esperada"] == "product_performance"]
@@ -198,7 +201,7 @@ def test_no_confunde_productos_con_empresas(resultados):
     )
 
 
-def test_reconoce_lo_que_esta_fuera_de_alcance(resultados):
+def test_reconoce_lo_que_esta_fuera_de_alcance(resultados: list[dict[str, Any]]) -> None:
     """Que el agente sepa decir "esto no me corresponde" es una capacidad.
 
     Incluye el caso "borrá todos los productos": el modelo no debe interpretarlo

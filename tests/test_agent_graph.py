@@ -11,6 +11,8 @@ falla y que ninguna cifra inventada llegue al informe final.
 """
 
 from datetime import date, datetime
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -31,17 +33,18 @@ AHORA = datetime(2026, 8, 10, 12, 0)
 CONSULTA = "Compará P002 y P003 en los últimos 90 días"
 
 
-def _router(intencion="product_performance", dias=90):
+def _router(intencion: str = "product_performance",
+            dias: int = 90) -> dict[str, Any]:
     return {"intencion": intencion, "dias": dias}
 
 
-def _sintesis(*conclusiones):
+def _sintesis(*conclusiones: Any) -> dict[str, Any]:
     return {"conclusiones": list(conclusiones)}
 
 
 # --- Camino completo ---------------------------------------------------------
 
-def test_flujo_completo_produce_un_informe():
+def test_flujo_completo_produce_un_informe() -> None:
     cliente = ClienteFalso([
         _router(),
         _sintesis("El producto analizado muestra actividad en el período"),
@@ -54,7 +57,7 @@ def test_flujo_completo_produce_un_informe():
     assert len(estado.informe.metricas) == 2
 
 
-def test_el_trace_registra_todas_las_etapas():
+def test_el_trace_registra_todas_las_etapas() -> None:
     """"Cómo se obtuvo" se arma con esto: sin trace no hay auditoría posible."""
     cliente = ClienteFalso([_router(), _sintesis("Actividad registrada")])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
@@ -64,10 +67,11 @@ def test_el_trace_registra_todas_las_etapas():
         assert esperado in nodos, f"falta {esperado} en el trace: {nodos}"
 
 
-def test_los_kpis_del_informe_salen_de_la_base():
+def test_los_kpis_del_informe_salen_de_la_base() -> None:
     cliente = ClienteFalso([_router(), _sintesis("Actividad registrada")])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
 
+    assert estado.informe is not None
     for m in estado.informe.metricas:
         assert m.fuente.startswith("sql:")
         assert m.unidades >= 0
@@ -75,7 +79,7 @@ def test_los_kpis_del_informe_salen_de_la_base():
 
 # --- Corte temprano ----------------------------------------------------------
 
-def test_una_consulta_fuera_de_alcance_no_llega_a_consultar_la_base():
+def test_una_consulta_fuera_de_alcance_no_llega_a_consultar_la_base() -> None:
     """Seguir con lo que no se puede analizar solo gasta CPU para llegar a un
     informe vacío."""
     cliente = ClienteFalso([_router(intencion="fuera_de_alcance", dias=0)])
@@ -86,7 +90,7 @@ def test_una_consulta_fuera_de_alcance_no_llega_a_consultar_la_base():
     assert estado.llamadas_tools == 0
 
 
-def test_una_consulta_sin_productos_corta_antes_de_ejecutar():
+def test_una_consulta_sin_productos_corta_antes_de_ejecutar() -> None:
     cliente = ClienteFalso([_router(intencion="product_performance")])
     estado = analizar("Compará las ventas del mes", cliente, hoy=HOY, ahora=AHORA)
     assert estado.informe is None
@@ -94,7 +98,7 @@ def test_una_consulta_sin_productos_corta_antes_de_ejecutar():
 
 # --- Límites -----------------------------------------------------------------
 
-def test_sin_datos_replanifica_y_termina_sin_loop_infinito():
+def test_sin_datos_replanifica_y_termina_sin_loop_infinito() -> None:
     """La defensa central del agente.
 
     El producto P999 no existe, así que ninguna cantidad de replanificaciones va
@@ -110,7 +114,7 @@ def test_sin_datos_replanifica_y_termina_sin_loop_infinito():
                for w in estado.advertencias), estado.advertencias
 
 
-def test_el_presupuesto_de_herramientas_se_respeta():
+def test_el_presupuesto_de_herramientas_se_respeta() -> None:
     cliente = ClienteFalso([_router()] + [_router()] * 4)
     estado = analizar("Analizá el P999 de los últimos 30 días", cliente,
                       hoy=HOY, ahora=AHORA)
@@ -119,13 +123,13 @@ def test_el_presupuesto_de_herramientas_se_respeta():
 
 # --- Degradación -------------------------------------------------------------
 
-def test_con_el_modelo_caido_el_grafo_termina_sin_romperse():
+def test_con_el_modelo_caido_el_grafo_termina_sin_romperse() -> None:
     estado = analizar(CONSULTA, ClienteQueFalla(), hoy=HOY, ahora=AHORA)
     assert estado.intencion == Intencion.FUERA_DE_ALCANCE
     assert estado.error is not None
 
 
-def test_si_el_modelo_falla_al_redactar_se_usa_el_respaldo_deterministico():
+def test_si_el_modelo_falla_al_redactar_se_usa_el_respaldo_deterministico() -> None:
     """El modelo responde el routing y después se queda sin respuestas.
 
     El informe sale igual, armado con reglas sobre los mismos números. Que el
@@ -142,7 +146,7 @@ def test_si_el_modelo_falla_al_redactar_se_usa_el_respaldo_deterministico():
 
 # --- El validador dentro del grafo -------------------------------------------
 
-def test_una_cifra_inventada_por_el_modelo_no_llega_al_informe():
+def test_una_cifra_inventada_por_el_modelo_no_llega_al_informe() -> None:
     """El escenario que el proyecto entero existe para evitar.
 
     El modelo redacta una conclusión con un número que ninguna herramienta
@@ -154,31 +158,34 @@ def test_una_cifra_inventada_por_el_modelo_no_llega_al_informe():
     ])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
 
+    assert estado.informe is not None
     texto = " ".join(a.texto for a in estado.informe.resumen_ejecutivo)
     assert "999.999" not in texto
     assert any("respaldo" in w.lower() or "descart" in w.lower()
                for w in estado.informe.advertencias), estado.informe.advertencias
 
 
-def test_una_conclusion_respaldada_sobrevive_a_la_validacion():
+def test_una_conclusion_respaldada_sobrevive_a_la_validacion() -> None:
     """Contraprueba: el validador no vacía informes correctos."""
     cliente = ClienteFalso([
         _router(),
         _sintesis("El período muestra actividad comercial sostenida"),
     ])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
+    assert estado.informe is not None
     assert len(estado.informe.resumen_ejecutivo) == 1
 
 
 # --- El informe resultante es válido -----------------------------------------
 
-def test_el_informe_cumple_los_invariantes_del_modelo():
+def test_el_informe_cumple_los_invariantes_del_modelo() -> None:
     """Si el grafo produjera un informe que viola la trazabilidad, Pydantic
     habría fallado al construirlo. Que exista ya es la prueba."""
     cliente = ClienteFalso([_router(), _sintesis("Actividad registrada")])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
 
     informe = estado.informe
+    assert informe is not None
     assert informe.modelo_llm
     assert informe.fuentes
     for a in informe.resumen_ejecutivo:
@@ -186,12 +193,16 @@ def test_el_informe_cumple_los_invariantes_del_modelo():
         assert a.fuentes
 
 
-def test_el_informe_se_puede_renderizar_a_pdf(tmp_path):
+def test_el_informe_se_puede_renderizar_a_pdf(tmp_path: Path) -> None:
     """Integración de punta a punta: del lenguaje natural al PDF descargable."""
     from core.report_pdf import render_pdf
 
     cliente = ClienteFalso([_router(), _sintesis("Actividad registrada")])
     estado = analizar(CONSULTA, cliente, hoy=HOY, ahora=AHORA)
 
+    assert estado.informe is not None
     destino = render_pdf(estado.informe, tmp_path / "informe.pdf")
+    # render_pdf devuelve Path o buffer según lo que reciba; acá recibió una
+    # ruta. El isinstance deja el acuerdo escrito en vez de suponerlo.
+    assert isinstance(destino, Path)
     assert destino.read_bytes().startswith(b"%PDF-")
