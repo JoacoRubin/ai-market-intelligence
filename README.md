@@ -65,6 +65,7 @@ Lo que corre hoy:
 | Datos internos | SQL Server 2025 Developer (T-SQL) |
 | Búsqueda vectorial | FAISS local |
 | LLM | Ollama local (`llama3.2:3b`) |
+| Acceso al LLM | Dos adaptadores del mismo puerto: `httpx` (default) o LangChain, vía `LLM_BACKEND` ([ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md)) |
 | ML | scikit-learn |
 | Tracking de experimentos | MLflow |
 | Base de datos containerizada | Docker Compose |
@@ -276,12 +277,14 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-001](docs/adr/ADR-001-langgraph.md) | Por qué LangGraph y cuándo no usarlo |
 | [ADR-002](docs/adr/ADR-002-datos.md) | SQL Server relacional + FAISS para vectores |
 | [ADR-003](docs/adr/ADR-003-llm-local.md) | LLM local: elección de modelo con datos medidos |
+| [ADR-004](docs/adr/ADR-004-sin-text-to-sql.md) | El modelo no escribe SQL: tres capas de defensa |
 | [ADR-005](docs/adr/ADR-005-reglas-de-negocio-kpis.md) | Las reglas de negocio de los KPIs viven en SQL |
 | [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md) | Por qué el proyecto no se despliega en AWS |
+| [ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md) | Dos adaptadores para el puerto del LLM, y hasta dónde llega LangChain |
 
-> **ADR-004 falta.** Está citado desde el ADR-002 y el ADR-005 como la decisión
-> de no delegar la generación de SQL al modelo, pero nunca se escribió. La
-> decisión está tomada y aplicada en el código; lo que falta es el documento.
+> Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
+> Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué
+> caso la decisión dejaría de valer.
 
 ---
 
