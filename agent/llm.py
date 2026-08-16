@@ -28,6 +28,19 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 TIMEOUT_SEGUNDOS = 300
 
 
+def ollama_responde(host: str = OLLAMA_HOST) -> bool:
+    """Indica si hay un Ollama escuchando en `host`.
+
+    Vive suelta y no dentro de un cliente porque la pregunta no depende de CÓMO
+    se le hable al modelo: la contestan igual el cliente httpx y el de LangChain.
+    """
+    try:
+        httpx.get(f"{host}/api/tags", timeout=5).raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
 @runtime_checkable
 class ClienteLLM(Protocol):
     """Lo mínimo que los nodos necesitan de un modelo."""
@@ -56,7 +69,10 @@ class ClienteOllama:
         r = httpx.post(f"{self._host}/api/chat", json=payload,
                        timeout=TIMEOUT_SEGUNDOS)
         r.raise_for_status()
-        return r.json()
+        # /api/chat siempre devuelve un objeto; la anotación deja escrita la
+        # suposición, que si no queda implícita en un `Any` que se propaga.
+        cuerpo: dict[str, Any] = r.json()
+        return cuerpo
 
     def estructurado(
         self, sistema: str, usuario: str, esquema: dict[str, Any]
@@ -74,7 +90,17 @@ class ClienteOllama:
             "options": {"temperature": 0},
         })
         contenido = respuesta.get("message", {}).get("content", "")
-        return json.loads(contenido)
+        # `format` le pide al modelo que cumpla el esquema, no lo garantiza: lo
+        # que vuelve es texto y `json.loads` acepta arrays y escalares. El
+        # puerto promete `dict`, así que la frontera se verifica acá y no tres
+        # nodos más arriba, donde el error ya no sabe de dónde vino.
+        datos = json.loads(contenido)
+        if not isinstance(datos, dict):
+            raise TypeError(
+                f"ClienteOllama esperaba un dict del modelo y recibió "
+                f"{type(datos).__name__}. El modelo no respetó el esquema."
+            )
+        return datos
 
     def redactar(self, sistema: str, usuario: str, max_tokens: int = 700) -> str:
         respuesta = self._chat({
@@ -86,14 +112,54 @@ class ClienteOllama:
             "stream": False,
             "options": {"temperature": 0.3, "num_predict": max_tokens},
         })
-        return respuesta.get("message", {}).get("content", "")
+        texto: str = respuesta.get("message", {}).get("content", "")
+        return texto
 
     def disponible(self) -> bool:
-        try:
-            httpx.get(f"{self._host}/api/tags", timeout=5).raise_for_status()
-            return True
-        except Exception:
-            return False
+        return ollama_responde(self._host)
+
+
+@runtime_checkable
+class ClienteLLMConSalud(ClienteLLM, Protocol):
+    """Un cliente que además sabe decir si su backend está vivo.
+
+    Va aparte de `ClienteLLM` y no adentro porque los nodos del grafo no
+    necesitan la salud del modelo: la piden `replay` y `demo`, que cortan
+    temprano en vez de gastar minutos de CPU produciendo capturas vacías. Meter
+    `disponible()` en el puerto obligaría a implementarlo a cada doble de test
+    sin que ningún test lo use.
+    """
+
+    def disponible(self) -> bool:
+        """Indica si el backend responde."""
+        ...
+
+
+def crear_cliente(
+    modelo: str = OLLAMA_MODEL, host: str = OLLAMA_HOST
+) -> ClienteLLMConSalud:
+    """Construye el cliente del modelo según `LLM_BACKEND`.
+
+    Existen dos adaptadores del mismo puerto (ver ADR-007) y esta es la única
+    función que elige entre ellos. Que la decisión viva en un solo lugar es lo
+    que permite que el resto del código —nodos, API, replay— no sepa cuál está
+    corriendo, que es todo el punto de tener un puerto.
+
+    El default es `httpx`: menos dependencias para el mismo resultado, y es el
+    camino que el golden set tiene medido.
+    """
+    backend = os.getenv("LLM_BACKEND", "httpx").strip().lower()
+    if backend == "httpx":
+        return ClienteOllama(modelo=modelo, host=host)
+    if backend == "langchain":
+        # Import diferido: importar langchain_ollama cuesta cerca de un segundo,
+        # y no hay razón para pagarlo cuando no se lo eligió.
+        from agent.llm_langchain import ClienteLangChain
+
+        return ClienteLangChain(modelo=modelo, host=host)
+    raise ValueError(
+        f"LLM_BACKEND={backend!r} no existe. Valores válidos: 'httpx', 'langchain'."
+    )
 
 
 class ClienteFalso:
@@ -187,10 +253,10 @@ class ClienteQueFalla:
     def __init__(self, excepcion: Exception | None = None) -> None:
         self._excepcion = excepcion or RuntimeError("el modelo no está disponible")
 
-    def estructurado(self, *_args, **_kwargs) -> dict[str, Any]:
+    def estructurado(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise self._excepcion
 
-    def redactar(self, *_args, **_kwargs) -> str:
+    def redactar(self, *_args: Any, **_kwargs: Any) -> str:
         raise self._excepcion
 
 
@@ -202,10 +268,10 @@ class ClienteLento:
     def __init__(self, demora_s: float = 0.2) -> None:
         self._demora = demora_s
 
-    def estructurado(self, *_args, **_kwargs) -> dict[str, Any]:
+    def estructurado(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
         time.sleep(self._demora)
         return {}
 
-    def redactar(self, *_args, **_kwargs) -> str:
+    def redactar(self, *_args: Any, **_kwargs: Any) -> str:
         time.sleep(self._demora)
         return ""

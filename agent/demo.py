@@ -15,7 +15,7 @@ from datetime import date
 from pathlib import Path
 
 from agent.graph import analizar
-from agent.llm import ClienteOllama
+from agent.llm import crear_cliente
 from core.report_pdf import render_pdf
 from rag.build import cargar_indice
 
@@ -35,7 +35,7 @@ CONSULTAS = [
 
 
 def main() -> int:
-    cliente = ClienteOllama()
+    cliente = crear_cliente()
     if not cliente.disponible():
         print(f"{AMARILLO}Ollama no responde. Levantalo con `ollama serve`.{FIN}")
         return 1
@@ -93,13 +93,13 @@ def main() -> int:
 
     if informe.predicciones:
         print(f"\n  {AZUL}Predicciones (modelo ML con su error medido){FIN}")
-        for p in informe.predicciones:
-            veredicto = ("supera al baseline" if p.supera_al_baseline
+        for pred in informe.predicciones:
+            veredicto = ("supera al baseline" if pred.supera_al_baseline
                          else "NO supera al baseline")
-            print(f"    {p.product_id}: {p.valor:,.0f} unidades "
-                  f"a {p.horizonte_dias} días")
-            print(f"      {GRIS}MAPE {p.mape_backtest}% vs baseline "
-                  f"{p.mape_baseline}% — {veredicto} · {p.modelo_version}{FIN}")
+            print(f"    {pred.product_id}: {pred.valor:,.0f} unidades "
+                  f"a {pred.horizonte_dias} días")
+            print(f"      {GRIS}MAPE {pred.mape_backtest}% vs baseline "
+                  f"{pred.mape_baseline}% — {veredicto} · {pred.modelo_version}{FIN}")
 
     print(f"\n  {AZUL}Conclusiones (redactadas por el modelo, validadas por software){FIN}")
     for a in informe.resumen_ejecutivo:

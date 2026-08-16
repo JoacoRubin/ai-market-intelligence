@@ -24,12 +24,13 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from agent.graph import ejecutar as ejecutar_grafo
-from agent.llm import ClienteLLM, ClienteOllama
+from agent.llm import ClienteLLM, crear_cliente
 from agent.state import AnalysisState, Intencion, Periodo
 from apps.api.schemas import (
     Analisis,
@@ -44,6 +45,11 @@ from apps.api.store import almacen
 from core.db import cursor_lectura, hay_base_disponible
 from core.report_pdf import render_pdf
 from rag.build import cargar_indice
+
+if TYPE_CHECKING:
+    # Solo para anotar. En runtime `core.kpis` se importa dentro del endpoint,
+    # y traer su modelo acá arriba anularía esa carga diferida.
+    from core.report import MetricaProducto
 
 VERSION = "0.1.0"
 
@@ -106,7 +112,7 @@ def listar_productos(
     categoria: str | None = Query(None),
 ) -> ListaProductos:
     filtro = "WHERE category = ?" if categoria else ""
-    params: tuple = (categoria,) if categoria else ()
+    params: tuple[str, ...] = (categoria,) if categoria else ()
 
     with cursor_lectura() as cur:
         total = cur.execute(
@@ -141,7 +147,10 @@ def obtener_producto(product_id: str) -> Producto:
 
 
 @app.get("/products/{product_id}/metrics", tags=["productos"])
-def metricas_de_un_producto(product_id: str, rango=Depends(rango_validado)):
+def metricas_de_un_producto(
+    product_id: str,
+    rango: tuple[date, date] = Depends(rango_validado),
+) -> MetricaProducto:
     """KPIs del producto en el período. Todos calculados por SQL."""
     if not _producto_existe(product_id):
         raise HTTPException(404, f"no existe el producto {product_id}")
@@ -157,8 +166,11 @@ def obtener_cliente_llm() -> ClienteLLM:
     Que sea una dependencia de FastAPI y no un objeto global es lo que permite
     testear la API con un doble. Sin eso, cada test esperaría los ~2m44s que
     tarda el agente real en esta máquina.
+
+    Cuál de los dos adaptadores se construye lo decide `LLM_BACKEND` (ADR-007).
+    La API no lo sabe ni le importa: ese es el punto del puerto.
     """
-    return ClienteOllama()
+    return crear_cliente()
 
 
 def _estado_inicial(registro: Analisis) -> AnalysisState:
@@ -225,18 +237,24 @@ def crear_analisis(
     pero el trabajo puede no haber terminado. Con el agente conectado eso pasó
     de ser previsión a ser necesidad — el análisis tarda cerca de dos minutos.
     """
-    if solicitud.es_estructurada:
-        faltantes = [p for p in solicitud.product_ids if not _producto_existe(p)]
+    # `SolicitudAnalisis._forma_coherente` ya garantiza que viene exactamente
+    # una de las dos formas, pero ese invariante vive en un validador y el
+    # verificador de tipos no puede leerlo. Se liga a una variable local para
+    # que la garantía quede escrita donde se usa: si algún día el validador
+    # cambia, esto falla acá y no con un AttributeError en producción.
+    product_ids = solicitud.product_ids
+    if product_ids:
+        faltantes = [p for p in product_ids if not _producto_existe(p)]
         if faltantes:
             # 422 y no 404: el recurso pedido es /analyses, que sí existe. Lo
             # inválido es el contenido de la solicitud.
             raise HTTPException(422, f"no existen estos productos: {faltantes}")
         consulta = (
-            f"Comparar {', '.join(solicitud.product_ids)} "
+            f"Comparar {', '.join(product_ids)} "
             f"entre {solicitud.desde} y {solicitud.hasta}"
         )
     else:
-        consulta = solicitud.consulta.strip()
+        consulta = (solicitud.consulta or "").strip()
 
     analysis_id = f"req-{uuid.uuid4().hex[:12]}"
     registro = Analisis(
@@ -308,7 +326,7 @@ def descargar_pdf(analysis_id: str) -> Response:
 @app.get("/analyses/{analysis_id}", tags=["análisis"],
          responses={200: {"content": {"application/json": {},
                                       "application/pdf": {}}}})
-def obtener_analisis(analysis_id: str, request: Request):
+def obtener_analisis(analysis_id: str, request: Request) -> Response:
     """Devuelve el análisis en el formato pedido por `Accept`.
 
     Un recurso, una URL, varias representaciones.

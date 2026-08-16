@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.graph import analizar
-from agent.llm import ClienteLLM, ClienteOllama
+from agent.llm import ClienteLLM, crear_cliente
 from replay.captura import Captura
 from replay.casos import CasoGolden, casos_para_replay
 from replay.entorno import problemas_de_entorno
@@ -52,7 +52,7 @@ def capturar(
 
 
 def main() -> int:
-    cliente = ClienteOllama()
+    cliente = crear_cliente()
 
     # Se verifica TODO antes de gastar el primer minuto de CPU. Un entorno
     # incompleto no falla: produce capturas plausibles y vacías, que tardan lo
