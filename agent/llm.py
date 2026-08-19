@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
@@ -119,6 +120,52 @@ class ClienteOllama:
         return ollama_responde(self._host)
 
 
+@dataclass(frozen=True)
+class Uso:
+    """Lo que consumió un cliente. Tokens, no plata.
+
+    Los tokens son un hecho que reporta el proveedor; el costo es una
+    interpretación que depende de una tarifa que cambia sin avisar. Guardar
+    dólares acá volvería irreproducible el registro: dentro de seis meses nadie
+    sabría con qué precio se calculó. La conversión vive en `eval/costo.py`, que
+    tiene las tarifas fechadas.
+
+    `tokens_cacheados` va aparte de `tokens_entrada` porque cuesta ~10% de lo
+    que cuesta un token normal. Sumarlos juntos infla la factura estimada.
+    """
+
+    tokens_entrada: int = 0
+    tokens_salida: int = 0
+    tokens_cacheados: int = 0
+    llamadas: int = 0
+
+    def __add__(self, otro: Uso) -> Uso:
+        return Uso(
+            tokens_entrada=self.tokens_entrada + otro.tokens_entrada,
+            tokens_salida=self.tokens_salida + otro.tokens_salida,
+            tokens_cacheados=self.tokens_cacheados + otro.tokens_cacheados,
+            llamadas=self.llamadas + otro.llamadas,
+        )
+
+
+@runtime_checkable
+class ClienteLLMConUso(ClienteLLM, Protocol):
+    """Un cliente que además sabe decir cuánto consumió.
+
+    Va aparte de `ClienteLLM` por el mismo motivo que `ClienteLLMConSalud`: los
+    nodos del grafo no necesitan saber de tokens, y meterlo en el puerto
+    obligaría a cada doble de test a implementarlo sin que ningún test lo use.
+
+    Lo pide el eval, que es el único que necesita contestar "¿cuánto costó esta
+    corrida?". `ClienteOllama` no lo implementa a propósito: no cobra nada, y un
+    contador de tokens que nadie va a facturar es ceremonia.
+    """
+
+    def uso(self) -> Uso:
+        """Lo consumido desde que se creó el cliente."""
+        ...
+
+
 @runtime_checkable
 class ClienteLLMConSalud(ClienteLLM, Protocol):
     """Un cliente que además sabe decir si su backend está vivo.
@@ -136,29 +183,47 @@ class ClienteLLMConSalud(ClienteLLM, Protocol):
 
 
 def crear_cliente(
-    modelo: str = OLLAMA_MODEL, host: str = OLLAMA_HOST
+    modelo: str | None = None, host: str = OLLAMA_HOST
 ) -> ClienteLLMConSalud:
     """Construye el cliente del modelo según `LLM_BACKEND`.
 
-    Existen dos adaptadores del mismo puerto (ver ADR-007) y esta es la única
-    función que elige entre ellos. Que la decisión viva en un solo lugar es lo
-    que permite que el resto del código —nodos, API, replay— no sepa cuál está
-    corriendo, que es todo el punto de tener un puerto.
+    Existen tres adaptadores del mismo puerto (ver ADR-007 y ADR-008) y esta es
+    la única función que elige entre ellos. Que la decisión viva en un solo
+    lugar es lo que permite que el resto del código —nodos, API, replay— no sepa
+    cuál está corriendo, que es todo el punto de tener un puerto.
 
     El default es `httpx`: menos dependencias para el mismo resultado, y es el
     camino que el golden set tiene medido.
+
+    `modelo` es `None` y no `OLLAMA_MODEL` porque desde que hay un proveedor que
+    no es Ollama, un default de Ollama en la firma se filtraría al otro backend:
+    `crear_cliente()` contra Anthropic pediría `llama3.2:3b` y fallaría con un
+    404 — o peor, el registro anotaría un modelo que no fue el que corrió. Cada
+    backend resuelve el suyo.
     """
     backend = os.getenv("LLM_BACKEND", "httpx").strip().lower()
     if backend == "httpx":
-        return ClienteOllama(modelo=modelo, host=host)
+        return ClienteOllama(modelo=modelo or OLLAMA_MODEL, host=host)
     if backend == "langchain":
         # Import diferido: importar langchain_ollama cuesta cerca de un segundo,
         # y no hay razón para pagarlo cuando no se lo eligió.
         from agent.llm_langchain import ClienteLangChain
 
-        return ClienteLangChain(modelo=modelo, host=host)
+        return ClienteLangChain(modelo=modelo or OLLAMA_MODEL, host=host)
+    if backend == "anthropic":
+        # Mismo motivo que arriba, y uno más: importar el SDK trae httpx propio
+        # y sus modelos Pydantic. No se paga si no se lo eligió.
+        from agent.llm_anthropic import MODELO_POR_DEFECTO, ClienteAnthropic
+
+        # Encadenado con `or` y no con el default de `getenv`: así un
+        # `ANTHROPIC_MODEL=` vacío cae al default en vez de mandarle al
+        # proveedor un nombre de modelo en blanco.
+        return ClienteAnthropic(
+            modelo=modelo or os.getenv("ANTHROPIC_MODEL") or MODELO_POR_DEFECTO
+        )
     raise ValueError(
-        f"LLM_BACKEND={backend!r} no existe. Valores válidos: 'httpx', 'langchain'."
+        f"LLM_BACKEND={backend!r} no existe. Valores válidos: "
+        f"'httpx', 'langchain', 'anthropic'."
     )
 
 

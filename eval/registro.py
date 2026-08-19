@@ -24,7 +24,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from agent.llm import Uso
 from core.report import Report
+from eval.costo import FECHA_TARIFAS, costo_usd
 from eval.metricas import EventoSembrado, Hallazgo, Proporcion
 
 # El directorio vive dentro del repo a propósito: el historial de mediciones es
@@ -83,6 +85,13 @@ def _caso(evento: EventoSembrado, consulta: str, informe: Report | None,
         # Un hueco es un dato: sin informe no hay nada que medir, y eso tiene
         # que poder distinguirse de un caso que se evaluó y salió mal.
         "informe": informe is not None,
+        # La latencia es la tercera columna de la decisión, junto a calidad y
+        # costo: un modelo que acierta más pero tarda cuatro veces más puede ser
+        # el equivocado. `None` y no `0` cuando no hubo informe — no tardó cero,
+        # no se midió.
+        "duracion_ms": (
+            sum(p.duracion_ms for p in informe.trace) if informe else None
+        ),
         "hallazgos": [
             {"nombre": h.nombre, "cumple": h.cumple, "detalle": h.detalle}
             for h in hallazgos
@@ -111,12 +120,39 @@ def _metrica(nombre: str, proporcion: Proporcion | None,
     }
 
 
+def _uso(uso: Uso | None, modelo: str | None) -> dict[str, object] | None:
+    """Lo que consumió la corrida, en tokens, más el costo que eso implica.
+
+    Se guardan **tokens** y no solo dólares: los tokens son un hecho que reporta
+    el proveedor, el precio es una tabla que se mueve. Con los tokens, una
+    corrida vieja se puede recalcular con la tarifa de hoy; con solo dólares, el
+    número queda congelado contra una tabla que nadie anotó.
+
+    `None` entero cuando nadie contó, que no es lo mismo que cero: `ClienteOllama`
+    no reporta uso a propósito, porque no cobra nada.
+    """
+    if uso is None:
+        return None
+    return {
+        "tokens_entrada": uso.tokens_entrada,
+        "tokens_salida": uso.tokens_salida,
+        "tokens_cacheados": uso.tokens_cacheados,
+        "llamadas": uso.llamadas,
+        # `None` si no hay tarifa cargada: un modelo del que no sabemos el
+        # precio no es gratis. Los tokens quedan igual, y el costo se puede
+        # recalcular el día que se cargue.
+        "costo_usd": costo_usd(uso, modelo) if modelo else None,
+        "tarifas_al": FECHA_TARIFAS,
+    }
+
+
 def documento_de_corrida(
     corridas: list[tuple[EventoSembrado, str, Report | None, list[Hallazgo]]],
     proporciones: dict[str, Proporcion],
     umbrales: dict[str, float],
     generado_en: datetime,
     procedencia_inicial: dict[str, object] | None = None,
+    uso: Uso | None = None,
 ) -> dict[str, object]:
     """Arma el documento de una corrida, listo para `json.dumps` sin conversores.
 
@@ -124,11 +160,16 @@ def documento_de_corrida(
     fechas que a veces son texto y a veces no, y compararlas sería adivinar.
     """
     informes = [informe for *_, informe, _ in corridas if informe is not None]
+    modelo = informes[0].modelo_llm if informes else None
     return {
         "generado_en": generado_en.isoformat(timespec="seconds"),
         # Comparar dos corridas de modelos distintos y llamarlo progreso es el
         # error que este campo previene.
-        "modelo_llm": informes[0].modelo_llm if informes else None,
+        "modelo_llm": modelo,
+        # Qué consumió y qué costó. Sin esto el registro contesta "¿anda bien?"
+        # y no contesta "¿conviene?", que es la pregunta que decide si un
+        # sistema se pone en producción.
+        "uso": _uso(uso, modelo),
         # Capturada al arrancar la corrida cuando quien llama la pasa; si no,
         # se toma acá y describe el árbol de este instante.
         **(procedencia_inicial or procedencia()),
@@ -185,3 +226,73 @@ def comparar(anterior: dict[str, Any],
             "delta": None if previo is None or ahora is None else ahora - previo,
         })
     return diferencias
+
+
+def comparar_modelos(anterior: dict[str, Any],
+                     actual: dict[str, Any]) -> dict[str, Any]:
+    """Compara dos corridas de modelos distintos, y lo dice con todas las letras.
+
+    `comparar()` se niega a hacer esto, y hace bien: sin esa guarda, cambiar el
+    modelo, ver subir el número y atribuírselo al prompt es el error más
+    tentador del oficio. La guarda **no se relaja**. Se agrega este camino
+    aparte, cuyo nombre declara qué se está haciendo — que era exactamente lo
+    que pedía el comentario original: *para comparar modelos hay que decir que
+    se están comparando modelos*.
+
+    La diferencia con `comparar()` no es técnica, es de intención. Ahí el modelo
+    es constante y lo que varía es el código, así que un delta es una mejora o
+    una regresión. Acá varía el modelo, así que un delta no es progreso: es un
+    **trade-off**, y por eso se devuelve con el costo al lado.
+
+    Y el costo al lado no es un adorno. La calidad sola dice cuál es mejor; la
+    calidad junto al costo dice cuál conviene, que es otra pregunta y es la que
+    se lleva a una reunión.
+    """
+    antes = {m["nombre"]: m["valor"] for m in anterior["metricas"]}
+    metricas = []
+    for metrica in actual["metricas"]:
+        previo, ahora = antes.get(metrica["nombre"]), metrica["valor"]
+        metricas.append({
+            "nombre": metrica["nombre"],
+            "antes": previo,
+            "ahora": ahora,
+            # Mismo criterio que `comparar()`: restar None menos None y escribir
+            # 0 diría "no cambió nada". No cambió nada porque no se midió nada.
+            "delta": None if previo is None or ahora is None else ahora - previo,
+        })
+
+    return {
+        "modelos": [anterior["modelo_llm"], actual["modelo_llm"]],
+        "metricas": metricas,
+        "costo_usd": _delta_costo(anterior, actual),
+        "duracion_ms": _delta(_latencia_total(anterior), _latencia_total(actual)),
+    }
+
+
+def _delta(previo: float | None, ahora: float | None) -> dict[str, Any]:
+    return {
+        "antes": previo,
+        "ahora": ahora,
+        "delta": None if previo is None or ahora is None else ahora - previo,
+    }
+
+
+def _delta_costo(anterior: dict[str, Any], actual: dict[str, Any]) -> dict[str, Any]:
+    """El costo de cada corrida y su diferencia.
+
+    Si alguna de las dos no sabe cuánto costó, el delta no existe. Fingir un
+    cero ahí diría "cuestan lo mismo", que es justo la conclusión equivocada
+    cuando una de las dos es un modelo pago sin tarifa cargada.
+    """
+    def _de(doc: dict[str, Any]) -> float | None:
+        uso = doc.get("uso")
+        return uso.get("costo_usd") if uso else None
+
+    return _delta(_de(anterior), _de(actual))
+
+
+def _latencia_total(doc: dict[str, Any]) -> int | None:
+    """Suma la duración de los casos que la tengan. `None` si ninguno la tiene."""
+    duraciones = [c["duracion_ms"] for c in doc.get("casos", [])
+                  if c.get("duracion_ms") is not None]
+    return sum(duraciones) if duraciones else None

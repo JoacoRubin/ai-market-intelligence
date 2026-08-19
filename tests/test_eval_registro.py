@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from core.report import Fuente, Report
+from core.report import Fuente, PasoTrace, Report
 from eval.metricas import EventoSembrado, Hallazgo, Proporcion
 from eval.registro import documento_de_corrida, guardar
 
@@ -60,16 +60,25 @@ def _documento(**cambios: Any) -> dict[str, Any]:
 
 
 def _informe() -> Report:
+    return _informe_con_modelo("llama3.2:3b")
+
+
+def _informe_con_modelo(modelo: str) -> Report:
     return Report(
         request_id="eval-pico_ventas-P033",
         consulta="Analizá el desempeño de P033 durante 2025-06",
         generado_en=AHORA,
-        modelo_llm="llama3.2:3b",
+        modelo_llm=modelo,
         fuentes=[Fuente(id="sql-kpis", tipo="sql", referencia="dbo.orders",
                         consultada_en=AHORA)],
         resumen_ejecutivo=[],
         metricas=[],
         recomendaciones=[],
+        # El trace es lo que permite medir latencia por caso. Dos pasos con
+        # duraciones distintas: si el registro sumara mal, un solo paso no lo
+        # mostraría.
+        trace=[PasoTrace(nodo="router", duracion_ms=9_437),
+               PasoTrace(nodo="synthesizer", duracion_ms=512)],
     )
 
 
@@ -283,3 +292,147 @@ def test_una_metrica_que_no_aplico_en_ninguna_de_las_dos_no_tiene_delta() -> Non
     diferencias = {d["nombre"]: d for d in comparar(_documento(), _documento())}
 
     assert diferencias["no_invierte_el_sentido_del_error"]["delta"] is None
+
+
+# --- lo que costó y lo que tardó ----------------------------------------------
+#
+# Hasta acá el registro guardaba SOLO calidad, y eso contesta "¿anda bien?" sin
+# contestar "¿conviene?". Un informe perfecto a un dólar la consulta y otro 95%
+# igual a tres centavos no son el mismo producto, aunque el golden set les dé
+# casi lo mismo. Desde que hay un proveedor que cobra, la diferencia es la
+# decisión.
+
+def test_guarda_los_tokens_consumidos_por_la_corrida() -> None:
+    """Tokens y no dólares: los tokens son un hecho, el precio es una tabla.
+
+    Guardando tokens, una corrida vieja se puede recalcular con la tarifa de
+    hoy. Guardando solo dólares, el número queda congelado contra una tabla que
+    nadie anotó.
+    """
+    from agent.llm import Uso
+
+    doc = _documento(uso=Uso(tokens_entrada=35_190, tokens_salida=1_995,
+                             tokens_cacheados=0, llamadas=30))
+
+    assert doc["uso"]["tokens_entrada"] == 35_190
+    assert doc["uso"]["tokens_salida"] == 1_995
+    assert doc["uso"]["llamadas"] == 30
+
+
+def test_guarda_el_costo_y_contra_que_tarifa_se_calculo() -> None:
+    """El costo sin la fecha de la tarifa es un número que no se puede auditar."""
+    from agent.llm import Uso
+    from eval.costo import FECHA_TARIFAS
+
+    doc = _documento(uso=Uso(tokens_entrada=1_000_000, tokens_salida=0))
+
+    assert doc["uso"]["costo_usd"] == 0.0  # llama3.2:3b es local
+    assert doc["uso"]["tarifas_al"] == FECHA_TARIFAS
+
+
+def test_un_modelo_sin_tarifa_guarda_los_tokens_igual() -> None:
+    """Perder la corrida entera por no saber un precio sería peor que registrarla.
+
+    Midió la calidad bien; lo único que no sabe es cuánto salió. Los tokens
+    quedan, y el costo se puede recalcular el día que se cargue la tarifa.
+    """
+    from agent.llm import Uso
+
+    doc = _documento(uso=Uso(tokens_entrada=500, tokens_salida=100))
+    doc_ajeno = _documento(
+        corridas=[(EVENTO, "analisis", _informe_con_modelo("gpt-5.6-terra"),
+                   HALLAZGOS)],
+        uso=Uso(tokens_entrada=500, tokens_salida=100),
+    )
+
+    assert doc["uso"]["tokens_entrada"] == 500
+    assert doc_ajeno["uso"]["costo_usd"] is None
+    assert doc_ajeno["uso"]["tokens_entrada"] == 500
+
+
+def test_una_corrida_sin_uso_lo_deja_en_null_y_no_en_cero() -> None:
+    """Cero tokens diría que corrió sin llamar al modelo. No es lo que pasó:
+    es que nadie los contó. `ClienteOllama` no reporta uso a propósito."""
+    assert _documento()["uso"] is None
+
+
+def test_guarda_cuanto_tardo_cada_caso() -> None:
+    """La latencia es la tercera columna de la decisión, con calidad y costo.
+
+    Un modelo que acierta más pero tarda cuatro veces más puede ser el
+    equivocado, y sin este número esa conversación no se puede tener.
+    """
+    doc = _documento()
+    assert doc["casos"][0]["duracion_ms"] == 9_437 + 512
+
+
+def test_un_caso_sin_informe_no_inventa_una_duracion() -> None:
+    """Sin informe no hay trace. `None` y no `0`: no tardó cero, no se midió."""
+    doc = _documento(corridas=[(EVENTO, "analisis", None, HALLAZGOS)])
+    assert doc["casos"][0]["duracion_ms"] is None
+
+
+# --- comparar modelos, dicho con todas las letras -----------------------------
+
+def test_comparar_modelos_si_acepta_corridas_de_modelos_distintos() -> None:
+    """`comparar()` se niega, y hace bien. Esta función existe para ese caso.
+
+    La guarda de `comparar()` no se relaja: se agrega un camino cuyo NOMBRE
+    declara que se están comparando modelos. Era exactamente lo que pedía el
+    comentario original —"para comparar modelos hay que decir que se están
+    comparando modelos"—, y aflojar el guard hubiera tirado abajo la única
+    defensa contra atribuirle al prompt una mejora que fue del modelo.
+    """
+    from eval.registro import comparar_modelos
+
+    local = _documento()
+    pago = _documento(corridas=[
+        (EVENTO, "analisis", _informe_con_modelo("claude-opus-5"), HALLAZGOS)])
+
+    resultado = comparar_modelos(local, pago)
+
+    assert resultado["modelos"] == ["llama3.2:3b", "claude-opus-5"]
+
+
+def test_comparar_modelos_deja_ver_la_diferencia_por_metrica() -> None:
+    from eval.registro import comparar_modelos
+
+    local = _documento()
+    pago = _documento(
+        corridas=[(EVENTO, "analisis", _informe_con_modelo("claude-opus-5"),
+                   HALLAZGOS)],
+        proporciones={**PROPORCIONES,
+                      "usa_la_evidencia_documental": Proporcion(6, 6, 6)},
+    )
+
+    metricas = {m["nombre"]: m for m in comparar_modelos(local, pago)["metricas"]}
+    assert metricas["usa_la_evidencia_documental"]["delta"] == 0.5
+
+
+def test_comparar_modelos_pone_el_costo_al_lado_de_la_calidad() -> None:
+    """Es todo el punto del ejercicio.
+
+    La calidad sola dice cuál es mejor. La calidad al lado del costo dice cuál
+    conviene, que es una pregunta distinta y es la que se lleva a una reunión.
+    """
+    from agent.llm import Uso
+    from eval.registro import comparar_modelos
+
+    local = _documento(uso=Uso(tokens_entrada=35_190, tokens_salida=1_995))
+    pago = _documento(
+        corridas=[(EVENTO, "analisis", _informe_con_modelo("claude-opus-5"),
+                   HALLAZGOS)],
+        uso=Uso(tokens_entrada=35_190, tokens_salida=1_995),
+    )
+
+    costos = comparar_modelos(local, pago)["costo_usd"]
+    assert costos["antes"] == 0.0
+    assert costos["ahora"] == pytest.approx(0.2258, abs=1e-4)
+
+
+def test_comparar_modelos_no_finge_un_delta_de_costo_desconocido() -> None:
+    """Si una de las dos corridas no sabe cuánto costó, el delta no existe."""
+    from eval.registro import comparar_modelos
+
+    resultado = comparar_modelos(_documento(), _documento())
+    assert resultado["costo_usd"]["delta"] is None

@@ -55,6 +55,9 @@ report = [
     "reportlab>=5.0",
     "matplotlib>=3.11",
 ]
+anthropic = [
+    "anthropic>=0.75",
+]
 
 [dependency-groups]
 dev = [
