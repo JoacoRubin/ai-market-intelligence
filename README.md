@@ -7,12 +7,12 @@ un informe ejecutivo **con evidencia trazable**.
 > No es un chatbot. Es un analista asistido: el LLM planifica, selecciona
 > herramientas e interpreta. **Los números los calcula el software, no el modelo.**
 
-**Estado:** Fases 0 a 4 completas — diseño, datos, agente, RAG y ML. El sistema
-funciona de punta a punta: una consulta en castellano entra por `POST /analyses`,
-el grafo la interpreta, consulta SQL, recupera evidencia documental, proyecta con
-un modelo validado contra su baseline, redacta y valida — y sale un PDF
-descargable. **430 tests en verde.** Pendientes: fase 5 (evals y tracing), fase 6
-(jobs y CI) y fase 7 (portfolio).
+**Estado:** Fases 0 a 5 completas — diseño, datos, agente, RAG, ML y evals. El
+sistema funciona de punta a punta: una consulta en castellano entra por
+`POST /analyses`, el grafo la interpreta, consulta SQL, recupera evidencia
+documental, proyecta con un modelo validado contra su baseline, redacta y
+valida — y sale un PDF descargable. **532 tests en verde**, ruff limpio y mypy
+strict sin errores. Pendientes: fase 6 (jobs y CI) y fase 7 (portfolio).
 
 ---
 
@@ -24,9 +24,12 @@ que eligió cada herramienta, las citas documentales con su identificador, el
 forecast contra su baseline y el PDF descargable.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Una corrida real tarda entre 70 y 95
-> segundos: nadie mira un spinner ese tiempo, y el replay muestra más que un demo
-> en vivo — la traza y el criterio quedan invisibles cuando solo ves el resultado.
+> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 8
+> segundos y 4,7 minutos sobre CPU — la comparación entre dos productos es la
+> más cara, y la consulta que el agente rechaza es la más barata porque corta en
+> el router. Nadie mira un spinner cuatro minutos, y el replay además muestra más
+> que un demo en vivo: la traza y el criterio quedan invisibles cuando solo ves
+> el resultado.
 
 Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
 
@@ -54,6 +57,48 @@ cruza cada número del informe contra los resultados de las tools.
 
 ---
 
+## Qué tan bien anda, y cuánto cuesta
+
+Un sistema del que no se sabe cuánto acierta ni cuánto sale es una demo. Estas
+dos tablas son lo que lo separan de eso.
+
+**Calidad** — 15 casos contra `dbo.ground_truth`, cinco métricas
+determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
+medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
+árbol estaba limpio.
+
+| Métrica | Resultado | Umbral |
+|---|---|---|
+| `analiza_el_producto_del_evento` | 100% (15/15) | 80% |
+| `atribuye_al_producto_correcto` | 100% (2/2) | 90% |
+| `no_invierte_el_sentido_del_error` | 100% (3/3) | 90% |
+| `reporta_magnitudes_absolutas` | 100% (15/15) | 75% |
+| `usa_la_evidencia_documental` | **80%** (12/15) | 90% ❌ |
+
+> La última **no alcanza el umbral, y el test queda rojo a propósito.** La causa
+> está medida —varianza del sintetizador, no un bug— y el umbral no se baja.
+> Un umbral que se ajusta para que el test pase deja de ser un umbral.
+
+**Costo** — medido reconstruyendo los prompts reales del agente: **~2.346 tokens
+de entrada y ~133 de salida por consulta**.
+
+| Modelo | Por consulta | Golden set (15 casos) |
+|---|---|---|
+| `llama3.2:3b` local | **USD 0** | USD 0 |
+| Claude Haiku 4.5 | USD 0,0030 | USD 0,045 |
+| Claude Opus 5 | USD 0,0151 | USD 0,226 |
+
+El **94% de esos tokens son de entrada**, no de salida. No es casualidad: es el
+principio de arriba visible en la factura. Al modelo le llegan los KPIs ya
+calculados y escribe cinco oraciones — no razona sobre números, así que no se
+paga por que lo haga. *La arquitectura es barata porque es correcta.*
+
+> Los tokens se estimaron sobre los prompts reales asumiendo 3,5 chars/token. El
+> número exacto sale de `count_tokens`, que **es gratis** y está implementado
+> (`ClienteAnthropic.contar_tokens`): falta una API key, no código.
+
+---
+
 ## Arquitectura
 
 Lo que corre hoy:
@@ -65,7 +110,8 @@ Lo que corre hoy:
 | Datos internos | SQL Server 2025 Developer (T-SQL) |
 | Búsqueda vectorial | FAISS local |
 | LLM | Ollama local (`llama3.2:3b`) |
-| Acceso al LLM | Dos adaptadores del mismo puerto: `httpx` (default) o LangChain, vía `LLM_BACKEND` ([ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md)) |
+| Acceso al LLM | Tres adaptadores del mismo puerto: `httpx` (default), LangChain o Anthropic, vía `LLM_BACKEND` ([ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md), [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md)) |
+| Evaluación | Harness propio: 15 casos contra ground truth, cinco métricas determinísticas, sin LLM-as-a-judge |
 | ML | scikit-learn |
 | Tracking de experimentos | MLflow |
 | Base de datos containerizada | Docker Compose |
@@ -103,6 +149,12 @@ FINAL
 **Costo cero.** No se usan APIs pagas, bases vectoriales SaaS ni cloud
 obligatorio. El sistema corre completo en local. Los free tiers cambian; una
 demo de portfolio que deja de funcionar no sirve de nada.
+
+> Existe un adaptador opcional contra Anthropic (`LLM_BACKEND=anthropic`), y no
+> contradice lo anterior: **medir** cuesta centavos y es acotado, **servir**
+> cuesta sin techo. El camino por defecto sigue siendo local y gratis; el
+> proveedor pago se usa para comparar, no para funcionar. Ver
+> [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md).
 
 **Hardware de referencia.** Todo el diseño asume inferencia CPU-only sobre un
 i7-1255U sin GPU dedicada. Esto no es un detalle: define el presupuesto de
@@ -281,6 +333,7 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-005](docs/adr/ADR-005-reglas-de-negocio-kpis.md) | Las reglas de negocio de los KPIs viven en SQL |
 | [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md) | Por qué el proyecto no se despliega en AWS |
 | [ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md) | Dos adaptadores para el puerto del LLM, y hasta dónde llega LangChain |
+| [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md) | Un tercer adaptador y la medición de costo por consulta |
 
 > Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
 > Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué
