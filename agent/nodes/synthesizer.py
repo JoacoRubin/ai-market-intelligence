@@ -28,11 +28,24 @@ from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
 
 MAX_CONCLUSIONES = 5
 
-ESQUEMA = {
+# Anotado y no inferido: un JSON Schema es heterogéneo —strings, dicts, ints,
+# listas— y sin la anotación mypy le infiere el tipo más estrecho que le cierra,
+# que después no se puede indexar. Además es el tipo que promete el puerto.
+ESQUEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "conclusiones": {
             "type": "array",
+            # El techo va acá y no solo en el slice de Python, porque acá el
+            # modelo lo LEE y cierra solo. Medido contra llama3.2:3b sobre el
+            # prompt del caso más caro: sin `maxItems` genera seis conclusiones
+            # en 129,2 s y el código se queda con cinco — se pagan segundos de
+            # CPU por una que se tira. Con `maxItems` cierra en 104,2 s.
+            #
+            # Y el límite va en el esquema y NO como `num_predict`: un techo de
+            # tokens no lo sabe el modelo, así que lo corta a mitad de JSON y la
+            # respuesta queda inválida. Ver tests/test_agent_synthesizer.py.
+            "maxItems": MAX_CONCLUSIONES,
             "items": {
                 "type": "object",
                 "properties": {
