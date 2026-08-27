@@ -462,9 +462,9 @@ def test_el_backend_anthropic_usa_su_propio_modelo_por_defecto(
 ) -> None:
     """`OLLAMA_MODEL` no puede filtrarse al proveedor pago.
 
-    `crear_cliente()` tiene `llama3.2:3b` como default del parámetro. Si el
+    `crear_cliente()` tiene `qwen3:4b` como default del parámetro. Si el
     adaptador lo tomara, la primera corrida contra Anthropic fallaría con un
-    404 de modelo inexistente — o peor, el registro anotaría `llama3.2:3b` en
+    404 de modelo inexistente — o peor, el registro anotaría `qwen3:4b` en
     una corrida que corrió contra otra cosa.
     """
     monkeypatch.setenv("LLM_BACKEND", "anthropic")

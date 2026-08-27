@@ -196,3 +196,90 @@ A partir de este spike, toda medición de performance del proyecto se corre:
    tarda 200 s no se puede correr siete veces, y por lo tanto no sirve para
    comparar.
 6. Con guardado incremental de resultados.
+
+---
+
+## Revisión (2026-08-27) — se adopta `qwen3:4b` con el thinking apagado
+
+**Estado de la decisión original: superada.** No estaba equivocada: medía una
+condición que dejó de ser la que corre.
+
+### Qué la reabrió
+
+Un análisis en el stack containerizado tardó 287 s y el informe salió del
+respaldo determinístico. El trace mostró dónde:
+
+```
+router                0 ms      (cortocircuitó: la solicitud vino estructurada)
+planner               0 ms
+sql_tool            354 ms
+synthesizer      300 328 ms     ← TIMEOUT_SEGUNDOS clavado
+```
+
+300 328 ms no es un modelo pensando: es el timeout. `qwen3:4b` tiene la
+capacidad `thinking` y `estructurado` no acotaba nada, así que el modelo
+razonaba hasta que lo cortaban.
+
+**Y ahí está la conexión con la ronda 1 de este mismo ADR.** `qwen3:4b` se
+descartó por lento, con tool calls de 207 s, 85 s y 313 s. Esos números tienen
+la misma forma que el bug: se midió el modelo **con el razonamiento
+prendido**, que era la única forma conocida de correrlo en ese momento.
+
+### Ablación del sintetizador
+
+Prompt real del sintetizador, una variable por vez, con grupo de control:
+
+| condición | tiempo | tokens | resultado |
+|---|---|---|---|
+| `qwen3:4b` como estaba | 312,2 s | — | **FALLO ReadTimeout** |
+| `qwen3:4b` `think=False` | **60,9 s** | 112 | 3 conclusiones, OK |
+| `qwen3:4b` `num_predict=400` | 194,9 s | 400 | **JSON truncado** |
+| `llama3.2:3b` (control) | 132,0 s | 174 | 4 conclusiones, OK |
+
+El tiempo nunca estuvo en escribir el JSON —son 112 tokens— sino en razonar
+antes. `num_predict` lo empeora: gasta 1.516 caracteres pensando, se queda sin
+presupuesto y decapita la respuesta. Es la confirmación empírica de lo que ya
+advertía `tests/test_agent_synthesizer.py`.
+
+### Ablación del router, con diseño intercalado
+
+La ronda 3 de este ADR midió `think=OFF` sobre **`qwen3:1.7b`** y encontró
+tool calling 0/2. Ese hallazgo **no se traslada al 4b**, y suponerlo habría
+sido el error: se midió.
+
+Cinco casos con intención conocida, condiciones rotadas por caso:
+
+| condición | aciertos | media |
+|---|---|---|
+| `llama3.2:3b` (control) | 5/5 | 48,7 s |
+| `qwen3:4b` `think=ON` | **0/5** | 152,1 s (todos ReadTimeout) |
+| `qwen3:4b` `think=OFF` | **5/5** | 12,8 s |
+
+Con el razonamiento prendido el router es inservible: no clasifica mal,
+directamente no termina. Apagado, acierta los cinco.
+
+**Advertencia sobre esa columna de latencia:** intercalar modelos obliga a
+Ollama a recargar pesos, y el control salió bimodal (74,8 / 74,0 / 8,7 / 9,0 /
+76,9 s). El confound de la deriva se cambió por el del swap. La **precisión**
+—5/5 contra 0/5— no se ve afectada, pero la comparación de latencia entre
+modelos no es limpia y no se usa como evidencia. Medirla bien requiere un
+modelo por corrida, en caliente.
+
+### Decisión revisada
+
+**`qwen3:4b` con `"think": False` en `estructurado`.**
+
+El flag va siempre y no condicionado al modelo: `llama3.2:3b` no tiene la
+capacidad, lo recibe y lo ignora (HTTP 200 en 5,9 s). Un flag que hay que
+acordarse de poner según el modelo es uno que se olvida el día que se cambia
+el modelo — que es exactamente cómo apareció este bug.
+
+### Lo que esta revisión NO afirma
+
+- **Que `qwen3:4b` sea mejor en calidad de informe.** Se midió velocidad y
+  corrección del router. Las cinco métricas del golden set hay que
+  re-correrlas: las corridas de `eval/corridas/` dicen `llama3.2:3b` y por lo
+  tanto describen un sistema que ya no es el que está configurado.
+- **Que `qwen3:1.7b` deba reconsiderarse.** Sigue descartado por no citar
+  fuentes RAG, que es un ítem de la Definition of Done y no una cuestión de
+  velocidad.

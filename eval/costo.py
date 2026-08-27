@@ -57,6 +57,10 @@ TARIFAS: dict[str, Tarifa] = {
     # Está en la tabla con tarifa cero y no ausente. Es la diferencia entre "sé
     # que es gratis" y "no sé cuánto cuesta", y la columna de costo de la tabla
     # comparativa necesita la primera.
+    "qwen3:4b": Tarifa(0.0, 0.0),
+    # Sigue en la tabla aunque ya no sea el default: las corridas
+    # historicas del golden set lo nombran, y una tarifa ausente las
+    # dejaria sin columna de costo.
     "llama3.2:3b": Tarifa(0.0, 0.0),
 }
 

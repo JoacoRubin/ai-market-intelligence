@@ -95,7 +95,7 @@ de entrada y ~133 de salida por consulta**.
 
 | Modelo | Por consulta | Golden set (15 casos) |
 |---|---|---|
-| `llama3.2:3b` local | **USD 0** | USD 0 |
+| `qwen3:4b` local | **USD 0** | USD 0 |
 | Claude Haiku 4.5 | USD 0,0030 | USD 0,045 |
 | Claude Opus 5 | USD 0,0151 | USD 0,226 |
 
@@ -120,7 +120,7 @@ Lo que corre hoy:
 | Orquestación del agente | LangGraph |
 | Datos internos | SQL Server 2025 Developer (T-SQL) |
 | Búsqueda vectorial | FAISS local |
-| LLM | Ollama local (`llama3.2:3b`) |
+| LLM | Ollama local (`qwen3:4b`, sin razonamiento en voz alta — ver la revisión de [ADR-003](docs/adr/ADR-003-llm-local.md)) |
 | Acceso al LLM | Tres adaptadores del mismo puerto: `httpx` (default), LangChain o Anthropic, vía `LLM_BACKEND` ([ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md), [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md)) |
 | Evaluación | Harness propio: 15 casos contra ground truth, cinco métricas determinísticas, sin LLM-as-a-judge |
 | ML | scikit-learn |
@@ -212,7 +212,7 @@ serializados — que son los otros generadores de archivos pesados.
 
 ```powershell
 .\tasks.ps1 setup          # instala dependencias
-ollama pull llama3.2:3b
+ollama pull qwen3:4b
 ```
 
 Las dependencias están separadas en grupos a propósito (`seed`, `ml`, `rag`,

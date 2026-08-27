@@ -150,7 +150,7 @@ de reproducción. La página lo dice **arriba de todo**, no en un pie.
 | Hugging Face Spaces con Docker | Requiere plan PRO. Verificado en la documentación oficial. |
 | Oracle Cloud Always Free (24 GB, ARM) | SQL Server no tiene imagen ARM64. |
 | Reemplazar SQL Server por SQLite solo en el demo | Entra en free tiers reales, pero diluye la decisión central del ADR-002 y obliga a mantener dos rutas de datos. El demo dejaría de ser este sistema. |
-| Reemplazar Ollama por una API paga en el demo | Rompe el costo cero y, peor, **invalida el golden set**: `llama3.2:3b` se eligió midiendo consistencia (ADR-003). Un demo con otro modelo no muestra el sistema que se evaluó. |
+| Reemplazar Ollama por una API paga en el demo | Rompe el costo cero y, peor, **invalida el golden set**: el modelo local se eligió midiendo consistencia (ADR-003, revisado el 2026-08-27 a `qwen3:4b`). Un demo con otro modelo no muestra el sistema que se evaluó. |
 | Terraform de AWS como entregable, versionado pero nunca aplicado | Infraestructura que nunca se ejecutó no está verificada. Un revisor que corra `terraform plan` encuentra código que no provisiona nada, y el artefacto resta en vez de sumar. Este ADR ocupa su lugar: documenta criterio, y el criterio sí es verificable. |
 
 ## Riesgo abierto
