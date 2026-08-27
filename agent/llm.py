@@ -94,6 +94,19 @@ class ClienteOllama:
             ],
             "format": esquema,
             "stream": False,
+            # Sin razonamiento en voz alta. Medido con ablación sobre el prompt
+            # del sintetizador (ver tests/test_agent_synthesizer.py): qwen3:4b
+            # se comía los 300 s de TIMEOUT_SEGUNDOS pensando y devolvía un
+            # ReadTimeout; con `think` apagado cierra en 60,9 s con las mismas
+            # conclusiones. El JSON de salida son ~112 tokens: el tiempo nunca
+            # estuvo en escribirlo.
+            #
+            # Va SIEMPRE y no solo para modelos que razonan: `llama3.2:3b` no
+            # tiene la capacidad, recibe el flag y lo ignora (HTTP 200 en 5,9 s).
+            # Un flag que hay que acordarse de poner según el modelo es uno que
+            # se olvida el día que se cambia el modelo — que es exactamente como
+            # apareció este bug.
+            "think": False,
             # temperatura 0: clasificar no es una tarea creativa, y la
             # variabilidad acá solo agrega ruido a los evals.
             "options": {"temperature": 0},

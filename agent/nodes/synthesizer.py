@@ -215,6 +215,7 @@ def sintetizar(
     conclusiones: list[Afirmacion] = []
     modelo_usado = cliente.nombre
 
+    fallo: str | None = None
     docs_validos = {e["doc_id"] for e in estado.evidencia}
     bloque = _datos_para_el_modelo(metricas)
     if estado.evidencia:
@@ -254,15 +255,23 @@ def sintetizar(
                 fuentes=[fuente] if fuente else [FUENTE],
             ))
     except Exception as e:
-        estado.error = f"{type(e).__name__}: {e}"
+        fallo = f"{type(e).__name__}: {e}"
+        estado.error = fallo
 
     if not conclusiones:
         # Respaldo determinístico: más seco, pero correcto. El informe sale igual.
         conclusiones = _conclusiones(metricas)
         modelo_usado = f"{cliente.nombre} (respaldo determinístico)"
+        # El motivo viaja en la advertencia y no solo en `estado.error`, que no
+        # lo lee nadie: el `Report` no tiene ese campo y `registro.error` solo
+        # se escribe si revienta el grafo entero. Sin esto, un timeout y un
+        # modelo que contesta una lista vacía se ven idénticos desde afuera —y
+        # son dos problemas distintos, uno de infraestructura y uno del prompt.
+        motivo = f" La llamada al modelo falló con {fallo}." if fallo else ""
         estado._advertir(
             "El modelo de lenguaje no produjo conclusiones utilizables. Se "
             "generaron a partir de los datos con reglas determinísticas."
+            + motivo
         )
 
     # El paso se registra ANTES de construir el informe: el informe copia el

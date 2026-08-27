@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 
-from agent.llm import ClienteOllama, ClientePredecible
+from agent.llm import ClienteOllama, ClientePredecible, ClienteQueFalla
 from agent.nodes.synthesizer import ESQUEMA, MAX_CONCLUSIONES, sintetizar
 from agent.state import AnalysisState
 from core.report import MetricaProducto
@@ -76,6 +76,65 @@ def test_sigue_cortando_en_python_aunque_el_modelo_devuelva_de_mas() -> None:
     assert len(estado.informe.resumen_ejecutivo) <= MAX_CONCLUSIONES
 
 
+# --- El respaldo tiene que decir POR QUE ---------------------------------------
+
+
+def test_el_respaldo_por_una_excepcion_nombra_la_causa() -> None:
+    """La advertencia generica esconde el diagnostico. Medido en produccion.
+
+    El 2026-08-27, con el stack levantado, el sintetizador tardo 300.328 ms
+    —`TIMEOUT_SEGUNDOS` clavado— y el informe salio del respaldo. La unica
+    senal hacia afuera era "el modelo no produjo conclusiones utilizables",
+    que es verdad y no alcanza para hacer nada: no distingue un timeout de un
+    modelo que contesto una lista vacia.
+
+    El `except` capturaba la excepcion en `estado.error`, un campo que NADIE
+    lee: el `Report` no lo tiene y `registro.error` solo se escribe si revienta
+    el grafo entero. El `ReadTimeout`, con su mensaje, se descartaba.
+
+    Un error capturado y no reportado es peor que uno que no se captura: el
+    sistema aparenta andar mientras quema cinco minutos de CPU por analisis.
+    """
+    cliente = ClienteQueFalla(TimeoutError("se acabo el tiempo"))
+
+    estado = sintetizar(_estado(), cliente)
+
+    assert estado.informe is not None
+    unida = " ".join(estado.informe.advertencias)
+    assert "TimeoutError" in unida
+    assert "se acabo el tiempo" in unida
+
+
+def test_el_respaldo_sin_excepcion_no_inventa_una_causa() -> None:
+    """La contracara: el modelo contesto, pero no dio nada usable.
+
+    Son dos fallas distintas con dos arreglos distintos —una es de
+    infraestructura, la otra es del prompt— y la advertencia tiene que
+    permitir distinguirlas sin adivinar.
+    """
+    class _ClienteSinConclusiones:
+        """Contesta bien, pero con el array vacio.
+
+        No se usa `ClientePredecible([])` porque hace `conclusiones or [...]`:
+        una lista vacia cae al default y el respaldo nunca se dispararia.
+        """
+
+        nombre = "falso:vacio"
+
+        def estructurado(self, *_a: Any, **_k: Any) -> dict[str, Any]:
+            return {"conclusiones": []}
+
+        def redactar(self, *_a: Any, **_k: Any) -> str:
+            return ""
+
+    estado = sintetizar(_estado(), _ClienteSinConclusiones())
+
+    assert estado.informe is not None
+    unida = " ".join(estado.informe.advertencias)
+    assert "no produjo conclusiones utilizables" in unida
+    assert "Error" not in unida
+
+
 # --- Lo que NO se hace, y por qué --------------------------------------------
 
 def test_estructurado_no_acota_los_tokens_de_salida(
@@ -106,6 +165,45 @@ def test_estructurado_no_acota_los_tokens_de_salida(
     cliente.estructurado("sistema", "usuario", ESQUEMA)
 
     assert "num_predict" not in capturado["options"]
+
+
+def test_estructurado_apaga_el_razonamiento_en_voz_alta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El techo que SI corresponde acá no es de tokens: es apagar el think.
+
+    Ablacion sobre el prompt real del sintetizador, una variable por vez, con
+    grupo de control (2026-08-27):
+
+        qwen3:4b  como estaba        312,2 s   FALLO ReadTimeout
+        qwen3:4b  think=False         60,9 s   112 tokens    3 conclusiones  OK
+        qwen3:4b  num_predict=400    194,9 s   400 tokens    JSON TRUNCADO
+        llama3.2:3b (control)        132,0 s   174 tokens    4 conclusiones  OK
+
+    El tiempo NO se iba escribiendo JSON —son ~112 tokens— se iba razonando
+    antes. `maxItems` no lo alcanza porque el razonamiento no es parte del
+    array, y `num_predict` lo empeora: gasta 1.516 caracteres pensando, se
+    queda sin presupuesto y decapita la respuesta. Es el mismo hallazgo que
+    ya documenta el test de arriba, ahora medido contra un modelo que piensa.
+
+    Con `think=False`, `qwen3:4b` queda MAS rapido que `llama3.2:3b`, el
+    modelo con el que se midio el golden set.
+
+    Es seguro mandarlo siempre: `llama3.2:3b` —que no tiene la capacidad—
+    devuelve HTTP 200 en 5,9 s y lo ignora. Un flag que hay que acordarse de
+    poner solo para algunos modelos es uno que se olvida.
+    """
+    capturado: dict[str, Any] = {}
+
+    def _chat_falso(payload: dict[str, Any]) -> dict[str, Any]:
+        capturado.update(payload)
+        return {"message": {"content": "{}"}}
+
+    cliente = ClienteOllama()
+    monkeypatch.setattr(cliente, "_chat", _chat_falso)
+    cliente.estructurado("sistema", "usuario", ESQUEMA)
+
+    assert capturado["think"] is False
 
 
 def test_redactar_si_acota_los_tokens_de_salida(
