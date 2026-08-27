@@ -2,8 +2,9 @@
 
 Estos tests son distintos de todos los demás del proyecto: no verifican que el
 código haga lo que dice, sino que **el modelo entienda**. Son lentos (invocan
-`qwen3:4b` en CPU, sin razonamiento en voz alta — ver la revisión de ADR-003) y por eso están marcados `slow` y `llm`: no corren en cada
-commit, sino cuando se toca el prompt o se cambia de modelo.
+`qwen3:4b` en CPU, sin razonamiento en voz alta — ver la revisión de
+ADR-003) y por eso están marcados `slow` y `llm`: no corren en cada commit,
+sino cuando se toca el prompt o se cambia de modelo.
 
 Contexto: el spike inicial midió que el modelo clasificaba mal la intención en
 **3 de 3 casos**, siempre como `company_research`. El JSON era válido contra el

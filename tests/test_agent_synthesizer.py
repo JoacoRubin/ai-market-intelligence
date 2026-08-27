@@ -206,6 +206,39 @@ def test_estructurado_apaga_el_razonamiento_en_voz_alta(
     assert capturado["think"] is False
 
 
+def test_redactar_tambien_apaga_el_razonamiento(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El razonamiento entra en el presupuesto de `num_predict`, y lo vacia.
+
+    Se descubrio al adoptar qwen3:4b: `redactar` quedo fuera del alcance del
+    arreglo porque NINGUN nodo del grafo lo llama. Para el bug eso era cierto;
+    al cambiar el modelo por debajo dejo de serlo, y el test de contrato entre
+    adaptadores lo agarro:
+
+        AssertionError: ClienteOllama devolvio texto vacio
+
+    Con `num_predict=60` y el razonamiento prendido, el modelo gasta los 60
+    tokens pensando y `message.content` vuelve vacio — el texto se fue a
+    `message.thinking`, que este cliente no lee. No falla: devuelve nada.
+
+    La leccion es sobre el ALCANCE, no sobre el flag: acotar un arreglo a lo
+    que esta roto es correcto, y deja de serlo en cuanto se cambia una premisa
+    que el recorte daba por fija.
+    """
+    capturado: dict[str, Any] = {}
+
+    def _chat_falso(payload: dict[str, Any]) -> dict[str, Any]:
+        capturado.update(payload)
+        return {"message": {"content": "texto"}}
+
+    cliente = ClienteOllama()
+    monkeypatch.setattr(cliente, "_chat", _chat_falso)
+    cliente.redactar("sistema", "usuario")
+
+    assert capturado["think"] is False
+
+
 def test_redactar_si_acota_los_tokens_de_salida(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

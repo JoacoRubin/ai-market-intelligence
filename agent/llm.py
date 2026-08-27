@@ -133,6 +133,11 @@ class ClienteOllama:
                 {"role": "user", "content": usuario},
             ],
             "stream": False,
+            # Mismo motivo que en `estructurado`, con un sintoma distinto: acá
+            # el razonamiento consume `num_predict` y `message.content` vuelve
+            # VACIO —el texto se fue a `message.thinking`, que este cliente no
+            # lee— así que no falla, devuelve nada. Ver el test.
+            "think": False,
             "options": {"temperature": 0.3, "num_predict": max_tokens},
         })
         texto: str = respuesta.get("message", {}).get("content", "")
