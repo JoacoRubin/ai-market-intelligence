@@ -86,7 +86,13 @@ switch ($Tarea.ToLower()) {
 
     "setup" {
         Titulo "Instalando dependencias"
-        & $UV sync --extra seed --extra report --group dev
+        # --all-extras y no una lista a mano: la suite importa los seis
+        # extras (rag y ml en los tests de esos modulos, anthropic en
+        # test_agent_llm_anthropic, jobs en test_api_store_redis), asi que
+        # una lista parcial deja el repo en un estado donde `test` ni
+        # colecta. Es exactamente lo que corre el CI, y de eso se trata:
+        # una sola fuente de verdad para lo que el proyecto necesita.
+        & $UV sync --all-extras --group dev
     }
 
     "test" {
