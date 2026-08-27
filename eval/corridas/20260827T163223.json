@@ -1,0 +1,611 @@
+{
+  "generado_en": "2026-08-27T16:32:23",
+  "modelo_llm": "qwen3:4b",
+  "uso": null,
+  "commit": "b21e6ab",
+  "arbol_limpio": true,
+  "casos": [
+    {
+      "evento": {
+        "tipo": "pico_devoluciones",
+        "product_id": "P038",
+        "fecha": "2025-05-04"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 233833,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P038; el informe analiza ['P038']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P038:174', 'P038:27855']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_prov_012'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_devoluciones",
+        "product_id": "P012",
+        "fecha": "2025-05-19"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 137457,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P012; el informe analiza ['P012']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P012:25', 'P012:7441']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_prov_010'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P033",
+        "fecha": "2025-06-09"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 182764,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P033; el informe analiza ['P033']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P033:243', 'P033:27794']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_000', 'doc_promo_005'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P016",
+        "fecha": "2025-06-17"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 143683,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P016; el informe analiza ['P016']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P016:73', 'P016:6154']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_001'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "caida_ventas",
+        "product_id": "P010",
+        "fecha": "2025-06-25"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 177166,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P010; el informe analiza ['P010']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P010:153', 'P010:23312']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_ficha_P010', 'doc_stock_006'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_devoluciones",
+        "product_id": "P030",
+        "fecha": "2025-10-22"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 152644,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P030; el informe analiza ['P030']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P030:244', 'P030:54492']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_prov_009'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P031",
+        "fecha": "2025-10-23"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 140483,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P031; el informe analiza ['P031']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P031:154']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_004'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "caida_ventas",
+        "product_id": "P034",
+        "fecha": "2025-12-29"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 140292,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P034; el informe analiza ['P034']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P034:42', 'P034:5375']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_stock_008'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P007",
+        "fecha": "2025-12-30"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 112311,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P007; el informe analiza ['P007']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P007:115', 'P007:28422']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_003'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_devoluciones",
+        "product_id": "P002",
+        "fecha": "2026-03-08"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 156117,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P002; el informe analiza ['P002']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P002:86', 'P002:12801']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_prov_011'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P008",
+        "fecha": "2026-03-22"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 150411,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P008; el informe analiza ['P008']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P008:112', 'P008:28532']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_002'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "caida_ventas",
+        "product_id": "P006",
+        "fecha": "2026-03-24"
+      },
+      "consulta": "analisis",
+      "informe": true,
+      "duracion_ms": 145942,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P006; el informe analiza ['P006']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P006:106', 'P006:33131']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_stock_007'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": null,
+          "detalle": "el informe no reporta MAPE: no hay error que malinterpretar"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_devoluciones",
+        "product_id": "P038",
+        "fecha": "2025-05-04"
+      },
+      "consulta": "proyeccion",
+      "informe": true,
+      "duracion_ms": 167997,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P038; el informe analiza ['P038']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P038:174', 'P038:27855']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_prov_012'] de 1 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": true,
+          "detalle": "el MAPE se describe como error"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "pico_ventas",
+        "product_id": "P033",
+        "fecha": "2025-06-09"
+      },
+      "consulta": "proyeccion",
+      "informe": true,
+      "duracion_ms": 198485,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P033; el informe analiza ['P033']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P033:243', 'P033:27794']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_promo_000', 'doc_promo_005'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": true,
+          "detalle": "el MAPE se describe como error"
+        }
+      ]
+    },
+    {
+      "evento": {
+        "tipo": "caida_ventas",
+        "product_id": "P010",
+        "fecha": "2025-06-25"
+      },
+      "consulta": "proyeccion",
+      "informe": true,
+      "duracion_ms": 210626,
+      "hallazgos": [
+        {
+          "nombre": "analiza_el_producto_del_evento",
+          "cumple": true,
+          "detalle": "el evento es de P010; el informe analiza ['P010']"
+        },
+        {
+          "nombre": "atribuye_al_producto_correcto",
+          "cumple": null,
+          "detalle": "ninguna recomendación nombra un producto: nada que atribuir"
+        },
+        {
+          "nombre": "reporta_magnitudes_absolutas",
+          "cumple": true,
+          "detalle": "magnitudes absolutas presentes en el texto: ['P010:153', 'P010:23312']"
+        },
+        {
+          "nombre": "usa_la_evidencia_documental",
+          "cumple": true,
+          "detalle": "citó ['doc_ficha_P010', 'doc_stock_006'] de 2 disponible(s)"
+        },
+        {
+          "nombre": "no_invierte_el_sentido_del_error",
+          "cumple": true,
+          "detalle": "el MAPE se describe como error"
+        }
+      ]
+    }
+  ],
+  "metricas": [
+    {
+      "nombre": "analiza_el_producto_del_evento",
+      "valor": 1.0,
+      "cumplidos": 15,
+      "aplicables": 15,
+      "total": 15,
+      "umbral": 0.8,
+      "alcanza": true
+    },
+    {
+      "nombre": "atribuye_al_producto_correcto",
+      "valor": null,
+      "cumplidos": 0,
+      "aplicables": 0,
+      "total": 15,
+      "umbral": 0.9,
+      "alcanza": null
+    },
+    {
+      "nombre": "no_invierte_el_sentido_del_error",
+      "valor": 1.0,
+      "cumplidos": 3,
+      "aplicables": 3,
+      "total": 15,
+      "umbral": 0.9,
+      "alcanza": true
+    },
+    {
+      "nombre": "reporta_magnitudes_absolutas",
+      "valor": 1.0,
+      "cumplidos": 15,
+      "aplicables": 15,
+      "total": 15,
+      "umbral": 0.75,
+      "alcanza": true
+    },
+    {
+      "nombre": "usa_la_evidencia_documental",
+      "valor": 1.0,
+      "cumplidos": 15,
+      "aplicables": 15,
+      "total": 15,
+      "umbral": 0.9,
+      "alcanza": true
+    }
+  ]
+}
