@@ -63,6 +63,20 @@ FROM python:3.13-slim AS runtime
 # Se instala y se limpia en el MISMO RUN: si quedara en una capa aparte,
 # `apt-get clean` de una capa posterior no reduce el tamaño de la imagen —
 # las capas de Docker son aditivas, no se puede "restar" espacio ya escrito.
+#
+# `libgssapi-krb5-2` va EXPLÍCITA y no es redundante, aunque `curl` ya la
+# arrastre: msodbcsql18 la carga sin declararla como dependencia dura, así
+# que el `apt-get purge curl gnupg && autoremove` de abajo la borraba por
+# huérfana y dejaba el driver registrado pero inutilizable. Nombrarla en el
+# mismo `install` que el driver la marca como manual y autoremove la
+# respeta.
+#
+# Este bug NO se ve desde afuera y por eso vale la pena el comentario:
+# `pyodbc.drivers()` seguía listando "ODBC Driver 18 for SQL Server" (el
+# registro de unixODBC estaba intacto) y el error de conexión decía
+# "Can't open lib ... file not found" cuando el archivo SÍ existía — lo que
+# faltaba era una dependencia suya. Se diagnostica con:
+#   docker exec <container> ldd /opt/microsoft/msodbcsql18/lib64/libmsodbcsql-*.so* | grep 'not found'
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl gnupg \
     && curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
@@ -71,7 +85,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         https://packages.microsoft.com/debian/12/prod bookworm main" \
         > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
+    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
+        msodbcsql18 libgssapi-krb5-2 \
     && apt-get purge -y curl gnupg \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
@@ -108,11 +123,19 @@ ENV HF_HUB_OFFLINE=1 \
 
 EXPOSE 8000
 
-# El propio /health reporta el estado real de sus dependencias (SQL Server,
-# Ollama) — reusarlo acá es más honesto que un healthcheck que solo confirma
-# que el proceso de Python sigue vivo.
+# El propio /health reporta el estado real de sus dependencias — reusarlo
+# acá es más honesto que un healthcheck que solo confirma que el proceso de
+# Python sigue vivo.
+#
+# Pero NO alcanza con que responda: `/health` devuelve 200 con
+# `estado: "degradado"` cuando la base no está, porque la API sigue
+# sirviendo (esa degradación es deliberada, ver README). Un HEALTHCHECK que
+# solo mire el código HTTP marca "healthy" un container que no puede hacer
+# un solo análisis real — y `docker-up` daría verde sobre un sistema roto.
+# Medido, no supuesto: fue exactamente lo que pasó con el driver ODBC roto.
+# Por eso se exige `estado == "ok"`.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)" || exit 1
+    CMD python -c "import json,urllib.request,sys; d=json.load(urllib.request.urlopen('http://localhost:8000/health',timeout=3)); sys.exit(0 if d['estado']=='ok' else 1)" || exit 1
 
 # --host 0.0.0.0: sin esto uvicorn solo escucha en el loopback DEL CONTAINER,
 # que no es el loopback del host — el puerto publicado en compose nunca

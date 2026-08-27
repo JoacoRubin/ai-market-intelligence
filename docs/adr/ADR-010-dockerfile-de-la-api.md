@@ -59,6 +59,46 @@ lo necesita en runtime, no en build. Instalarlo y purgar `curl`/`gnupg` en el
 mismo `RUN` porque las capas de Docker son aditivas: limpiarlo en una capa
 posterior no reduce el tamaño ya escrito.
 
+## Lo que solo apareció corriéndolo
+
+Las tres cosas de abajo pasaron el build sin una sola queja y rompían el
+sistema en runtime. Van escritas porque ninguna se deduce leyendo el
+Dockerfile, y las tres se descubrieron levantando el stack de verdad.
+
+**1. Las variables de "cómo llegar a otro servicio" van FIJAS en el
+compose, no heredadas del `.env`.** Compose interpola `${VAR}` contra el
+`.env` del proyecto, así que `${OLLAMA_HOST:-http://host.docker.internal:11434}`
+nunca usa ese default: toma el `localhost` del `.env` — que adentro del
+container es el container mismo. Un default que parece red de seguridad y
+es exactamente lo contrario. Las credenciales sí vienen del `.env` vía
+`env_file`: esas no cambian según dónde corra el proceso.
+
+**2. La variable de conexión es `MSSQL_SERVER`, no `MSSQL_DSN`.**
+`core/db.py` arma la cadena a mano en `_cadena()` a partir de
+`MSSQL_SERVER`, `MSSQL_DB` y las credenciales. `MSSQL_DSN` figura en
+`env.example` desde antes de este ADR y **no la lee ningún código** —
+setearla en el compose fue seguir una pista falsa. Vale la pena limpiarla
+de `env.example` o hacer que el código la use; hoy es una variable
+documentada que no hace nada.
+
+**3. `libgssapi-krb5-2` tiene que instalarse explícitamente.** Entra como
+dependencia de `curl`, y el `apt-get purge curl gnupg && autoremove` la
+borraba por huérfana porque `msodbcsql18` no la declara como dependencia
+dura. El síntoma es engañoso a propósito: `pyodbc.drivers()` **seguía
+listando** el driver (el registro de unixODBC quedaba intacto) y el error
+de conexión decía `Can't open lib ... file not found` sobre un archivo que
+**sí existía** — lo que faltaba era una dependencia suya. Se diagnostica
+con `ldd <la .so> | grep 'not found'`, no leyendo el Dockerfile.
+
+**Y el healthcheck mentía.** `/health` devuelve 200 con
+`estado: "degradado"` cuando la base no responde, porque la API sigue
+sirviendo (degradación deliberada). Un `HEALTHCHECK` que solo mirara el
+código HTTP marcaba **healthy** un container con el driver ODBC roto, y
+`docker-up` daba verde sobre un sistema que no podía hacer un solo
+análisis. Ahora exige `estado == "ok"`. Es la misma lección que ADR-003 ya
+tiene escrita sobre la medición: **el instrumento miente antes que el
+sistema.**
+
 ## Alternativas consideradas
 
 | Alternativa | Por qué se descartó |

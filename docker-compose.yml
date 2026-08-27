@@ -34,19 +34,28 @@ services:
     container_name: ami-api
     env_file:
       - .env
+    # OJO — estas tres van con valor FIJO y NO con ${VAR:-default}.
+    #
+    # Compose interpola ${VAR} contra el .env del proyecto, así que un
+    # `${OLLAMA_HOST:-http://host.docker.internal:11434}` NUNCA usa ese
+    # default: toma el `http://localhost:11434` del .env, que adentro del
+    # container apunta al container mismo. El default parece una red de
+    # seguridad y es exactamente lo contrario.
+    #
+    # La regla, entonces: las variables que describen CÓMO LLEGAR a otro
+    # servicio valen distinto adentro y afuera de Docker. El .env describe
+    # correr la API a mano (localhost); el compose las pisa acá. Las
+    # credenciales sí vienen del .env vía env_file — esas no cambian.
     environment:
-      # Server=sqlserver y no localhost: dentro de la red de compose el
-      # nombre del SERVICIO es el hostname. env.example trae localhost porque
-      # ahí describe correr la API a mano, fuera de Docker.
-      MSSQL_DSN: >-
-        Driver={ODBC Driver 18 for SQL Server};Server=sqlserver,1433;
-        Database=${MSSQL_DB:-ami};UID=${MSSQL_APP_USER:-ami_reader};
-        PWD=${MSSQL_APP_PASSWORD};TrustServerCertificate=yes
+      # `sqlserver` es el nombre del SERVICIO: dentro de la red de compose
+      # ese es el hostname. Y es MSSQL_SERVER, no MSSQL_DSN — core/db.py
+      # arma la cadena de conexión a mano en `_cadena()` y lee esta.
+      # (MSSQL_DSN figura en env.example pero no la lee nadie en el código.)
+      MSSQL_SERVER: sqlserver,1433
       # Ollama NO entra a este compose (ver README y ADR-010): es un
-      # requisito de la máquina host, no un servicio del sistema. Dentro del
-      # container, "localhost" es el container mismo — host.docker.internal
-      # es cómo Docker Desktop expone el host en Windows/Mac.
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # requisito de la máquina host, no un servicio del sistema.
+      # host.docker.internal es cómo Docker expone el host al container.
+      OLLAMA_HOST: http://host.docker.internal:11434
     extra_hosts:
       # No-op en Docker Desktop (ya resuelve host.docker.internal solo).
       # Necesario en Linux nativo para que el mismo compose ande igual ahí.
