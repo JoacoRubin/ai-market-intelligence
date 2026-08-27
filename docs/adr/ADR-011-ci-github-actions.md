@@ -21,6 +21,11 @@ y en cada PR contra `master`.
   `services:` del job es una extensión real y queda pendiente — no se
   armó acá porque agrega un healthcheck, un `db-init` completo y minutos
   de más al pipeline, y no era el alcance de esta pieza.
+
+  > **Redis sí entró** como `services:` al sumarse la cola de trabajos
+  > (ADR-012), y la diferencia con SQL Server es la que justifica el
+  > tratamiento distinto: la imagen de Redis levanta en segundos y no
+  > necesita esquema ni datos sembrados para que un test sea significativo.
 - **Tests marcados `llm`** (invocan el modelo real). Ya vienen excluidos
   por default en `pyproject.toml` (`addopts = "... -m 'not llm'"`) — el
   propio proyecto ya decidió que esos no corren "en cada commit, sino

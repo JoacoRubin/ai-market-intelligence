@@ -29,9 +29,7 @@ from typing import TYPE_CHECKING
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
-from agent.graph import ejecutar as ejecutar_grafo
 from agent.llm import ClienteLLM, crear_cliente
-from agent.state import AnalysisState, Intencion, Periodo
 from apps.api.schemas import (
     Analisis,
     EstadoAnalisis,
@@ -42,9 +40,9 @@ from apps.api.schemas import (
     SolicitudAnalisis,
 )
 from apps.api.store import almacen
+from apps.jobs.cola import despachar
 from core.db import cursor_lectura, hay_base_disponible
 from core.report_pdf import render_pdf
-from rag.build import cargar_indice
 
 if TYPE_CHECKING:
     # Solo para anotar. En runtime `core.kpis` se importa dentro del endpoint,
@@ -173,55 +171,10 @@ def obtener_cliente_llm() -> ClienteLLM:
     return crear_cliente()
 
 
-def _estado_inicial(registro: Analisis) -> AnalysisState:
-    """Construye el estado del grafo según cómo llegó la solicitud.
-
-    Cuando vienen identificadores y rango, la interpretación ya está hecha: se
-    precarga el estado y el router se saltea solo. Cuando viene lenguaje
-    natural, el estado arranca vacío y el agente interpreta.
-    """
-    estado = AnalysisState(request_id=registro.id, consulta=registro.consulta)
-
-    if registro.product_ids and registro.desde and registro.hasta:
-        estado.intencion = Intencion.PRODUCT_PERFORMANCE
-        estado.entidades = list(registro.product_ids)
-        estado.periodo = Periodo(desde=registro.desde, hasta=registro.hasta)
-
-    return estado
-
-
-def _procesar(analysis_id: str, cliente: ClienteLLM) -> None:
-    """Ejecuta el grafo del agente y actualiza el recurso.
-
-    Corre como tarea de fondo. Con el modelo real esto tarda cerca de dos
-    minutos en esta máquina — que es exactamente el motivo por el que el POST
-    responde 202 desde el principio y no hubo que cambiar el contrato al
-    conectar el agente.
-    """
-    registro = almacen.obtener(analysis_id)
-    if registro is None:
-        return
-
-    registro.estado = EstadoAnalisis.PROCESANDO
-    almacen.guardar(registro)
-
-    try:
-        estado = ejecutar_grafo(_estado_inicial(registro), cliente,
-                                indice=cargar_indice())
-
-        registro.informe = estado.informe
-        registro.intencion = estado.intencion.value if estado.intencion else None
-        registro.product_ids = estado.entidades
-        if estado.periodo:
-            registro.desde = estado.periodo.desde
-            registro.hasta = estado.periodo.hasta
-        registro.etapas = [p.nodo for p in estado.trace]
-        registro.advertencias = list(estado.advertencias)
-        registro.estado = EstadoAnalisis.COMPLETADO
-    except Exception as e:  # el fallo viaja en el recurso, no revienta la API
-        registro.estado = EstadoAnalisis.FALLIDO
-        registro.error = f"{type(e).__name__}: {e}"
-    almacen.guardar(registro)
+# `estado_inicial` y `procesar_analisis` vivían acá y se mudaron a
+# `apps/jobs/tareas.py` al entrar el worker (ADR-012): un proceso que solo
+# ejecuta análisis no tiene por qué importar FastAPI y los handlers para
+# hacerlo. Lo que queda en este módulo es lo que atiende HTTP.
 
 
 @app.post("/analyses", response_model=Analisis, status_code=202, tags=["análisis"])
@@ -267,7 +220,11 @@ def crear_analisis(
         hasta=solicitud.hasta,
     )
     almacen.guardar(registro)
-    tareas.add_task(_procesar, analysis_id, cliente)
+    # Dónde corre el análisis lo decide `despachar` según JOBS_BACKEND: en
+    # este mismo proceso o en un worker aparte (ADR-012). El handler no lo
+    # sabe, que es el punto — el contrato de la respuesta es el mismo 202 en
+    # los dos casos.
+    despachar(analysis_id, tareas, cliente, almacen)
 
     respuesta.headers["Location"] = f"/analyses/{analysis_id}"
     return registro

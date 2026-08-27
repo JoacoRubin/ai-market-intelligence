@@ -56,6 +56,11 @@ services:
       # requisito de la máquina host, no un servicio del sistema.
       # host.docker.internal es cómo Docker expone el host al container.
       OLLAMA_HOST: http://host.docker.internal:11434
+      # Adentro de Docker el análisis va a la cola y lo consume el worker
+      # (ADR-012). El default del código sigue siendo `memoria`, que es lo
+      # que corre cuando se levanta la API a mano con tasks.ps1.
+      JOBS_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
     extra_hosts:
       # No-op en Docker Desktop (ya resuelve host.docker.internal solo).
       # Necesario en Linux nativo para que el mismo compose ande igual ahí.
@@ -72,9 +77,87 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: ami-redis
+    # appendonly yes: la cola sobrevive a un reinicio del contenedor. Sin
+    # esto, Redis guarda solo snapshots periódicos y un reinicio en el
+    # momento equivocado pierde justo los jobs encolados — que es
+    # exactamente el agujero que este servicio vino a tapar.
+    command: redis-server --appendonly yes
+    ports:
+      # Publicado por el mismo motivo que el 1433 de SQL Server: los tests
+      # marcados `redis` corren FUERA de Docker, contra el venv local, y sin
+      # el puerto expuesto se saltearían siempre — un test que nunca corre
+      # da la misma señal que uno que no existe.
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ami-worker
+    # Misma imagen que la API, distinto comando. No hay un Dockerfile
+    # aparte a propósito: worker y API comparten TODO el código —el grafo,
+    # las tools, el almacén— y dos imágenes que tienen que quedar en sincro
+    # es una que en algún momento no lo está.
+    command: ["python", "-m", "apps.jobs.worker"]
+    env_file:
+      - .env
+    environment:
+      MSSQL_SERVER: sqlserver,1433
+      OLLAMA_HOST: http://host.docker.internal:11434
+      JOBS_BACKEND: redis
+      REDIS_URL: redis://redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Los MISMOS volúmenes que la API: el worker es quien corre el grafo,
+      # así que es el que necesita el índice FAISS y el modelo de embeddings.
+      - indice_data:/app/data/indice
+      - hf_cache:/root/.cache/huggingface
+    # El HEALTHCHECK de la imagen le pega a http://localhost:8000/health, y
+    # este contenedor NO sirve HTTP: heredarlo lo dejaría `unhealthy` para
+    # siempre. Se reemplaza por la pregunta que sí tiene sentido acá —
+    # ¿este worker está registrado y vivo para RQ?—, que es lo que Redis ya
+    # sabe por el heartbeat que el worker manda solo.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import sys
+          from rq import Worker
+          from apps.api.store_redis import _cliente
+          c = _cliente(decodificar=False)
+          sys.exit(0 if Worker.all(connection=c) else 1)
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   sqlserver_data:
   indice_data:
   hf_cache:
+  redis_data:

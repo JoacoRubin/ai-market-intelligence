@@ -14,6 +14,23 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Redis sí entra al pipeline y SQL Server no, y la diferencia no es
+    # arbitraria: esta imagen levanta en segundos y no necesita esquema ni
+    # datos sembrados, así que los tests marcados `redis` corren de verdad
+    # en vez de saltearse. SQL Server pediría healthcheck, `db-init` y el
+    # seed completo — eso sigue pendiente (ADR-011).
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 

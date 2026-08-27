@@ -37,10 +37,12 @@ COPY pyproject.toml uv.lock ./
 # en pytest).
 #
 # Extras runtime: rag (FAISS + embeddings, lo que necesita cada consulta),
-# ml (forecast), report (el PDF de /analyses/{id}.pdf). `seed` queda AFUERA:
-# genera datos sintéticos para desarrollo, la API en runtime no lo toca.
+# ml (forecast), report (el PDF de /analyses/{id}.pdf) y jobs (la cola y el
+# almacén compartido — los usan tanto la API como el worker, que corren
+# desde esta misma imagen). `seed` queda AFUERA: genera datos sintéticos
+# para desarrollo, el runtime no lo toca.
 RUN uv sync --frozen --no-dev --no-install-project \
-    --extra rag --extra ml --extra report
+    --extra rag --extra ml --extra report --extra jobs
 
 # ---- Etapa final: la que sirve tráfico --------------------------------------
 FROM python:3.13-slim AS runtime

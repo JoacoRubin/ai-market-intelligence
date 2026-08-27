@@ -70,9 +70,14 @@ switch ($Tarea.ToLower()) {
         Write-Host "  db-shell   Abre una consola sqlcmd contra la base"
         Write-Host ""
         Write-Host "  docker-build   Buildea la imagen de la API (Dockerfile)"
-        Write-Host "  docker-up      Levanta SQL Server + API containerizada"
+        Write-Host "  docker-up      Levanta SQL Server + Redis + API + worker"
         Write-Host "  docker-logs    Sigue los logs de la API containerizada"
         Write-Host "  docker-down    Detiene todo el stack de Docker"
+        Write-Host ""
+        Write-Host "  redis-up       Solo Redis (para correr los tests marcados 'redis')"
+        Write-Host "  worker         Corre el worker de analisis en esta consola"
+        Write-Host "  worker-logs    Sigue los logs del worker containerizado"
+        Write-Host "  cola           Cuantos trabajos hay encolados y en curso"
         Write-Host ""
         Write-Host "  dataset    Muestra un resumen del dataset generado (sin base)"
         Write-Host "  pdf        Genera un informe PDF de ejemplo y lo abre"
@@ -181,6 +186,45 @@ switch ($Tarea.ToLower()) {
 
     "docker-logs" {
         docker compose logs -f api
+    }
+
+    "redis-up" {
+        Titulo "Levantando Redis"
+        docker compose up -d redis
+        Write-Host "  Los tests marcados 'redis' ya no se saltean." -ForegroundColor Green
+    }
+
+    "worker" {
+        Titulo "Worker de analisis (Ctrl+C para detener)"
+        # JOBS_BACKEND=redis solo para ESTA consola: el worker no tiene
+        # sentido en el modo memoria, donde el analisis corre dentro de la
+        # API. Setearlo aca evita tener que tocar el .env para probarlo.
+        $env:JOBS_BACKEND = "redis"
+        Write-Host "  Requiere Redis levantado (.\tasks.ps1 redis-up)" -ForegroundColor Yellow
+        Write-Host ""
+        & $UV run python -m apps.jobs.worker
+    }
+
+    "worker-logs" {
+        docker compose logs -f worker
+    }
+
+    "cola" {
+        Titulo "Estado de la cola de analisis"
+        $env:JOBS_BACKEND = "redis"
+        & $UV run python -c @"
+from apps.api.store_redis import hay_redis_disponible, REDIS_URL
+if not hay_redis_disponible():
+    print(f'  Redis no responde en {REDIS_URL}')
+    raise SystemExit(1)
+from apps.jobs.cola import obtener_cola
+c = obtener_cola()
+print(f'  cola          {c.name}')
+print(f'  encolados     {len(c)}')
+print(f'  en curso      {c.started_job_registry.count}')
+print(f'  fallidos      {c.failed_job_registry.count}')
+print(f'  terminados    {c.finished_job_registry.count}')
+"@
     }
 
     "docker-down" {

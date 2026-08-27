@@ -64,6 +64,19 @@ report = [
 anthropic = [
     "anthropic>=0.75",
 ]
+# Fase 6 — cola de trabajos y almacén compartido entre procesos (ADR-012).
+# Opcional a propósito: con JOBS_BACKEND=memoria (default) el sistema corre
+# entero sin Redis, que es lo que mantiene la suite sin infraestructura y el
+# repo levantable con pocos comandos.
+#
+# RQ y no Celery: el código de este proyecto es síncrono y `ejecutar_grafo`
+# también. Celery traería broker abstracto, result backend y serializers para
+# resolver lo mismo — es el criterio de ADR-001, la arquitectura justifica el
+# framework y no al revés.
+jobs = [
+    "redis>=5.2",
+    "rq>=2.6",
+]
 
 [dependency-groups]
 dev = [
@@ -92,6 +105,7 @@ markers = [
     "eval: corren contra el golden set",
     "llm: invocan al modelo de lenguaje real (lentos: minutos en CPU)",
     "rag: cargan el modelo de embeddings y calculan vectores (~20s)",
+    "redis: requieren un Redis levantado (docker compose up -d redis)",
 ]
 
 [tool.ruff]

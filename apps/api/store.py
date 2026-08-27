@@ -1,26 +1,55 @@
 """Almacenamiento de análisis.
 
-PROVISORIO: guarda en memoria del proceso. Los análisis se pierden al reiniciar
-y no se comparten entre workers.
+Hay dos implementaciones del mismo puerto y `crear_almacen()` elige entre
+ellas con `JOBS_BACKEND` — la misma forma que ya usa `crear_cliente()` para
+el modelo (ADR-007):
 
-Alcanza para la Fase 1 porque el análisis tarda milisegundos y hay un solo
-proceso. Cuando entre el LLM —dos minutos por informe en esta máquina— hará
-falta un backend real con Redis y un worker aparte (Fase 6 del roadmap).
+    JOBS_BACKEND=memoria  → AlmacenAnalisis  (default, este archivo)
+    JOBS_BACKEND=redis    → AlmacenRedis     (apps/api/store_redis.py)
 
-Está detrás de una interfaz mínima justamente para que ese cambio sea sustituir
-esta clase y nada más. Lo que NO hay que hacer es esparcir accesos a un dict
-global por los handlers: eso convierte un reemplazo de veinte líneas en una
-refactorización.
+`AlmacenAnalisis` guarda en memoria del proceso: los análisis se pierden al
+reiniciar y no se comparten entre procesos. Eso alcanzaba mientras el
+análisis corría dentro de la misma API, y **deja de alcanzar en cuanto hay un
+worker aparte** (ADR-012): el proceso que escribe el resultado ya no es el que
+atiende el GET.
+
+Sigue siendo el default igual, y no es por inercia: sin Redis el sistema tiene
+que seguir levantándose con pocos comandos, y la suite no puede exigir
+infraestructura para correr.
+
+La nota original de este archivo pedía que el reemplazo fuera "sustituir esta
+clase y nada más". Se cumplió: `AlmacenRedis` implementa los mismos cinco
+métodos y ningún handler cambió.
 """
 
 from __future__ import annotations
 
+import os
 import threading
 from collections import OrderedDict
+from typing import Protocol, runtime_checkable
 
 from apps.api.schemas import Analisis
 
 MAX_ANALISIS_EN_MEMORIA = 200
+
+
+@runtime_checkable
+class Almacen(Protocol):
+    """Lo que la API necesita de un almacén de análisis.
+
+    Existe para que `main.py` no dependa de CUÁL de las dos
+    implementaciones está corriendo. Es el mismo criterio que `ClienteLLM`:
+    un puerto chico, definido por lo que el consumidor usa.
+    """
+
+    def guardar(self, analisis: Analisis) -> None: ...
+    def obtener(self, id_: str) -> Analisis | None: ...
+    def listar(
+        self, limite: int = 50, offset: int = 0
+    ) -> tuple[int, list[Analisis]]: ...
+    def eliminar(self, id_: str) -> bool: ...
+    def limpiar(self) -> None: ...
 
 
 class AlmacenAnalisis:
@@ -61,4 +90,31 @@ class AlmacenAnalisis:
             self._datos.clear()
 
 
-almacen = AlmacenAnalisis()
+def crear_almacen() -> Almacen:
+    """Construye el almacén según `JOBS_BACKEND`. Único lugar que elige.
+
+    Que la decisión viva acá es lo que permite que los handlers no sepan
+    cuál está corriendo — el mismo motivo por el que existe
+    `crear_cliente()` para el modelo.
+
+    Un valor desconocido **falla al construir** en vez de caer al default: un
+    `JOBS_BACKEND=redis_` con un typo que cayera silenciosamente a memoria
+    daría un sistema que parece distribuido y no lo es, y los análisis se
+    perderían al reiniciar sin que nadie entienda por qué.
+    """
+    backend = os.getenv("JOBS_BACKEND", "memoria").strip().lower()
+    if backend == "memoria":
+        return AlmacenAnalisis()
+    if backend == "redis":
+        # Import diferido: `redis` es una dependencia opcional (grupo `jobs`)
+        # y el camino por default no tiene por qué exigir que esté instalada.
+        from apps.api.store_redis import AlmacenRedis
+
+        return AlmacenRedis()
+    raise ValueError(
+        f"JOBS_BACKEND={backend!r} no existe. Valores válidos: "
+        f"'memoria', 'redis'."
+    )
+
+
+almacen: Almacen = crear_almacen()
