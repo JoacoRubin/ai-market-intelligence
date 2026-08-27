@@ -35,6 +35,7 @@ from agent.graph import analizar
 from agent.llm import ClienteOllama
 from core.db import hay_base_disponible
 from core.report import Report
+from eval.checkpoint import CHECKPOINTS, cargar, clave_de_caso, descartar, guardar_caso
 from eval.ground_truth import (
     casos_de_evaluacion,
     consulta_con_proyeccion,
@@ -153,6 +154,19 @@ def corridas(cliente: ClienteOllama, procedencia_inicial: dict[str, Any]) -> lis
     from rag.build import cargar_indice
     indice = cargar_indice()
 
+    # Reanudacion (punto 6 de la metodologia de ADR-003). SOLO sobre arbol
+    # limpio: con cambios sin commitear el commit NO identifica el codigo, asi
+    # que dos estados distintos compartirian checkpoint y una sola tabla de
+    # metricas describiria dos sistemas. Es el mismo error que este proyecto ya
+    # pago con el modelo divergente entre local y Docker.
+    commit = str(procedencia_inicial["commit"])
+    reanudable = bool(procedencia_inicial["arbol_limpio"])
+    previos = cargar(CHECKPOINTS, commit, cliente.nombre) if reanudable else {}
+    if previos:
+        print(f"  reanudando: {len(previos)} caso(s) ya corridos en este commit",
+              flush=True)
+    elif not reanudable:
+        print("  arbol sucio: la corrida no se guarda ni se reanuda", flush=True)
     resultados: list[Corrida] = []
     for i, (evento, clase, consulta) in enumerate(casos, 1):
         # El progreso se imprime porque cada caso tarda más de un minuto. Diez
@@ -160,6 +174,13 @@ def corridas(cliente: ClienteOllama, procedencia_inicial: dict[str, Any]) -> lis
         # reacción natural es cortarlo.
         print(f"  [{i}/{len(casos)}] {evento.tipo:<20} {evento.product_id} "
               f"{evento.fecha}  {clase}", flush=True)
+        guardado = previos.get(clave_de_caso(evento, clase))
+        if guardado is not None:
+            print("        (del checkpoint)", flush=True)
+            resultados.append((guardado.evento, guardado.clase,
+                               guardado.informe, guardado.hallazgos))
+            continue
+
         arranque = time.perf_counter()
 
         estado = analizar(
@@ -169,13 +190,15 @@ def corridas(cliente: ClienteOllama, procedencia_inicial: dict[str, Any]) -> lis
         )
         print(f"        {time.perf_counter() - arranque:>6.1f}s", flush=True)
 
-        if estado.informe is None:
-            # Sin informe no hay nada que medir, y contarlo como aprobado
-            # inflaría todas las métricas. Se registra el hueco.
-            resultados.append((evento, clase, None, []))
-            continue
-        resultados.append(
-            (evento, clase, estado.informe, evaluar(estado.informe, evento)))
+        hallazgos = ([] if estado.informe is None
+                     else evaluar(estado.informe, evento))
+        # Sin informe no hay nada que medir, y contarlo como aprobado inflaria
+        # todas las metricas. El hueco se registra —y se guarda en el
+        # checkpoint— para que la reanudacion no lo haga desaparecer.
+        resultados.append((evento, clase, estado.informe, hallazgos))
+        if reanudable:
+            guardar_caso(CHECKPOINTS, commit, cliente.nombre, evento, clase,
+                         estado.informe, hallazgos)
 
     return resultados
 
@@ -186,7 +209,8 @@ def _rotulo(cumple: bool | None) -> str:
 
 
 @pytest.fixture(scope="module")
-def resumen(corridas: list[Corrida], procedencia_inicial: dict[str, Any]) -> dict[str, Proporcion]:
+def resumen(corridas: list[Corrida], cliente: ClienteOllama,
+            procedencia_inicial: dict[str, Any]) -> dict[str, Proporcion]:
     logrados = [h for *_, informe, h in corridas if informe is not None]
 
     print("\n" + "=" * 78)
@@ -223,6 +247,12 @@ def resumen(corridas: list[Corrida], procedencia_inicial: dict[str, Any]) -> dic
         generado_en=datetime.now(), procedencia_inicial=procedencia_inicial,
     ))
     print(f"  corrida registrada en {archivo}\n")
+
+    # El parcial ya cumplio: el registro definitivo esta escrito. Dejarlo haria
+    # que la proxima corrida de este commit devolviera estos numeros sin
+    # invocar al modelo, y una re-medicion deliberada seria una copia.
+    descartar(CHECKPOINTS, str(procedencia_inicial["commit"]),
+              cliente.nombre)
 
     return proporciones
 

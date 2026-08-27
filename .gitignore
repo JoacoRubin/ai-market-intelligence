@@ -45,3 +45,6 @@ desktop.ini
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Parciales del eval: el resultado que vale es el de eval/corridas/.
+eval/checkpoints/
