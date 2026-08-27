@@ -18,6 +18,12 @@ se elige con `LLM_BACKEND`.
 Lo que este archivo NO hace es meter LangChain adentro del grafo. La
 orquestación es de LangGraph y las decisiones son de los nodos (ver ADR-001).
 Acá abajo solo se traduce una llamada.
+
+**Por qué acá no hay `@traceable` (ver ADR-009).** `ClienteOllama` y
+`ClienteAnthropic` lo necesitan porque hablan por fuera de LangChain, y sin
+eso LangSmith solo vería la caja negra del nodo. Este adaptador YA pasa por
+`ChatOllama`, que emite sus propios callbacks de tracing — agregar el
+decorador encima duplicaría el span, no lo mejoraría.
 """
 
 from __future__ import annotations

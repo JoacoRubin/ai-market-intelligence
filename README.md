@@ -114,6 +114,7 @@ Lo que corre hoy:
 | Evaluación | Harness propio: 15 casos contra ground truth, cinco métricas determinísticas, sin LLM-as-a-judge |
 | ML | scikit-learn |
 | Tracking de experimentos | MLflow |
+| Observability del agente | LangSmith ([ADR-009](docs/adr/ADR-009-observability-langsmith.md)), **opcional y apagado por default** |
 | Base de datos containerizada | Docker Compose |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
 
@@ -155,6 +156,13 @@ demo de portfolio que deja de funcionar no sirve de nada.
 > cuesta sin techo. El camino por defecto sigue siendo local y gratis; el
 > proveedor pago se usa para comparar, no para funcionar. Ver
 > [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md).
+
+> **La única excepción real es LangSmith** (`LANGSMITH_TRACING`, default
+> `false`). Es un SaaS y su free tier pide tarjeta pasadas las 5.000
+> trazas/mes — no es "gratis" en el mismo sentido que Ollama. Se aceptó igual
+> porque, apagado, el agente no sabe que existe: cero import ejecutado, cero
+> tráfico, cero riesgo para la demo. Ver
+> [ADR-009](docs/adr/ADR-009-observability-langsmith.md).
 
 **Hardware de referencia.** Todo el diseño asume inferencia CPU-only sobre un
 i7-1255U sin GPU dedicada. Esto no es un detalle: define el presupuesto de
@@ -334,6 +342,7 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md) | Por qué el proyecto no se despliega en AWS |
 | [ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md) | Dos adaptadores para el puerto del LLM, y hasta dónde llega LangChain |
 | [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md) | Un tercer adaptador y la medición de costo por consulta |
+| [ADR-009](docs/adr/ADR-009-observability-langsmith.md) | Observability con LangSmith, y la excepción al costo cero |
 
 > Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
 > Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué

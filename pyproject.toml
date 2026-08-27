@@ -22,6 +22,12 @@ dependencies = [
     # deja abierta la salida a otros proveedores sin tocar los nodos.
     "langchain>=1.3",
     "langchain-ollama>=1.0",
+    # Observability del agente (ADR-009). Ya viajaba transitiva de
+    # langchain-core sin que nada la usara — lo mismo que ADR-007 corrigió con
+    # langchain antes de este ADR. Se declara porque ahora `@traceable`
+    # instrumenta los tres adaptadores de ClienteLLM. Sin LANGSMITH_TRACING=true
+    # el decorador es no-op: no pega a la red, no rompe tests, no cuesta nada.
+    "langsmith>=0.10",
 ]
 
 [project.optional-dependencies]

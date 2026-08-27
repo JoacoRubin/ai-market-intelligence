@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
+from langsmith import traceable
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
@@ -75,6 +76,13 @@ class ClienteOllama:
         cuerpo: dict[str, Any] = r.json()
         return cuerpo
 
+    # run_type="llm" es lo que hace que LangSmith dibuje esto como una llamada
+    # a modelo (con su ícono propio) y no como una función genérica. Es el
+    # ÚNICO de los tres adaptadores que necesita el decorador para tener
+    # visibilidad granular: ClienteLangChain ya la saca gratis de los
+    # callbacks de ChatOllama (ver ADR-009). Sin LANGSMITH_TRACING=true esto
+    # es no-op — no pega a la red, no cambia lo que mide el golden set.
+    @traceable(run_type="llm", name="ClienteOllama.estructurado")
     def estructurado(
         self, sistema: str, usuario: str, esquema: dict[str, Any]
     ) -> dict[str, Any]:
@@ -103,6 +111,7 @@ class ClienteOllama:
             )
         return datos
 
+    @traceable(run_type="llm", name="ClienteOllama.redactar")
     def redactar(self, sistema: str, usuario: str, max_tokens: int = 700) -> str:
         respuesta = self._chat({
             "model": self.nombre,

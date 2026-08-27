@@ -31,6 +31,8 @@ import json
 import os
 from typing import Any, Literal, cast
 
+from langsmith import traceable
+
 from agent.llm import Uso
 
 # Opus 5 es el modelo de referencia. Que sea el más caro es deliberado: fija el
@@ -110,6 +112,14 @@ class ClienteAnthropic:
 
     # --- El puerto -----------------------------------------------------------
 
+    # Mismo motivo que en ClienteOllama (ver ADR-009): este adaptador usa el
+    # SDK nativo de Anthropic, no ChatAnthropic de LangChain, así que no hay
+    # callbacks de por medio que lo tracen gratis. `metadata` fijo porque
+    # `self.nombre`/`self._esfuerzo` varían por instancia y no por llamada —
+    # el reporte de tokens real (`Uso`) ya lo expone `uso()`, que es lo que
+    # usa `eval/costo.py`; duplicarlo acá sería otra fuente de verdad para el
+    # mismo número.
+    @traceable(run_type="llm", name="ClienteAnthropic.estructurado")
     def estructurado(
         self, sistema: str, usuario: str, esquema: dict[str, Any]
     ) -> dict[str, Any]:
@@ -134,6 +144,7 @@ class ClienteAnthropic:
             )
         return cast(dict[str, Any], datos)
 
+    @traceable(run_type="llm", name="ClienteAnthropic.redactar")
     def redactar(self, sistema: str, usuario: str, max_tokens: int = 700) -> str:
         respuesta = self._crear(
             sistema,
