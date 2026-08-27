@@ -27,5 +27,45 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ami-api
+    env_file:
+      - .env
+    environment:
+      # Server=sqlserver y no localhost: dentro de la red de compose el
+      # nombre del SERVICIO es el hostname. env.example trae localhost porque
+      # ahí describe correr la API a mano, fuera de Docker.
+      MSSQL_DSN: >-
+        Driver={ODBC Driver 18 for SQL Server};Server=sqlserver,1433;
+        Database=${MSSQL_DB:-ami};UID=${MSSQL_APP_USER:-ami_reader};
+        PWD=${MSSQL_APP_PASSWORD};TrustServerCertificate=yes
+      # Ollama NO entra a este compose (ver README y ADR-010): es un
+      # requisito de la máquina host, no un servicio del sistema. Dentro del
+      # container, "localhost" es el container mismo — host.docker.internal
+      # es cómo Docker Desktop expone el host en Windows/Mac.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      # No-op en Docker Desktop (ya resuelve host.docker.internal solo).
+      # Necesario en Linux nativo para que el mismo compose ande igual ahí.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    volumes:
+      # El índice FAISS y la caché de embeddings de HuggingFace NO viajan en
+      # la imagen (ver Dockerfile): son datos generados, no código. Sin este
+      # volumen, cargar_indice() devuelve None y el agente degrada solo a
+      # análisis sin evidencia documental — no hace falta nada más acá.
+      - indice_data:/app/data/indice
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   sqlserver_data:
+  indice_data:
+  hf_cache:

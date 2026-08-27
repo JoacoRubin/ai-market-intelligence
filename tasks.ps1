@@ -69,6 +69,11 @@ switch ($Tarea.ToLower()) {
         Write-Host "  seed       Genera y carga el dataset sintético"
         Write-Host "  db-shell   Abre una consola sqlcmd contra la base"
         Write-Host ""
+        Write-Host "  docker-build   Buildea la imagen de la API (Dockerfile)"
+        Write-Host "  docker-up      Levanta SQL Server + API containerizada"
+        Write-Host "  docker-logs    Sigue los logs de la API containerizada"
+        Write-Host "  docker-down    Detiene todo el stack de Docker"
+        Write-Host ""
         Write-Host "  dataset    Muestra un resumen del dataset generado (sin base)"
         Write-Host "  pdf        Genera un informe PDF de ejemplo y lo abre"
         Write-Host "  demo       Demostración de los guardrails de seguridad"
@@ -140,6 +145,41 @@ switch ($Tarea.ToLower()) {
         Titulo "Consola sqlcmd (escribí 'exit' para salir)"
         docker exec -it ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
             -S localhost -U sa -P 'Dev_Local_2026!' -C -d ami
+    }
+
+    "docker-build" {
+        Titulo "Buildeando la imagen de la API"
+        docker compose build api
+    }
+
+    "docker-up" {
+        if (-not (Test-Path (Join-Path $RAIZ ".env"))) {
+            Write-Host "  Falta .env — copiá env.example y completá las credenciales." -ForegroundColor Red
+            exit 1
+        }
+        Titulo "Levantando SQL Server + API containerizada"
+        docker compose up -d --build
+        Write-Host "  Esperando healthcheck de la API..." -NoNewline
+        for ($i = 0; $i -lt 40; $i++) {
+            $estado = docker inspect --format '{{.State.Health.Status}}' ami-api 2>$null
+            if ($estado -eq "healthy") { Write-Host " listo" -ForegroundColor Green; break }
+            Write-Host "." -NoNewline
+            Start-Sleep -Seconds 3
+        }
+        if ($estado -ne "healthy") {
+            Write-Host " no respondió a tiempo — mirá: .\tasks.ps1 docker-logs" -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "  http://localhost:8000/docs" -ForegroundColor Green
+    }
+
+    "docker-logs" {
+        docker compose logs -f api
+    }
+
+    "docker-down" {
+        Titulo "Deteniendo el stack de Docker"
+        docker compose down
     }
 
     "seed" {

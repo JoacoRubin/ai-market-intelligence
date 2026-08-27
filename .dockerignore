@@ -1,0 +1,37 @@
+# Lo mismo que .gitignore, y por el mismo motivo en un lugar más: todo esto
+# infla el contexto de build (Docker lo empaqueta entero antes de mandarlo al
+# daemon) y una parte —.env— no debe ni acercarse a una imagen.
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+mlruns/
+mlartifacts/
+data/
+models/
+*.faiss
+*.index
+*.pkl
+*.joblib
+
+.env
+.env.local
+*.pem
+
+.git/
+.github/
+docs/
+tests/
+node_modules/
+dist/
+.vite/
+
+# Windows / editor
+.vscode/
+*.docx

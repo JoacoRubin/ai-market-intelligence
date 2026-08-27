@@ -115,6 +115,7 @@ Lo que corre hoy:
 | ML | scikit-learn |
 | Tracking de experimentos | MLflow |
 | Observability del agente | LangSmith ([ADR-009](docs/adr/ADR-009-observability-langsmith.md)), **opcional y apagado por default** |
+| API containerizada | Docker (build multi-etapa, [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md)) — Ollama sigue siendo requisito del host, no entra al compose |
 | Base de datos containerizada | Docker Compose |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
 
@@ -125,7 +126,6 @@ Y lo que **todavía no está construido**, para que no haya confusión:
 | UI y visualización | React + TypeScript + Vite | 7 |
 | Integración continua | GitHub Actions | 6 |
 | Jobs y caching | Redis + worker aparte | 6 |
-| Aplicación containerizada | Dockerfile propio | 6 |
 
 ### Flujo del agente
 
@@ -245,6 +245,24 @@ El modelo de embeddings se lee del cache local: todas las tareas corren con
 `HF_HUB_OFFLINE=1`. La única que sale a la red es `.\tasks.ps1 rag-descargar`,
 que baja el modelo una vez por máquina.
 
+### La API, containerizada
+
+Alternativa a `.\tasks.ps1 api`: correr la API en Docker en vez de contra el
+`.venv` local. Requiere `.env` completo (copiar de `env.example`) y Ollama
+respondiendo en el host — ver [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md)
+para el porqué de esa frontera.
+
+```powershell
+.\tasks.ps1 docker-up      # SQL Server + API, espera a que ambos estén healthy
+.\tasks.ps1 docker-logs    # sigue los logs de la API
+.\tasks.ps1 docker-down    # detiene todo
+```
+
+El índice FAISS y la caché de embeddings viven en volúmenes de Docker
+(`indice_data`, `hf_cache`), separados del código de la imagen: un
+`docker-up` con el índice vacío sigue funcionando, degradado a análisis sin
+evidencia documental — la misma degradación que ya existe fuera de Docker.
+
 ---
 
 ## La API
@@ -343,6 +361,7 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-007](docs/adr/ADR-007-dos-adaptadores-llm.md) | Dos adaptadores para el puerto del LLM, y hasta dónde llega LangChain |
 | [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md) | Un tercer adaptador y la medición de costo por consulta |
 | [ADR-009](docs/adr/ADR-009-observability-langsmith.md) | Observability con LangSmith, y la excepción al costo cero |
+| [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md) | Dockerfile de la API, y qué NO se optimiza acá |
 
 > Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
 > Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué
