@@ -47,13 +47,28 @@ FROM python:3.13-slim AS runtime
 
 # ODBC Driver 18 para SQL Server. No es un paquete de pip: pyodbc lo busca
 # como librería nativa del sistema operativo (ver env.example, MSSQL_DSN).
+#
+# `apt-key` NO se usa: python:3.13-slim corre sobre Debian 13 (Trixie), que
+# lo eliminó del todo (estaba deprecado desde Debian 11). Verificado con un
+# build real: `apt-key add` tira "not found", exit 127 — no es hipotético.
+# El método vigente es un keyring propio + `signed-by` en el .list.
+#
+# El repo de Microsoft se sirve para debian/12 (bookworm) y no debian/13
+# (trixie) todavía — Microsoft no publica el mismo día que sale una versión
+# nueva de Debian —, pero el .deb de msodbcsql18 es compatible: mismo
+# formato, misma glibc. La distribución del .list dice "bookworm" a
+# propósito, aunque la imagen base sea trixie: tiene que coincidir con lo
+# que el repo de Microsoft publica, no con la imagen que lo instala.
+#
 # Se instala y se limpia en el MISMO RUN: si quedara en una capa aparte,
 # `apt-get clean` de una capa posterior no reduce el tamaño de la imagen —
 # las capas de Docker son aditivas, no se puede "restar" espacio ya escrito.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl gnupg \
-    && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-    && curl -sSL https://packages.microsoft.com/config/debian/12/prod.list \
+    && curl -sSL https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-prod.gpg] \
+        https://packages.microsoft.com/debian/12/prod bookworm main" \
         > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
     && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
