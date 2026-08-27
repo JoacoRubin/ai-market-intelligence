@@ -117,6 +117,7 @@ Lo que corre hoy:
 | Observability del agente | LangSmith ([ADR-009](docs/adr/ADR-009-observability-langsmith.md)), **opcional y apagado por default** |
 | API containerizada | Docker (build multi-etapa, [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md)) — Ollama sigue siendo requisito del host, no entra al compose |
 | Base de datos containerizada | Docker Compose |
+| Integración continua | GitHub Actions ([ADR-011](docs/adr/ADR-011-ci-github-actions.md)) — linter + mypy strict + tests, sin SQL Server todavía |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
 
 Y lo que **todavía no está construido**, para que no haya confusión:
@@ -124,7 +125,6 @@ Y lo que **todavía no está construido**, para que no haya confusión:
 | Responsabilidad | Tecnología prevista | Fase |
 |---|---|---|
 | UI y visualización | React + TypeScript + Vite | 7 |
-| Integración continua | GitHub Actions | 6 |
 | Jobs y caching | Redis + worker aparte | 6 |
 
 ### Flujo del agente
@@ -362,6 +362,7 @@ saltean solos si la base no está levantada — no fallan, se omiten.
 | [ADR-008](docs/adr/ADR-008-medir-costo-y-proveedor-pago.md) | Un tercer adaptador y la medición de costo por consulta |
 | [ADR-009](docs/adr/ADR-009-observability-langsmith.md) | Observability con LangSmith, y la excepción al costo cero |
 | [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md) | Dockerfile de la API, y qué NO se optimiza acá |
+| [ADR-011](docs/adr/ADR-011-ci-github-actions.md) | CI con GitHub Actions, y lo que todavía no cubre |
 
 > Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
 > Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué
