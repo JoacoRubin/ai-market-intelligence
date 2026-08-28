@@ -24,7 +24,6 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from io import BytesIO
-from typing import TYPE_CHECKING
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
@@ -42,12 +41,24 @@ from apps.api.schemas import (
 from apps.api.store import almacen
 from apps.jobs.cola import despachar
 from core.db import cursor_lectura, hay_base_disponible
-from core.report_pdf import render_pdf
 
-if TYPE_CHECKING:
-    # Solo para anotar. En runtime `core.kpis` se importa dentro del endpoint,
-    # y traer su modelo acá arriba anularía esa carga diferida.
-    from core.report import MetricaProducto
+# En runtime, y no bajo `TYPE_CHECKING`. `metricas_de_un_producto` no declara
+# `response_model=`: FastAPI arma el modelo de respuesta LEYENDO la anotación de
+# retorno, y con `from __future__ import annotations` esa anotación es el string
+# "MetricaProducto". Escondido tras el guardia, el nombre no existía en runtime y
+# pydantic no podía resolverlo:
+#
+#     PydanticUserError: `TypeAdapter[Annotated[ForwardRef('MetricaProducto')]]`
+#     is not fully defined
+#
+# Con eso caían `GET /products/{id}/metrics` y `GET /openapi.json` — y con el
+# segundo, `/docs`, que es la primera puerta por la que alguien entra a la API.
+#
+# El guardia buscaba diferir `core.kpis`, y eso SIGUE INTACTO: ese import vive
+# adentro del endpoint. Pero `core.report` es otro módulo y ya está cargado igual
+# —lo trae `core.report_pdf` acá abajo—, así que traerlo acá no difiere nada.
+from core.report import MetricaProducto
+from core.report_pdf import render_pdf
 
 VERSION = "0.1.0"
 
