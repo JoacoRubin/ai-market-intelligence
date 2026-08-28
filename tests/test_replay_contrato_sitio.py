@@ -220,6 +220,25 @@ def test_el_sitio_tiene_sus_tres_archivos() -> None:
         assert (SITIO / nombre).is_file(), f"falta {nombre}"
 
 
+def test_el_sitio_lleva_de_vuelta_al_repositorio() -> None:
+    """Sin esto el sitio es un callejón sin salida.
+
+    El criterio de la fase 7 es que alguien entienda el valor en dos minutos, y
+    hasta el 2026-08-28 lo lograba: entendía, y después no tenía adónde ir. Cero
+    links al código, cero autoría. Un portfolio del que no se puede salir hacia
+    el trabajo ni hacia quien lo hizo cumple la mitad de su función.
+
+    Se afirma sobre el repositorio y no sobre un contacto porque el mail no va
+    en una página indexable: desde el repositorio se llega al perfil, y desde el
+    perfil a la persona.
+    """
+    html = (SITIO / "index.html").read_text(encoding="utf-8")
+
+    assert "github.com/JoacoRubin/ai-market-intelligence" in html, (
+        "el sitio no linkea al repositorio: quien lo lee no puede llegar al código"
+    )
+
+
 def test_el_sitio_no_pide_recursos_externos() -> None:
     """Cero dependencias de red.
 

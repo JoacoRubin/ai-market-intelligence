@@ -605,6 +605,38 @@ code, .mono { font-family: var(--mono); font-size: 0.86em; }
 }
 .pie p { max-width: var(--ancho); margin: 0 auto; }
 
+/* La autoría y el link al código, arriba del descargo de los datos.
+ *
+ * Van en una línea propia y con el nombre en negrita porque compiten con un
+ * párrafo legal en gris: un link del mismo peso que la letra chica se lee como
+ * letra chica. Es lo único de la página que le pide algo al lector.
+ *
+ * En pantalla angosta apilan (`flex-wrap`) en vez de encogerse: un link cortado
+ * a la mitad no se toca. */
+.pie__autor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.9rem;
+  font-size: 0.9rem;
+  color: var(--tinta-2);
+}
+
+.pie__autor strong { color: var(--tinta); }
+
+/* Subrayado despegado del texto: se lee mejor y se nota que es un link sin
+ * necesidad de teñirlo de azul, que rompería la paleta de la página. */
+.pie__autor a {
+  color: var(--tinta);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--base);
+}
+
+.pie__autor a:hover,
+.pie__autor a:focus-visible { text-decoration-color: var(--det); }
+
 /* --- movimiento reducido --------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
