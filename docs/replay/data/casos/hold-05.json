@@ -1,15 +1,15 @@
 {
   "id": "hold-05",
   "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-  "capturada_en": "2026-08-13T01:35:01.749381",
-  "modelo_llm": "llama3.2:3b",
+  "capturada_en": "2026-08-28T15:51:37.822592",
+  "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
     "P009",
     "P044"
   ],
   "periodo": {
-    "desde": "2026-04-02",
+    "desde": "2026-06-30",
     "hasta": "2026-06-30"
   },
   "plan": [
@@ -20,10 +20,10 @@
           "P009",
           "P044"
         ],
-        "desde": "2026-04-02",
+        "desde": "2026-06-30",
         "hasta": "2026-06-30"
       },
-      "razon": "Obtener los KPIs de P009, P044 entre 2026-04-02 y 2026-06-30 para sustentar el análisis con datos reales."
+      "razon": "Obtener los KPIs de P009, P044 entre 2026-06-30 y 2026-06-30 para sustentar el análisis con datos reales."
     },
     {
       "tool": "search_documents",
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 16347,
+      "duracion_ms": 6857,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 1364,
+      "duracion_ms": 403,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 165,
+      "duracion_ms": 87,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 48911,
+      "duracion_ms": 40015,
       "tool": null
     }
   ],
@@ -67,18 +67,39 @@
   "informe": {
     "request_id": "replay-hold-05",
     "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-    "generado_en": "2026-08-13T01:34:12.826785",
-    "modelo_llm": "llama3.2:3b",
+    "generado_en": "2026-08-28T15:50:57.802987",
+    "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
-        "texto": "Vertex deportes reportó USD 30.171,06 en ventas con 558 unidades vendidas",
+        "texto": "Vertex deportes (P009) vendió 7 unidades",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
         ]
       },
       {
-        "texto": "La devolución de 4.0% afectó negativamente las ganancias del producto",
+        "texto": "Vertex deportes (P009) generó un revenue de USD 378.49",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Vertex deportes (P0:09) tiene un margen de 51,2%",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Vertex deportes (P009) creció un 40,0% en unidades",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Vertex deportes (P009) tiene un 25,0% de devoluciones",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
@@ -89,11 +110,11 @@
       {
         "product_id": "P009",
         "nombre": "Vertex deportes",
-        "unidades": 558,
-        "revenue": 30171.06,
+        "unidades": 7,
+        "revenue": 378.49,
         "margen_pct": 51.21139263917145,
-        "crecimiento_pct": 29.4663573085847,
-        "tasa_devolucion_pct": 4.040404040404041,
+        "crecimiento_pct": 39.99999999999999,
+        "tasa_devolucion_pct": 25.0,
         "fuente": "sql:product_metrics"
       }
     ],
@@ -106,7 +127,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-13T01:34:12.826785",
+        "consultada_en": "2026-08-28T15:50:57.802987",
         "seccion": null,
         "url": null
       }
@@ -114,7 +135,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 16347,
+        "duracion_ms": 6857,
         "tool": null
       },
       {
@@ -124,25 +145,23 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 1364,
+        "duracion_ms": 403,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 165,
+        "duracion_ms": 87,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 48911,
+        "duracion_ms": 40015,
         "tool": null
       }
     ],
     "advertencias": [
       "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
-      "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
-      "El modelo citó un documento inexistente (doc_promo_XXX). La afirmación se conserva atribuida a los datos.",
-      "Se descartaron 1 afirmación que no superaron la validación: 'El crecimiento del 29,5% se explica por la campaña de promoción que ofreció descuentos del 20%' — cifras sin respaldo en los datos: [20.0]"
+      "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos."
     ],
     "limitaciones": [
       "Los datos son sintéticos y no representan operaciones comerciales reales.",
@@ -151,10 +170,8 @@
   },
   "advertencias": [
     "No se encontraron datos para: P044. El análisis continúa con los productos restantes.",
-    "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos.",
-    "El modelo citó un documento inexistente (doc_promo_XXX). La afirmación se conserva atribuida a los datos.",
-    "Se descartaron 1 afirmación que no superaron la validación: 'El crecimiento del 29,5% se explica por la campaña de promoción que ofreció descuentos del 20%' — cifras sin respaldo en los datos: [20.0]"
+    "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos."
   ],
   "error": null,
-  "duracion_total_ms": 66787
+  "duracion_total_ms": 47362
 }

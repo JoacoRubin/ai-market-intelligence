@@ -1,8 +1,8 @@
 {
   "id": "cmp-01",
   "consulta": "Compará P001 y P002 en los últimos 30 días",
-  "capturada_en": "2026-08-13T01:28:44.162778",
-  "modelo_llm": "llama3.2:3b",
+  "capturada_en": "2026-08-28T15:48:44.673393",
+  "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
     "P001",
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 74352,
+      "duracion_ms": 5115,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 1247,
+      "duracion_ms": 303,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 37312,
+      "duracion_ms": 21146,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 167733,
+      "duracion_ms": 38311,
       "tool": null
     }
   ],
@@ -67,21 +67,42 @@
   "informe": {
     "request_id": "replay-cmp-01",
     "consulta": "Compará P001 y P002 en los últimos 30 días",
-    "generado_en": "2026-08-13T01:25:56.408849",
-    "modelo_llm": "llama3.2:3b",
+    "generado_en": "2026-08-28T15:48:06.358195",
+    "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
-        "texto": "El bajo crecimiento de -6,5% en Ribera se explica por la falta de promoción y campaña de descuento en el segmento medio del catálogo",
-        "tipo": "hecho",
-        "fuentes": [
-          "doc_ficha_P001"
-        ]
-      },
-      {
-        "texto": "Las devoluciones de Vertex representan solo el 2,4% de las unidades vendidas, mientras que Ribera tuvo un porcentaje de devoluciones del 4,6%",
+        "texto": "Vertex calzado (P001) vendió 112 unidades con un revenue de USD 28.118,72",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Ribera accesorios (P002) vendió 87 unidades con un revenue de USD 12.950,82",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Vertex calzado (P001) tuvo un crecimiento del 229,4% en unidades",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "Ribera accesorios (P002) tiene un margen de 56,3% en revenue",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El proveedor de Vertex calzado (P001) reportó defectos de costura en el lote",
+        "tipo": "hecho",
+        "fuentes": [
+          "doc_ficha_P001"
         ]
       }
     ],
@@ -116,7 +137,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-13T01:25:56.408849",
+        "consultada_en": "2026-08-28T15:48:06.358195",
         "seccion": null,
         "url": null
       },
@@ -124,7 +145,7 @@
         "id": "doc_ficha_P001",
         "tipo": "documento",
         "referencia": "Ficha técnica — Vertex calzado (P001)",
-        "consultada_en": "2026-08-13T01:25:56.408849",
+        "consultada_en": "2026-08-28T15:48:06.358195",
         "seccion": "§1.1",
         "url": null
       }
@@ -132,7 +153,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 74352,
+        "duracion_ms": 5115,
         "tool": null
       },
       {
@@ -142,31 +163,27 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 1247,
+        "duracion_ms": 303,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 37312,
+        "duracion_ms": 21146,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 167733,
+        "duracion_ms": 38311,
         "tool": null
       }
     ],
-    "advertencias": [
-      "Se descartaron 2 afirmaciones que no superaron la validación: 'Vertex lidera en unidades con 1.243, frente a las 981 de Ribera' — cifras sin respaldo en los datos: [981.0, 1243.0]; 'Vertex facturó USD 87.010 con 1.243 unidades vendidas, obteniendo un margen del 42,9% y creciendo un 229,4% en comparación con el año anterior' — cifras sin respaldo en los datos: [1243.0, 87010.0]"
-    ],
+    "advertencias": [],
     "limitaciones": [
       "Los datos son sintéticos y no representan operaciones comerciales reales.",
       "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
     ]
   },
-  "advertencias": [
-    "Se descartaron 2 afirmaciones que no superaron la validación: 'Vertex lidera en unidades con 1.243, frente a las 981 de Ribera' — cifras sin respaldo en los datos: [981.0, 1243.0]; 'Vertex facturó USD 87.010 con 1.243 unidades vendidas, obteniendo un margen del 42,9% y creciendo un 229,4% en comparación con el año anterior' — cifras sin respaldo en los datos: [1243.0, 87010.0]"
-  ],
+  "advertencias": [],
   "error": null,
-  "duracion_total_ms": 280644
+  "duracion_total_ms": 64875
 }

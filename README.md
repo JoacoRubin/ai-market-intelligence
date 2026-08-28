@@ -14,10 +14,17 @@ sistema funciona de punta a punta: una consulta en castellano entra por
 documental, proyecta con un modelo validado contra su baseline, redacta y
 valida — y sale un PDF descargable.
 
-**548 tests en verde** con la máquina sin infraestructura levantada, ruff
-limpio y mypy strict sin errores en 107 archivos. La suite colecta **642**: los
-82 marcados `db` piden SQL Server y los 9 marcados `redis` piden Redis — se
-saltean solos si no están, no fallan.
+**645 tests en verde** con el stack levantado, ruff limpio y mypy strict sin
+errores en 109 archivos. La suite colecta **662**: los 17 marcados `llm` quedan
+fuera por default porque invocan al modelo real, y sin infraestructura los 82
+marcados `db` y los 9 `redis` se saltean solos — no fallan.
+
+> Ese "se saltean solos" es cómodo y **es una trampa**: un test que se saltea en
+> silencio se ve idéntico a uno que pasa. Dos veces en este proyecto una red de
+> seguridad estuvo desconectada sin que nadie lo notara —los tests de Redis en
+> la fase 6, y tres tests de la API que escondían un `/openapi.json` roto—. Las
+> dos aparecieron al correr la suite **con el stack arriba**. Un `skipped` alto
+> no es ruido: es deuda de verificación.
 
 De la fase 6 queda **solo el caching de análisis, y está postergado a
 propósito**: sin una regla de invalidación atada a los datos de la base, un
@@ -29,18 +36,25 @@ informe cacheado es un informe incorrecto servido rápido
 
 ## Ver el agente sin instalar nada
 
-El sitio de **[replay](docs/replay/)** reproduce ejecuciones reales del agente:
-la traza etapa por etapa con la duración verdadera de cada nodo, el criterio con
-que eligió cada herramienta, las citas documentales con su identificador, el
-forecast contra su baseline y el PDF descargable.
+### → **[joacorubin.github.io/ai-market-intelligence](https://joacorubin.github.io/ai-market-intelligence/)**
+
+El sitio de replay reproduce ejecuciones reales del agente: la traza etapa por
+etapa con la duración verdadera de cada nodo, el criterio con que eligió cada
+herramienta, las citas documentales con su identificador, el forecast contra su
+baseline y el PDF descargable.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 8
-> segundos y 4,7 minutos sobre CPU — la comparación entre dos productos es la
-> más cara, y la consulta que el agente rechaza es la más barata porque corta en
-> el router. Nadie mira un spinner cuatro minutos, y el replay además muestra más
-> que un demo en vivo: la traza y el criterio quedan invisibles cuando solo ves
-> el resultado.
+> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 7
+> segundos y 65 segundos sobre CPU — la comparación entre dos productos es la más
+> cara, y la consulta que el agente rechaza es la más barata porque corta en el
+> router sin gastar una sola herramienta. Nadie mira un spinner, y el replay
+> además muestra más que un demo en vivo: la traza y el criterio quedan
+> invisibles cuando solo ves el resultado.
+
+> Las capturas se rehicieron el 2026-08-28 con `qwen3:4b`. Las anteriores eran de
+> `llama3.2:3b` y tardaban entre 108 y 281 segundos: la vidriera mostraba un
+> sistema **2,9 veces más lento** que el que el repositorio ya tenía medido. Un
+> demo desactualizado no es neutral — miente sobre el trabajo hecho.
 
 Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
 

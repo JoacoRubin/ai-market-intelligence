@@ -1,8 +1,8 @@
 {
   "id": "perf-01",
   "consulta": "¿Cuál fue el margen del P012 durante enero?",
-  "capturada_en": "2026-08-13T01:30:31.900220",
-  "modelo_llm": "llama3.2:3b",
+  "capturada_en": "2026-08-28T15:49:41.200944",
+  "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
     "P012"
@@ -36,7 +36,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 9437,
+      "duracion_ms": 6429,
       "tool": null
     },
     {
@@ -46,17 +46,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 623,
+      "duracion_ms": 199,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 245,
+      "duracion_ms": 81,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 97270,
+      "duracion_ms": 49783,
       "tool": null
     }
   ],
@@ -65,18 +65,32 @@
   "informe": {
     "request_id": "replay-perf-01",
     "consulta": "¿Cuál fue el margen del P012 durante enero?",
-    "generado_en": "2026-08-13T01:28:54.617431",
-    "modelo_llm": "llama3.2:3b",
+    "generado_en": "2026-08-28T15:48:51.413478",
+    "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
-        "texto": "El proveedor reportó defectos de costura en el lote L4990",
+        "texto": "Lumen accesorios (P012) vendió 30 unidades con un revenue de USD 8.929,80",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El crecimiento de unidades del P012 alcanzó 130,8% en el período",
+        "tipo": "hecho",
+        "fuentes": [
+          "sql:product_metrics"
+        ]
+      },
+      {
+        "texto": "El lote L4990 del proveedor presentó defectos de costura que explican las 4,8% de devoluciones",
         "tipo": "hecho",
         "fuentes": [
           "doc_prov_010"
         ]
       },
       {
-        "texto": "El margen de ganancia es del 28,3%, lo que indica una rentabilidad sólida en la venta de accesorios Lumen",
+        "texto": "El margen de P012 es del 28,3%",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
@@ -104,7 +118,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-13T01:28:54.617431",
+        "consultada_en": "2026-08-28T15:48:51.413478",
         "seccion": null,
         "url": null
       },
@@ -112,7 +126,7 @@
         "id": "doc_prov_010",
         "tipo": "documento",
         "referencia": "Reporte de calidad de lote — P012",
-        "consultada_en": "2026-08-13T01:28:54.617431",
+        "consultada_en": "2026-08-28T15:48:51.413478",
         "seccion": "§1.1",
         "url": null
       },
@@ -120,7 +134,7 @@
         "id": "doc_ficha_P012",
         "tipo": "documento",
         "referencia": "Ficha técnica — Lumen accesorios (P012)",
-        "consultada_en": "2026-08-13T01:28:54.617431",
+        "consultada_en": "2026-08-28T15:48:51.413478",
         "seccion": "§1.1",
         "url": null
       }
@@ -128,7 +142,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 9437,
+        "duracion_ms": 6429,
         "tool": null
       },
       {
@@ -138,31 +152,27 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 623,
+        "duracion_ms": 199,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 245,
+        "duracion_ms": 81,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 97270,
+        "duracion_ms": 49783,
         "tool": null
       }
     ],
-    "advertencias": [
-      "Se descartaron 2 afirmaciones que no superaron la validación: 'Alfa vendió USD 8.292,80 con 30 unidades vendidas' — cifras sin respaldo en los datos: [8292.8]; 'La campaña de descuento del 20% no se menciona como causa del crecimiento de unidades' — cifras sin respaldo en los datos: [20.0]"
-    ],
+    "advertencias": [],
     "limitaciones": [
       "Los datos son sintéticos y no representan operaciones comerciales reales.",
       "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
     ]
   },
-  "advertencias": [
-    "Se descartaron 2 afirmaciones que no superaron la validación: 'Alfa vendió USD 8.292,80 con 30 unidades vendidas' — cifras sin respaldo en los datos: [8292.8]; 'La campaña de descuento del 20% no se menciona como causa del crecimiento de unidades' — cifras sin respaldo en los datos: [20.0]"
-  ],
+  "advertencias": [],
   "error": null,
-  "duracion_total_ms": 107575
+  "duracion_total_ms": 56492
 }

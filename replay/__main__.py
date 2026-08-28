@@ -14,7 +14,9 @@ termina desactivado.
 
 from __future__ import annotations
 
+import io
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -29,7 +31,24 @@ from replay.escritura import escribir
 DESTINO = Path(__file__).resolve().parent.parent / "docs" / "replay" / "data"
 
 if os.name == "nt":
+    # Habilita las secuencias ANSI en la consola de Windows.
     os.system("")
+
+    # Y fuerza UTF-8 en la salida. Sin esto `print` usa la codificación de la
+    # consola —`cp1252` en cuanto la salida se redirige a un archivo o a un
+    # pipe— y la flecha de `etapas` (U+2192) revienta con UnicodeEncodeError.
+    #
+    # El costo no es el error: es CUÁNDO ocurre. La excepción salta DESPUÉS de
+    # correr el caso, o sea que se pagan los minutos de inferencia y no se
+    # escribe una sola captura. Pasó el 2026-08-28: la corrida murió en el
+    # `print` del caso 1 de 5, con el análisis ya hecho y tirado a la basura.
+    #
+    # `errors="replace"` para que un carácter raro degrade el mensaje en vez de
+    # matar la corrida: este harness cuesta minutos y su salida es informativa.
+    # Ningún adorno de consola vale una captura perdida.
+    for flujo in (sys.stdout, sys.stderr):
+        if isinstance(flujo, io.TextIOWrapper):
+            flujo.reconfigure(encoding="utf-8", errors="replace")
 
 VERDE, AZUL, GRIS, ROJO, FIN = "\033[92m", "\033[94m", "\033[90m", "\033[91m", "\033[0m"
 
