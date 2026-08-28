@@ -73,7 +73,14 @@ def _informe(**cambios: Any) -> Report:
             ),
         ],
         metricas=[
-            MetricaProducto(product_id="P010", nombre="Producto 010", unidades=1243,
+            # El nombre tiene la forma que produce `seeds.generate`: "<marca>
+            # <categoría>". El fixture decía "Producto 010" y ahí se escondió
+            # durante meses el defecto de `atribuye_al_producto_correcto`: con
+            # ese nombre, un informe que nombra al producto como lo nombra el
+            # modelo real —por su marca— se veía idéntico a uno que no lo
+            # nombra. Un fixture que no se parece a los datos de producción no
+            # protege de nada.
+            MetricaProducto(product_id="P010", nombre="Sable calzado", unidades=1243,
                             revenue=87010.0, tasa_devolucion_pct=5.7,
                             fuente="sql-kpis"),
         ],
@@ -113,26 +120,145 @@ def test_detecta_que_el_informe_no_analiza_el_producto_del_evento() -> None:
 
 # --- 2. atribución: el defecto exacto del ADR-003 -----------------------------
 
-def test_detecta_una_recomendacion_dirigida_al_producto_equivocado() -> None:
+def _narrativa(texto: str, **cambios: Any) -> Report:
+    """Informe cuyo texto es exactamente el que se le pasa, y nada más.
+
+    La atribución se juzga sobre la prosa, así que los tests de esta sección
+    necesitan controlarla entera: si el fixture base dejara su propio resumen
+    nombrando a P010, cada caso mediría esa frase y no la suya.
+    """
+    return _informe(
+        resumen_ejecutivo=[Afirmacion(texto=texto, tipo="hecho",
+                                      fuentes=["sql-kpis", "doc-112"])],
+        recomendaciones=[],
+        **cambios,
+    )
+
+
+def test_la_atribucion_mira_todo_el_texto_y_no_solo_las_recomendaciones() -> None:
+    """El defecto que dejó la métrica en 0/15 de cobertura con qwen3:4b.
+
+    La métrica leía solo `informe.recomendaciones`, y esa sección **el sistema
+    no la produce**: la regla 3 de `synthesizer.SISTEMA` prohíbe recomendar, y
+    el nodo escribe todo en `resumen_ejecutivo`. La única vía a
+    `recomendaciones` es `validator.validar_informe`, que reubica lo que el
+    modelo escribió DESOBEDECIENDO esa regla.
+
+    O sea que la cobertura medía desobediencia: llama3.2:3b desobedecía 2 de 15
+    veces y la métrica juzgaba 2 casos; qwen3:4b obedece 15 de 15 y la métrica
+    se quedó sin juzgar nada. El modelo no empeoró — mejoró, y el instrumento
+    lo leyó como pérdida.
+    """
+    informe = _narrativa(
+        "P010 vendió 1.243 unidades por USD 87.010, con un error de 8,3%.")
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is True
+
+
+def test_reconoce_al_producto_por_su_nombre_y_no_solo_por_su_id() -> None:
+    """El segundo defecto, abajo del primero.
+
+    La métrica buscaba `\\bP\\d{3,}\\b` —identificadores— y el informe escribe
+    NOMBRES: 4 de las 5 capturas de `docs/replay/data/casos/` no contienen un
+    solo ID en su prosa. El prompt lo refuerza, porque sus ejemplos dicen
+    "Alfa" y "Beta". Así que aunque hubiera recomendaciones, la métrica habría
+    fallado igual: por formato, no por atribución.
+    """
+    informe = _narrativa(
+        "Sable calzado vendió 1.243 unidades por USD 87.010, con un error "
+        "de 8,3%.")
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is True
+
+
+def test_reconoce_la_marca_sola_cuando_identifica_a_un_unico_producto() -> None:
+    """El modelo abrevia. La captura `cmp-01` dice "el bajo crecimiento en
+    Ribera", no "en Ribera accesorios"."""
+    informe = _narrativa(
+        "El crecimiento de Sable se apoyó en 1.243 unidades por USD 87.010, "
+        "con un error de 8,3%.")
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is True
+
+
+def test_una_marca_compartida_por_dos_productos_no_atribuye_a_ninguno() -> None:
+    """`seeds.generate` combina 8 marcas con 5 categorías, así que la marca se
+    repite: `Vertex calzado` y `Vertex deportes` son dos productos distintos.
+
+    Ante "Vertex" no se sabe de cuál habla, y **la métrica se abstiene**.
+    Elegir uno sería inventar la atribución que se está midiendo: acertaría o
+    fallaría por azar, y en las dos direcciones el número mentiría.
+    """
+    informe = _narrativa(
+        "Vertex creció con 1.243 unidades por USD 87.010, con un error de 8,3%.",
+        metricas=[
+            MetricaProducto(product_id="P010", nombre="Vertex calzado",
+                            unidades=1243, revenue=87010.0,
+                            tasa_devolucion_pct=5.7, fuente="sql-kpis"),
+            MetricaProducto(product_id="P009", nombre="Vertex deportes",
+                            unidades=980, revenue=51000.0, fuente="sql-kpis"),
+        ],
+    )
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is None
+
+
+def test_un_producto_sin_nombre_no_se_atribuye_por_el_borde_vacio() -> None:
+    """`nombre=""` produce el patrón `\\b\\b`, que casa en cualquier borde de
+    palabra: sin este guardia, ese producto quedaría nombrado en TODO informe
+    que tenga una letra, y la métrica pasaría a medir la nada con cara de 100%.
+
+    No es hipotético por capricho: `MetricaProducto.nombre` es un `str` sin
+    mínimo, y el nombre lo trae el catálogo, que es un borde de entrada.
+    """
+    informe = _narrativa(
+        "Las ventas alcanzaron 1.243 unidades por USD 87.010, con un error "
+        "de 8,3%.",
+        metricas=[MetricaProducto(product_id="P010", nombre="", unidades=1243,
+                                  revenue=87010.0, tasa_devolucion_pct=5.7,
+                                  fuente="sql-kpis")],
+    )
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is None
+
+
+def test_detecta_que_el_informe_habla_del_producto_equivocado() -> None:
     """El ADR-003 lo documentó textual: el informe sugería reducir devoluciones
     para el producto del 2,1% en vez del que tenía 5,7%."""
-    informe = _informe(
-        recomendaciones=[Afirmacion(
-            texto="Auditar el lote del proveedor de P003.",
-            tipo="recomendacion", fuentes=["doc-112"])],
-    )
+    informe = _narrativa(
+        "P003 vendió 1.243 unidades por USD 87.010, con un error de 8,3%.")
 
     assert _por_nombre(informe)["atribuye_al_producto_correcto"] is False
 
 
-def test_sin_recomendaciones_la_atribucion_no_aplica() -> None:
-    """`None`, no `True`. Es la corrección que motivó este cambio.
+def test_nombrar_a_otro_producto_ademas_del_correcto_no_es_un_defecto() -> None:
+    """Un informe comparativo nombra a los dos, y eso es su trabajo.
 
-    En la primera corrida real las seis ejecuciones dieron 100% en esta métrica
-    con el detalle "ninguna recomendación nombra un producto". Nunca juzgó nada
-    y el reporte lo mostraba en verde.
+    El defecto del ADR-003 es hablar del producto equivocado EN VEZ del que
+    tuvo el evento, no mencionar a un segundo. Exigir exclusividad reprobaría
+    a `cmp-01`, que compara `Vertex calzado` con `Ribera accesorios` porque se
+    lo pidieron.
     """
-    informe = _informe(recomendaciones=[])
+    informe = _narrativa(
+        "P010 vendió 1.243 unidades por USD 87.010 y superó a P003, con un "
+        "error de 8,3%.")
+
+    assert _por_nombre(informe)["atribuye_al_producto_correcto"] is True
+
+
+def test_sin_ningun_producto_nombrado_la_atribucion_no_aplica() -> None:
+    """`None`, no `True`. Es la corrección que motivó esta métrica.
+
+    En la primera corrida real las seis ejecuciones dieron 100% sin haber
+    juzgado nada. Un 100% conseguido por abstención dice "la situación nunca se
+    dio", no "lo hace bien".
+
+    Y sigue sin penalizar la ausencia: si no nombrar a nadie contara como
+    error, el incentivo sería nombrar productos a lo loco para zafar.
+    """
+    informe = _narrativa(
+        "Las ventas alcanzaron 1.243 unidades por USD 87.010, con un error "
+        "de 8,3%.")
 
     assert _por_nombre(informe)["atribuye_al_producto_correcto"] is None
 
@@ -296,7 +422,11 @@ def test_resumir_calcula_sobre_los_casos_donde_la_metrica_aplico() -> None:
                                            fuente="sql-kpis")]),
         EVENTO,
     )
-    no_aplica = evaluar(_informe(recomendaciones=[]), EVENTO)
+    no_aplica = evaluar(
+        _narrativa("Las ventas alcanzaron 1.243 unidades por USD 87.010, con "
+                   "un error de 8,3%."),
+        EVENTO,
+    )
 
     resumen = resumir([bueno, malo, no_aplica])
 

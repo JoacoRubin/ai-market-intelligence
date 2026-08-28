@@ -20,10 +20,17 @@ cada corrida, y encima haría que el evaluador comparta el modo de falla del
 evaluado. El principio del proyecto aplica también acá: si se puede resolver de
 forma determinística, no se delega al LLM.
 
-**Límite conocido:** las métricas 3 y 5 leen texto con reglas léxicas. Detectan
-los defectos que ya ocurrieron; no pretenden entender el informe. Una redacción
-lo bastante creativa puede burlarlas, y eso está bien: son un piso verificable,
-no un techo.
+**Límite conocido:** las métricas 2, 3 y 5 leen texto con reglas léxicas.
+Detectan los defectos que ya ocurrieron; no pretenden entender el informe. Una
+redacción lo bastante creativa puede burlarlas, y eso está bien: son un piso
+verificable, no un techo.
+
+**Y el límite se paga cuando la regla léxica no se parece a la prosa real.** La
+métrica 2 buscaba identificadores (`P010`) en una sección que el sintetizador
+tiene prohibido escribir, mientras el informe nombraba a sus productos por la
+marca en el resumen ejecutivo. Midió 0 de 15 el 2026-08-27 sin que nada se
+hubiera roto. Una regla léxica se valida contra salidas reales del sistema, no
+contra el fixture que la acompaña.
 """
 
 from __future__ import annotations
@@ -36,7 +43,9 @@ from pydantic import BaseModel, ConfigDict
 
 from core.report import Report
 
-# Los identificadores de producto del dominio: P001, P010, P055.
+# Los identificadores de producto del dominio: P001, P010, P055. Es la forma más
+# confiable de nombrar un producto y la menos frecuente en la prosa: el modelo
+# escribe la marca. Ver `_productos_nombrados`.
 _PRODUCTO = re.compile(r"\bP\d{3,}\b")
 
 # Palabras que nombran acierto. Si una de estas aparece describiendo un MAPE, el
@@ -157,26 +166,87 @@ def _analiza_el_producto_del_evento(informe: Report, evento: EventoSembrado) -> 
     )
 
 
-def _atribuye_al_producto_correcto(informe: Report, evento: EventoSembrado) -> Hallazgo:
-    """El defecto del ADR-003: recomendar sobre el producto que no tuvo el evento.
+def _productos_nombrados(informe: Report) -> set[str]:
+    """Los productos que la prosa del informe nombra, resueltos a su id.
 
-    Solo se juzga cuando alguna recomendación nombra un producto. No recomendar
-    nada, o recomendar sin nombrar a nadie, no cuenta como error: si la ausencia
-    penalizara, el incentivo sería recomendar siempre — justo el comportamiento
-    que este sistema evita.
+    El modelo no escribe identificadores: escribe nombres, y los abrevia. En las
+    cinco capturas de `docs/replay/data/casos/` hay un solo `P010` en toda la
+    prosa; el resto dice "Ribera", "Vertex", "Lumen". Buscar únicamente
+    `\\bP\\d{3,}\\b` no medía qué producto nombraba el informe: medía si lo
+    nombraba en el formato de la base de datos.
+
+    Se resuelve contra `informe.metricas`, que es el catálogo de lo que este
+    informe analizó, en tres formas y en este orden de confianza:
+
+    1. el identificador explícito (`P010`);
+    2. el nombre completo (`Sable calzado`), sin distinguir mayúsculas;
+    3. la marca sola (`Sable`), **y solo si identifica a un único producto
+       analizado**.
+
+    El punto 3 es el delicado. `seeds.generate` combina 8 marcas con 5
+    categorías, así que `Vertex calzado` y `Vertex deportes` conviven: ante
+    "Vertex" no hay forma de saber de cuál habla y no se atribuye a ninguno.
+    Elegir uno acertaría o fallaría por azar, y una métrica que acierta por azar
+    es peor que una que se abstiene — el número sale igual de convincente.
+
+    La marca se compara respetando mayúsculas a propósito: `Norte` y `Calma` son
+    también palabras corrientes, y en minúscula ("con calma", "el norte del
+    país") no nombran a ningún producto.
     """
-    mencionados: set[str] = set()
-    for a in informe.recomendaciones:
-        mencionados.update(_PRODUCTO.findall(a.texto))
+    texto = " ".join(_textos(informe))
+    nombrados: set[str] = set(_PRODUCTO.findall(texto))
+
+    duenios_de_la_marca: dict[str, set[str]] = {}
+    for m in informe.metricas:
+        palabras = m.nombre.split()
+        # Un nombre vacío daría el patrón `\b\b`, que casa en cualquier borde de
+        # palabra: ese producto quedaría nombrado en todo informe que tenga una
+        # letra. El catálogo es un borde de entrada y el campo no tiene mínimo.
+        if not palabras:
+            continue
+        if re.search(rf"\b{re.escape(m.nombre)}\b", texto, re.IGNORECASE):
+            nombrados.add(m.product_id)
+        duenios_de_la_marca.setdefault(palabras[0], set()).add(m.product_id)
+
+    for marca, duenios in duenios_de_la_marca.items():
+        if len(duenios) == 1 and re.search(rf"\b{re.escape(marca)}\b", texto):
+            nombrados |= duenios
+
+    return nombrados
+
+
+def _atribuye_al_producto_correcto(informe: Report, evento: EventoSembrado) -> Hallazgo:
+    """El defecto del ADR-003: hablar del producto que no tuvo el evento.
+
+    **Se juzga sobre toda la prosa del informe, no sobre `recomendaciones`.**
+    Esa sección el sistema no la produce: la regla 3 de `synthesizer.SISTEMA`
+    prohíbe recomendar —la lista entre sus ejemplos incorrectos— y el nodo
+    escribe todo en `resumen_ejecutivo`. La única vía a `recomendaciones` es
+    `validator.validar_informe`, que reubica lo que el modelo escribió
+    DESOBEDECIENDO esa regla.
+
+    Medida ahí, la cobertura de esta métrica era un medidor de desobediencia:
+    llama3.2:3b desobedecía 2 de 15 veces y se juzgaban 2 casos; qwen3:4b
+    obedece 15 de 15 y no quedó nada que juzgar (0/15, el 2026-08-27). El modelo
+    había mejorado y el instrumento lo leyó como pérdida de cobertura.
+
+    Nombrar a un segundo producto no es el defecto: un informe comparativo
+    nombra a los dos porque se lo pidieron. El defecto es hablar del equivocado
+    EN VEZ del que tuvo el evento, así que alcanza con que el del evento esté.
+
+    Sin ningún producto nombrado la métrica **no aplica**. Si la ausencia
+    penalizara, el incentivo sería nombrar productos a lo loco para zafar.
+    """
+    mencionados = _productos_nombrados(informe)
 
     if not mencionados:
         return Hallazgo("atribuye_al_producto_correcto", None,
-                        "ninguna recomendación nombra un producto: nada que atribuir")
+                        "el informe no nombra ningún producto: nada que atribuir")
 
     cumple = evento.product_id in mencionados
     return Hallazgo(
         "atribuye_al_producto_correcto", cumple,
-        f"las recomendaciones apuntan a {sorted(mencionados)}; "
+        f"el texto del informe nombra a {sorted(mencionados)}; "
         f"el evento fue en {evento.product_id}",
     )
 
