@@ -32,10 +32,27 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
+      # Pinneado a la versión COMPLETA y no a `@v10`, que no existe: desde su
+      # v8 esta acción dejó de publicar tags mayores y menores a propósito
+      # ("pinning to major releases opens up users to supply chain attacks"), y
+      # sus releases son inmutables. `@v10` da 404, no un fallback silencioso.
+      #
+      # El salto de v5 a v10 cruza cuatro breaking changes, y ninguno nos toca:
+      #   v6  `activate-environment` — solo aplica si se usa el input
+      #       `python-version`, que acá no se usa: Python se instala en el paso
+      #       siguiente. Y el default de `cache-dependency-glob` cambió, pero
+      #       este workflow lo fija explícito.
+      #   v7  node20 -> node24, y se removió `server-url`, que no usábamos.
+      #   v8  se dejaron de publicar los tags mayores (ver arriba).
+      #   v9  `prune-cache` pasa a false por default: más cache, no otro
+      #       comportamiento.
+      #   v10 con `enable-cache: auto` se desactiva el cache en
+      #       `pull_request_target`, `workflow_run` y `release` para evitar cache
+      #       poisoning. Acá está en `true` explícito, así que no cambia nada.
       - name: Instalar uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -58,7 +75,7 @@ jobs:
       # no con un error de red. Se cachea por nombre de modelo: no cambia
       # entre commits, así que la descarga real pasa una sola vez.
       - name: Cache del modelo de embeddings
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/huggingface
           key: hf-intfloat-multilingual-e5-small-v1
