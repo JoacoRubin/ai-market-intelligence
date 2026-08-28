@@ -60,6 +60,61 @@ def test_el_esquema_acota_el_array_de_conclusiones() -> None:
     assert ESQUEMA["properties"]["conclusiones"]["maxItems"] == MAX_CONCLUSIONES
 
 
+# --- Identificadores de producto rotos ----------------------------------------
+#
+# DEFECTO REAL, visible en el sitio publicado. El informe de `hold-05` decía:
+#
+#   "Vertex deportes (P0:09) tiene un margen de 51,2%"
+#
+# La afirmación es CIERTA: ese es el margen de P009. Lo roto es el
+# identificador, y no es un detalle cosmético en este proyecto — `P0:09` no
+# resuelve a nada, así que un lector no puede rastrear de qué producto se habla.
+# Un identificador que no se puede buscar es exactamente lo que el informe
+# promete no tener.
+#
+# Se REPARA en vez de descartarse, y no es indulgencia: es la doctrina que este
+# mismo nodo ya aplica a los identificadores de documento unas líneas más
+# arriba. "Rescatar el id de ahí adentro recupera una cita válida que si no se
+# descartaría por un problema de formato, no de veracidad." Acá es el mismo
+# problema de formato sobre otro tipo de referencia.
+
+def test_repara_un_identificador_de_producto_que_el_modelo_escribio_mal() -> None:
+    cliente = ClientePredecible(
+        conclusiones=["Alfa (P0:02) tiene un margen de 28,2%"])
+
+    resultado = sintetizar(_estado(), cliente)
+
+    assert resultado.informe is not None
+    assert resultado.informe.resumen_ejecutivo[0].texto == (
+        "Alfa (P002) tiene un margen de 28,2%")
+
+
+def test_no_inventa_un_producto_que_el_informe_no_analizo() -> None:
+    """El límite, y es el que separa reparar de adivinar.
+
+    `P9:99` limpio da `P999`, que no está entre los productos analizados. Ahí no
+    hay nada que rescatar: corregirlo a la fuerza inventaría una referencia
+    donde el modelo escribió cualquier cosa, que es peor que dejar el error a la
+    vista.
+    """
+    cliente = ClientePredecible(
+        conclusiones=["El P9:99 tiene un margen de 28,2%"])
+
+    resultado = sintetizar(_estado(), cliente)
+
+    assert resultado.informe is not None
+    assert "P9:99" in resultado.informe.resumen_ejecutivo[0].texto
+
+
+def test_no_toca_los_identificadores_bien_escritos() -> None:
+    cliente = ClientePredecible(conclusiones=["Alfa (P002) creció 18,4%"])
+
+    resultado = sintetizar(_estado(), cliente)
+
+    assert resultado.informe is not None
+    assert resultado.informe.resumen_ejecutivo[0].texto == "Alfa (P002) creció 18,4%"
+
+
 # --- Las limitaciones tienen que describir a ESTE informe ---------------------
 #
 # DEFECTO REAL, visible en el sitio publicado el 2026-08-28. El informe del caso

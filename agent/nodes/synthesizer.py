@@ -16,6 +16,7 @@ para tener razón.
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import datetime
 from typing import Any
@@ -108,6 +109,40 @@ Ejemplos de conclusiones INCORRECTAS:
   "Las ventas subieron 31,2% en el período"      (porcentaje sin la magnitud
                                                   absoluta que lo respalda)
 """
+
+
+# Algo con forma de identificador de producto pero con basura en el medio:
+# `P0:09`, `P0 09`, `P0-09`. El modelo los produce de a poco y siempre iguales.
+_ID_ROTO = re.compile(r"\bP[\d\s:.\-]{2,7}\d\b")
+
+
+def _reparar_ids(texto: str, analizados: set[str]) -> str:
+    """Repone los identificadores de producto que el modelo escribió mal.
+
+    Visto en el sitio publicado: "Vertex deportes (P0:09) tiene un margen de
+    51,2%". La afirmación es CIERTA —ese es el margen de P009— y el
+    identificador no resuelve a nada, así que el lector no puede rastrear de qué
+    producto se habla. Un identificador que no se puede buscar es exactamente lo
+    que este informe promete no tener.
+
+    Se repara y no se descarta porque es la doctrina que este mismo nodo ya
+    aplica a los identificadores de documento: un problema de formato no es un
+    problema de veracidad.
+
+    **Solo se repara hacia un producto que el informe analizó.** Si la limpieza
+    da un identificador que no está entre ellos, se deja el texto como vino:
+    ahí no hay nada que rescatar, y corregirlo igual inventaría una referencia
+    donde el modelo escribió cualquier cosa. Un error a la vista es mejor que
+    una referencia falsa que parece correcta.
+    """
+    def reponer(m: re.Match[str]) -> str:
+        crudo = m.group(0)
+        if crudo in analizados:
+            return crudo
+        candidato = "P" + "".join(c for c in crudo if c.isdigit())
+        return candidato if candidato in analizados else crudo
+
+    return _ID_ROTO.sub(reponer, texto)
 
 
 def _datos_para_el_modelo(metricas: list[MetricaProducto]) -> str:
@@ -233,6 +268,9 @@ def sintetizar(
                 texto, fuente = str(c).strip(), ""
             if not texto:
                 continue
+            # Misma idea que la reparación de la cita documental de abajo, sobre
+            # el otro tipo de referencia que lleva el informe.
+            texto = _reparar_ids(texto, {m.product_id for m in metricas})
             # El modelo suele copiar el encabezado entero del pasaje
             # ("doc_prov_011 §1.1 - 2026-03-12") en vez del identificador solo.
             # Rescatar el id de ahí adentro recupera una cita válida que si no
