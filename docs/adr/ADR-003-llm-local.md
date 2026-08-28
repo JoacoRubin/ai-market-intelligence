@@ -433,3 +433,83 @@ argumento entero es la trazabilidad.
   Es, literalmente, el error que este ADR documenta en el riesgo 2: la auditoría
   daba 22/22 y el informe estaba mal. El 100% de hoy dice que los cinco defectos
   *conocidos* no aparecen en quince casos. No dice nada sobre el sexto.
+
+---
+
+## Revisión (2026-08-28 bis) — `num_ctx` se mide y se descarta
+
+**Resultado negativo. No se aplica ningún cambio.** Queda escrito para que la
+optimización no se vuelva a proponer sin saber que ya se midió.
+
+### La premisa era falsa
+
+La propuesta decía: `qwen3:4b` declara un contexto de 262.144 tokens para
+prompts de ~2.000, así que conviene acotarlo. **Ollama ya lo acota solo.**
+
+```
+qwen3:4b declara (qwen3.context_length) : 262 144
+Ollama le da (api/ps, context_length)   :   4 096   ← su default; el Modelfile no fija num_ctx
+Prompt real más caro del sintetizador   :   1 888   ← medido con prompt_eval_count
+```
+
+El prompt usa el 46% de la ventana. No había un contexto gigante que recortar:
+había una suposición sobre lo que el modelo declara, que no es lo que el
+servidor asigna.
+
+### Criterios de aceptación, fijados antes de medir
+
+Adoptar un `num_ctx` explícito solo si **(a)** no trunca el prompt real, y además
+**(b)** reduce la latencia mediana ≥15% contra el control, **o (c)** elimina un
+riesgo de truncado silencioso.
+
+### Ablación
+
+Prompt real del sintetizador, condiciones **alternadas dentro de cada ronda**
+—nunca en bloques—, control sin `num_ctx` en las tres, guardado incremental.
+
+| condición | mediana | mín | máx | tokens de prompt | conclusiones |
+|---|---|---|---|---|---|
+| control (sin `num_ctx`) | 172,8 s | 49,1 s | 190,7 s | 1 888 | 5 |
+| `num_ctx=2048` | 174,7 s | 143,5 s | 175,0 s | 1 888 | 5 |
+| `num_ctx=4096` | 176,6 s | 173,2 s | 186,0 s | 1 888 | 5 |
+| `num_ctx=8192` | 168,8 s | 161,1 s | 176,7 s | 1 888 | 5 |
+
+### Decisión: no se adopta
+
+**(b) no se cumple.** Las cuatro medianas caen entre 168,8 s y 176,6 s: una
+dispersión de 7,8 s sobre ~172 s, el **4,5%**. Y el número que cierra la
+discusión es el otro: la variación **dentro** del control va de 49,1 s a 190,7 s
+—141 segundos—, o sea que **el ruido es dieciocho veces más grande que la
+diferencia entre condiciones**. Cuando el ruido se traga al efecto, el ganador de
+la tabla es azar con nombre propio.
+
+**(c) tampoco.** `prompt_eval_count`, tokens de salida y cantidad de conclusiones
+dieron **idénticos en las doce corridas**, incluida `num_ctx=2048`, donde
+1 888 + 265 = 2 153 debería desbordar la ventana. No hubo truncado que prevenir.
+
+Las dos razones para tocar `num_ctx` se cayeron con la misma medición.
+
+### Lo que la alternancia salvó
+
+La primera corrida —control, ronda 1— dio **49,1 s**, y todas las siguientes se
+estacionaron entre 160 y 190 s. Sea lo que sea eso, **no es `num_ctx`**: esa
+corrida es justamente la que no lo llevaba puesto.
+
+Medido en bloques, el control habría salido campeón por haber corrido primero y
+la conclusión habría sido "el default es 3× más rápido": falsa, y convincente. Es
+la razón por la que el punto 4 de la metodología existe, y la segunda vez que
+este ADR lo registra funcionando.
+
+### Lo que esta revisión NO afirma
+
+- **Que `num_ctx` no importe en general.** Se midió un prompt de 1 888 tokens
+  contra una ventana de 4 096. Un prompt que se acerque al techo es otro
+  experimento, y esta medición no lo cubre.
+- **Que la latencia de ~172 s sea el costo real del sintetizador.** Es el costo
+  *en esta máquina, en este momento*, con una dispersión enorme dentro de cada
+  condición. Como línea base de cualquier optimización futura hace falta más de
+  una corrida: `cmp-01` dio 64,9 / 127,6 / 121,9 s en tres capturas del mismo
+  modelo y el mismo código.
+- **Que no haya nada que optimizar.** El outlier de 49,1 s y la bimodalidad ya
+  anotada en la revisión anterior apuntan a `keep_alive` —la recarga del modelo
+  entre llamadas—, que es un experimento distinto y sigue pendiente.
