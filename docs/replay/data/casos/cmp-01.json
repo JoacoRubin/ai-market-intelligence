@@ -1,7 +1,7 @@
 {
   "id": "cmp-01",
   "consulta": "Compará P001 y P002 en los últimos 30 días",
-  "capturada_en": "2026-08-28T15:48:44.673393",
+  "capturada_en": "2026-08-28T16:16:40.709795",
   "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 5115,
+      "duracion_ms": 36081,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 303,
+      "duracion_ms": 379,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 21146,
+      "duracion_ms": 17879,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 38311,
+      "duracion_ms": 73244,
       "tool": null
     }
   ],
@@ -67,7 +67,7 @@
   "informe": {
     "request_id": "replay-cmp-01",
     "consulta": "Compará P001 y P002 en los últimos 30 días",
-    "generado_en": "2026-08-28T15:48:06.358195",
+    "generado_en": "2026-08-28T16:15:27.462270",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -92,17 +92,10 @@
         ]
       },
       {
-        "texto": "Ribera accesorios (P002) tiene un margen de 56,3% en revenue",
+        "texto": "Ribera accesorios (P002) tuvo un crecimiento negativo del 6,5% en unidades",
         "tipo": "hecho",
         "fuentes": [
           "sql:product_metrics"
-        ]
-      },
-      {
-        "texto": "El proveedor de Vertex calzado (P001) reportó defectos de costura en el lote",
-        "tipo": "hecho",
-        "fuentes": [
-          "doc_ficha_P001"
         ]
       }
     ],
@@ -137,7 +130,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T15:48:06.358195",
+        "consultada_en": "2026-08-28T16:15:27.462270",
         "seccion": null,
         "url": null
       },
@@ -145,7 +138,7 @@
         "id": "doc_ficha_P001",
         "tipo": "documento",
         "referencia": "Ficha técnica — Vertex calzado (P001)",
-        "consultada_en": "2026-08-28T15:48:06.358195",
+        "consultada_en": "2026-08-28T16:15:27.462270",
         "seccion": "§1.1",
         "url": null
       }
@@ -153,7 +146,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 5115,
+        "duracion_ms": 36081,
         "tool": null
       },
       {
@@ -163,27 +156,30 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 303,
+        "duracion_ms": 379,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 21146,
+        "duracion_ms": 17879,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 38311,
+        "duracion_ms": 73244,
         "tool": null
       }
     ],
-    "advertencias": [],
+    "advertencias": [
+      "Se descartaron 1 afirmación que no superaron la validación: 'El proveedor de Vertex calzado (P001) reportó defectos de costura en el lote' — el documento citado (doc_ficha_P001) no sostiene lo que afirma"
+    ],
     "limitaciones": [
-      "Los datos son sintéticos y no representan operaciones comerciales reales.",
-      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+      "Los datos son sintéticos y no representan operaciones comerciales reales."
     ]
   },
-  "advertencias": [],
+  "advertencias": [
+    "Se descartaron 1 afirmación que no superaron la validación: 'El proveedor de Vertex calzado (P001) reportó defectos de costura en el lote' — el documento citado (doc_ficha_P001) no sostiene lo que afirma"
+  ],
   "error": null,
-  "duracion_total_ms": 64875
+  "duracion_total_ms": 127583
 }

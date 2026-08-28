@@ -1,7 +1,7 @@
 {
   "id": "perf-01",
   "consulta": "¿Cuál fue el margen del P012 durante enero?",
-  "capturada_en": "2026-08-28T15:49:41.200944",
+  "capturada_en": "2026-08-28T16:17:41.887787",
   "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
@@ -36,7 +36,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 6429,
+      "duracion_ms": 6456,
       "tool": null
     },
     {
@@ -46,17 +46,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 199,
+      "duracion_ms": 279,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 81,
+      "duracion_ms": 83,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 49783,
+      "duracion_ms": 54325,
       "tool": null
     }
   ],
@@ -65,7 +65,7 @@
   "informe": {
     "request_id": "replay-perf-01",
     "consulta": "¿Cuál fue el margen del P012 durante enero?",
-    "generado_en": "2026-08-28T15:48:51.413478",
+    "generado_en": "2026-08-28T16:16:47.557991",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -118,7 +118,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T15:48:51.413478",
+        "consultada_en": "2026-08-28T16:16:47.557991",
         "seccion": null,
         "url": null
       },
@@ -126,7 +126,7 @@
         "id": "doc_prov_010",
         "tipo": "documento",
         "referencia": "Reporte de calidad de lote — P012",
-        "consultada_en": "2026-08-28T15:48:51.413478",
+        "consultada_en": "2026-08-28T16:16:47.557991",
         "seccion": "§1.1",
         "url": null
       },
@@ -134,7 +134,7 @@
         "id": "doc_ficha_P012",
         "tipo": "documento",
         "referencia": "Ficha técnica — Lumen accesorios (P012)",
-        "consultada_en": "2026-08-28T15:48:51.413478",
+        "consultada_en": "2026-08-28T16:16:47.557991",
         "seccion": "§1.1",
         "url": null
       }
@@ -142,7 +142,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 6429,
+        "duracion_ms": 6456,
         "tool": null
       },
       {
@@ -152,27 +152,26 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 199,
+        "duracion_ms": 279,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 81,
+        "duracion_ms": 83,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 49783,
+        "duracion_ms": 54325,
         "tool": null
       }
     ],
     "advertencias": [],
     "limitaciones": [
-      "Los datos son sintéticos y no representan operaciones comerciales reales.",
-      "Las conclusiones se derivan de métricas internas: no incluyen evidencia documental ni contexto de mercado."
+      "Los datos son sintéticos y no representan operaciones comerciales reales."
     ]
   },
   "advertencias": [],
   "error": null,
-  "duracion_total_ms": 56492
+  "duracion_total_ms": 61143
 }

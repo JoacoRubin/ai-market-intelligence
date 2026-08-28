@@ -1,7 +1,7 @@
 {
   "id": "hold-05",
   "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-  "capturada_en": "2026-08-28T15:51:37.822592",
+  "capturada_en": "2026-08-28T16:19:39.625270",
   "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 6857,
+      "duracion_ms": 6314,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 403,
+      "duracion_ms": 275,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 87,
+      "duracion_ms": 78,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 40015,
+      "duracion_ms": 37134,
       "tool": null
     }
   ],
@@ -67,7 +67,7 @@
   "informe": {
     "request_id": "replay-hold-05",
     "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
-    "generado_en": "2026-08-28T15:50:57.802987",
+    "generado_en": "2026-08-28T16:19:02.487651",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -127,7 +127,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T15:50:57.802987",
+        "consultada_en": "2026-08-28T16:19:02.487651",
         "seccion": null,
         "url": null
       }
@@ -135,7 +135,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 6857,
+        "duracion_ms": 6314,
         "tool": null
       },
       {
@@ -145,17 +145,17 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 403,
+        "duracion_ms": 275,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 87,
+        "duracion_ms": 78,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 40015,
+        "duracion_ms": 37134,
         "tool": null
       }
     ],
@@ -173,5 +173,5 @@
     "No se encontró evidencia documental relevante para la consulta. El análisis se apoya únicamente en los datos cuantitativos."
   ],
   "error": null,
-  "duracion_total_ms": 47362
+  "duracion_total_ms": 43801
 }
