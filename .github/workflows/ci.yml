@@ -145,8 +145,13 @@ jobs:
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 
+      # Mínimas, pero `report` entra igual y no es un descuido: `conftest.py`
+      # importa `apps.api.main`, que a su vez importa `core.report_pdf` para
+      # servir el PDF. Sin reportlab pytest ni siquiera colecta —falla cargando
+      # el conftest, antes de mirar un test— y este job murió así en su primera
+      # corrida. `rag` y `ml` NO entran: son los pesados y este job no los toca.
       - name: Instalar dependencias mínimas de test
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --group dev --extra report
 
       - name: Crear esquema y usuario read-only
         env:
