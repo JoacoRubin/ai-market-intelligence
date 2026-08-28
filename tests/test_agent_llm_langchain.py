@@ -268,6 +268,55 @@ def test_separa_la_temperatura_de_clasificar_y_la_de_redactar() -> None:
     assert cliente.chat_prosa.temperature == 0.3
 
 
+def test_los_dos_chats_apagan_el_razonamiento_en_voz_alta() -> None:
+    """El mismo defecto que `ClienteOllama` ya tenía arreglado, y que este
+    adaptador nunca recibió.
+
+    `agent/llm.py` manda `"think": False` en `estructurado` y en `redactar`, con
+    la ablación medida al lado. Acá no estaba, así que con `qwen3:4b` este
+    cliente reproducía los dos síntomas: el timeout entero consumido razonando
+    al clasificar, y `redactar` devolviendo texto VACÍO porque los tokens de
+    `num_predict` se iban al bloque `thinking` que nadie lee.
+
+    En `ChatOllama` el flag se llama `reasoning` y se traduce a `think` en el
+    payload (`_chat_params`: `"think": kwargs.pop("reasoning", self.reasoning)`).
+    Va en el constructor y no en el `bind` de `redactar` porque los DOS métodos
+    lo necesitan, y porque `options` se resuelve aparte: bindear opciones no lo
+    pisa.
+
+    Se afirma sobre el payload y no sobre el atributo a propósito. Que el campo
+    valga `False` no prueba que salga en la request; lo que rompía el informe
+    era la request.
+    """
+    cliente = ClienteLangChain(modelo="m", host="http://localhost:11434")
+
+    for chat in (cliente.chat_estructurado, cliente.chat_prosa):
+        assert isinstance(chat, ChatOllama)
+        payload = chat._chat_params([HumanMessage(content="hola")])
+        assert payload["think"] is False
+
+
+def test_acotar_los_tokens_no_reenciende_el_razonamiento() -> None:
+    """`redactar` bindea `options`, y ahí es donde se perdería el flag.
+
+    Es el mismo modo de falla que el comentario de `redactar` ya documenta para
+    la temperatura: `options` REEMPLAZA al dict armado desde los campos del
+    modelo. Si `think` viajara ahí adentro, acotar los tokens lo borraría en
+    silencio y volvería el texto vacío.
+    """
+    cliente = ClienteLangChain(modelo="m", host="http://localhost:11434")
+    chat = cliente.chat_prosa
+    assert isinstance(chat, ChatOllama)
+
+    payload = chat._chat_params(
+        [HumanMessage(content="hola")],
+        options={"temperature": 0.3, "num_predict": 60},
+    )
+
+    assert payload["think"] is False
+    assert payload["options"]["num_predict"] == 60
+
+
 def test_apunta_al_host_de_ollama_configurado() -> None:
     cliente = ClienteLangChain(modelo="m", host="http://otro-host:9999")
     assert isinstance(cliente.chat_estructurado, ChatOllama)

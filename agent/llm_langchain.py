@@ -48,10 +48,28 @@ def _chat_ollama(modelo: str, host: str, temperatura: float) -> ChatOllama:
     # validate_model_on_init=False a propósito: con True, construir el cliente
     # golpea la red. Un constructor que hace I/O es un constructor que no se
     # puede instanciar en un test ni en un import.
+    #
+    # reasoning=False es el `"think": False` de `ClienteOllama` dicho en el
+    # vocabulario de LangChain: `_chat_params` lo traduce con
+    # `"think": kwargs.pop("reasoning", self.reasoning)`. Sin esto, con qwen3:4b
+    # este adaptador reproducía los dos síntomas que `agent/llm.py` ya tenía
+    # medidos y arreglados — el timeout consumido razonando al clasificar, y
+    # `redactar` devolviendo texto VACÍO porque los tokens se iban al bloque
+    # `thinking`.
+    #
+    # Va en el constructor y no en el `bind` de `redactar` por dos razones: lo
+    # necesitan los dos métodos, y `options` se resuelve por separado, así que
+    # acotar los tokens no puede pisarlo.
+    #
+    # Que el flag se haya arreglado en un adaptador y no en el otro es el costo
+    # real de tener dos: el puerto obliga a la misma FIRMA, no al mismo
+    # comportamiento. Lo que los mantiene comparables son los tests que corren
+    # contra los dos.
     return ChatOllama(
         model=modelo,
         base_url=host,
         temperature=temperatura,
+        reasoning=False,
         client_kwargs={"timeout": TIMEOUT_SEGUNDOS},
         validate_model_on_init=False,
     )
