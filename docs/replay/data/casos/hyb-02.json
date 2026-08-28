@@ -1,7 +1,7 @@
 {
   "id": "hyb-02",
   "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
-  "capturada_en": "2026-08-28T16:18:55.779225",
+  "capturada_en": "2026-08-28T16:56:37.968712",
   "modelo_llm": "qwen3:4b",
   "intencion": "hybrid",
   "entidades": [
@@ -36,7 +36,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 6810,
+      "duracion_ms": 6447,
       "tool": null
     },
     {
@@ -46,17 +46,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 278,
+      "duracion_ms": 203,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 98,
+      "duracion_ms": 43,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 66666,
+      "duracion_ms": 64808,
       "tool": null
     }
   ],
@@ -65,7 +65,7 @@
   "informe": {
     "request_id": "replay-hyb-02",
     "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
-    "generado_en": "2026-08-28T16:17:49.109407",
+    "generado_en": "2026-08-28T16:55:33.155282",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -125,7 +125,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T16:17:49.109407",
+        "consultada_en": "2026-08-28T16:55:33.155282",
         "seccion": null,
         "url": null
       },
@@ -133,7 +133,7 @@
         "id": "doc_stock_006",
         "tipo": "documento",
         "referencia": "Quiebre de stock — P010",
-        "consultada_en": "2026-08-28T16:17:49.109407",
+        "consultada_en": "2026-08-28T16:55:33.155282",
         "seccion": "§2.2",
         "url": null
       },
@@ -141,7 +141,7 @@
         "id": "doc_ficha_P010",
         "tipo": "documento",
         "referencia": "Ficha técnica — Sable calzado (P010)",
-        "consultada_en": "2026-08-28T16:17:49.109407",
+        "consultada_en": "2026-08-28T16:55:33.155282",
         "seccion": "§1.1",
         "url": null
       }
@@ -149,7 +149,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 6810,
+        "duracion_ms": 6447,
         "tool": null
       },
       {
@@ -159,17 +159,17 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 278,
+        "duracion_ms": 203,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 98,
+        "duracion_ms": 43,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 66666,
+        "duracion_ms": 64808,
         "tool": null
       }
     ],
@@ -180,5 +180,5 @@
   },
   "advertencias": [],
   "error": null,
-  "duracion_total_ms": 73852
+  "duracion_total_ms": 71501
 }
