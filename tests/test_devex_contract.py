@@ -117,3 +117,41 @@ def test_readme_declara_los_limites_verificables_del_producto() -> None:
     assert "no incluye un caso de forecast" in readme
     assert "stale respecto de head" in readme
     assert "c:\\users\\" not in readme
+
+
+# --- El loop local: correr los tests no puede pedir un ritual no escrito -----
+#
+# DEFECTO REAL (2026-08-28). Al exigir `MSSQL_SA_PASSWORD` por entorno --que
+# está bien, sacó la credencial hardcodeada-- nadie actualizó el camino por el
+# que se corren los tests. `Import-ProjectEnv` quedó en `db-up`, `db-init`,
+# `seed` y `agente`, pero NO en `test`, `test-fast` ni `all`.
+#
+# El resultado: doce tests en rojo con un RuntimeError que enuncia la doctrina
+# --"la credencial administrativa debe inyectarse solo en procesos explícitos"--
+# y no dice lo único accionable, que es "copiá env.example a .env". Un
+# endurecimiento que rompe el loop de desarrollo y no explica cómo salir se
+# desactiva solo: la gente exporta la variable a mano y se olvida de por qué.
+
+def test_las_tareas_de_test_cargan_el_env_del_proyecto() -> None:
+    """Si `db-up` necesita `.env` para levantar la base, `test` lo necesita
+    igual para hablarle."""
+    tasks = _leer("tasks.ps1")
+
+    for tarea in ("test", "test-fast", "all"):
+        bloque = re.search(rf'"{tarea}"\s*\{{(.*?)\n    \}}', tasks, re.S)
+        assert bloque, f"no se encontró la tarea '{tarea}' en tasks.ps1"
+        assert "Import-ProjectEnv" in bloque.group(1), (
+            f"la tarea '{tarea}' corre pytest sin cargar .env: los tests que "
+            "tocan la base van a fallar por una variable ausente"
+        )
+
+
+def test_conftest_carga_el_env_para_pytest_invocado_directo() -> None:
+    """`tasks.ps1` no es el único camino: un IDE, `uv run pytest` o el CI local
+    invocan pytest directo. El contrato se cumple en conftest o no se cumple."""
+    conftest = _leer("tests/conftest.py")
+
+    assert ".env" in conftest, (
+        "conftest no carga .env: correr pytest fuera de tasks.ps1 falla por "
+        "variables de entorno ausentes"
+    )

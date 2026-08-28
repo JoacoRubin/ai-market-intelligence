@@ -10,12 +10,44 @@ Por eso se les inyecta un doble por defecto. Los que necesiten un
 comportamiento específico lo sobrescriben con `dependency_overrides`.
 """
 
+import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
-from agent.llm import ClientePredecible
-from apps.api.main import app, obtener_cliente_llm
+
+# --- .env, antes de importar nada que lea el entorno -------------------------
+#
+# `core.db` exige `MSSQL_SA_PASSWORD` por entorno desde que dejó de tenerla
+# hardcodeada. El endurecimiento está bien; lo que faltaba era el camino para
+# el desarrollador: `tasks.ps1` carga `.env`, pero no en sus tareas de test, y
+# un IDE o un `uv run pytest` no pasan por ahí. Sin esto, doce tests fallan con
+# un RuntimeError que enuncia la doctrina y no dice "copiá env.example a .env".
+#
+# Se lee con la biblioteca estándar y no con python-dotenv: son diez líneas y
+# no justifican una dependencia que además terminaría en el wheel.
+#
+# Una variable ya presente en el proceso GANA sobre el archivo — mismo criterio
+# que `Import-ProjectEnv` en `tasks.ps1`—, así se puede usar una credencial
+# efímera sin editar nada. Y va solo en los tests: el código de producción
+# nunca lee un archivo de credenciales por su cuenta.
+def _cargar_env() -> None:
+    ruta = Path(__file__).resolve().parent.parent / ".env"
+    if not ruta.is_file():
+        return
+    for linea in ruta.read_text(encoding="utf-8-sig").splitlines():
+        limpia = linea.strip()
+        if not limpia or limpia.startswith("#") or "=" not in limpia:
+            continue
+        nombre, _, valor = limpia.partition("=")
+        os.environ.setdefault(nombre.strip(), valor)
+
+
+_cargar_env()
+
+from agent.llm import ClientePredecible  # noqa: E402
+from apps.api.main import app, obtener_cliente_llm  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

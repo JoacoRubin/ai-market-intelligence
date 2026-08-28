@@ -169,11 +169,13 @@ switch ($Tarea.ToLower()) {
     }
 
     "test" {
+        Import-ProjectEnv
         Titulo "Suite completa"
         Invoke-Uv run pytest -v
     }
 
     "test-fast" {
+        Import-ProjectEnv
         Titulo "Tests sin base de datos"
         Invoke-Uv run pytest -m "not db and not llm" -q
     }
@@ -184,6 +186,7 @@ switch ($Tarea.ToLower()) {
     }
 
     "all" {
+        Import-ProjectEnv
         Titulo "Linter"
         Invoke-Uv run ruff check .
         Titulo "Suite completa"
