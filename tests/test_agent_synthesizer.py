@@ -60,6 +60,48 @@ def test_el_esquema_acota_el_array_de_conclusiones() -> None:
     assert ESQUEMA["properties"]["conclusiones"]["maxItems"] == MAX_CONCLUSIONES
 
 
+# --- Las limitaciones tienen que describir a ESTE informe ---------------------
+#
+# DEFECTO REAL, visible en el sitio publicado el 2026-08-28. El informe del caso
+# `cmp-01` citaba `doc_ficha_P001` y, tres bloques más abajo, declaraba:
+#
+#   LIMITACIONES DECLARADAS
+#     · Las conclusiones se derivan de métricas internas: no incluyen evidencia
+#       documental ni contexto de mercado.
+#
+# El texto estaba fijo y se imprimía siempre. Un informe que se contradice a sí
+# mismo en la misma página no tiene un problema de redacción: tiene un problema
+# de credibilidad, y encima justo en el proyecto cuyo argumento entero es la
+# trazabilidad. Una limitación que no describe al informe que la lleva es tan
+# falsa como una afirmación inventada.
+
+def test_no_declara_que_faltan_documentos_cuando_uso_documentos() -> None:
+    cliente = ClientePredecible(conclusiones=["El proveedor reportó un desvío."])
+    estado = _estado()
+    estado.evidencia = [{
+        "doc_id": "doc_prov_009", "titulo": "Comunicación del proveedor",
+        "seccion": "§1.1", "fecha": "2026-03-12",
+        "texto": "El proveedor informa un desvío en el control de calidad.",
+    }]
+
+    resultado = sintetizar(estado, cliente)
+
+    assert resultado.informe is not None
+    assert not any("no incluyen evidencia documental" in lim
+                   for lim in resultado.informe.limitaciones)
+
+
+def test_sigue_declarando_la_falta_de_documentos_cuando_no_los_hubo() -> None:
+    """El control. La limitación es verdadera cuando el análisis fue solo
+    numérico, y ahí tiene que seguir estando: quitarla siempre cambiaría una
+    declaración falsa por una omisión."""
+    resultado = sintetizar(_estado(), ClientePredecible(conclusiones=["Alfa vendió 30."]))
+
+    assert resultado.informe is not None
+    assert any("no incluyen evidencia documental" in lim
+               for lim in resultado.informe.limitaciones)
+
+
 def test_sigue_cortando_en_python_aunque_el_modelo_devuelva_de_mas() -> None:
     """`maxItems` es una instrucción, no una garantía. El corte se queda.
 

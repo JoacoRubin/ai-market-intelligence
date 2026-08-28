@@ -23,6 +23,7 @@ las cifras.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -101,6 +102,90 @@ def _numeros_del_documento(
     return numeros
 
 
+# Mitad de la sustancia de la afirmación tiene que estar en el documento que
+# cita. El umbral se fijó sobre un hueco ANCHO, no ajustado al decimal: medido
+# contra las tres citas documentales de las capturas del replay, la afirmación
+# fabricada dio 20% y las dos correctas 75% y 100%.
+#
+# Dos muestras buenas son pocas para calibrar un número, y por eso el umbral va
+# donde el hueco es más grande y no donde separa por poco. Es un piso
+# verificable, no un techo: una paráfrasis lo bastante creativa lo pasa, y está
+# bien que así sea.
+ANCLAJE_MINIMO = 0.5
+
+# Cuatro letras para descartar preposiciones y artículos sin listarlos, y raíz
+# de cinco para que el español no pelee contra sí mismo: "costura"/"costuras" y
+# "explica"/"explican" son la misma palabra, y compararlas enteras produce un
+# falso negativo. Lo produjo, de hecho, en la primera medición de este arreglo.
+_LARGO_MINIMO_DE_PALABRA = 4
+_LARGO_DE_RAIZ = 5
+
+
+def _raices(texto: str) -> set[str]:
+    """Las raíces de las palabras con contenido, sin tildes ni mayúsculas."""
+    plano = unicodedata.normalize("NFD", texto.lower())
+    plano = "".join(c for c in plano if unicodedata.category(c) != "Mn")
+    return {
+        p[:_LARGO_DE_RAIZ]
+        for p in re.findall(r"[a-z0-9]+", plano)
+        if len(p) >= _LARGO_MINIMO_DE_PALABRA
+    }
+
+
+def _identidad_de_productos(resultados_tools: dict[str, Any]) -> set[str]:
+    """Las palabras que nombran a los productos analizados.
+
+    Se descuentan del anclaje porque **aparecen en todo documento sobre ese
+    producto**: la ficha, el reporte de stock y la comunicación del proveedor
+    dicen los tres "Vertex calzado (P001)". Que coincidan no dice nada sobre si
+    el documento sostiene la afirmación.
+
+    Era exactamente lo único que coincidía en el caso publicado: la afirmación
+    inventada compartía con su ficha `vertex`, `calzado`, `p001` y `proveedor`,
+    y ninguna de las cuatro palabras que decían algo.
+    """
+    identidad: set[str] = set()
+    for resultado in resultados_tools.values():
+        valores = resultado.values() if isinstance(resultado, dict) else resultado
+        for m in valores or []:
+            if isinstance(m, MetricaProducto):
+                identidad |= _raices(f"{m.nombre} {m.product_id}")
+    return identidad
+
+
+def _anclada_en_su_cita(
+    texto: str, fuentes: list[str], evidencia: list[dict[str, Any]],
+    identidad: set[str],
+) -> bool:
+    """¿El documento citado sostiene lo que la afirmación dice?
+
+    No pretende entender el texto: verifica que la afirmación esté hecha de las
+    palabras del documento. Es el mismo criterio que ya se le aplica a las
+    cifras —un número vale si figura en el pasaje citado— extendido a la prosa
+    de las afirmaciones que no traen ninguna.
+
+    Sin pasajes del documento citado no se juzga: la ausencia de evidencia no es
+    evidencia de invención, y castigarla borraría afirmaciones válidas cada vez
+    que el trace no arrastre el texto.
+    """
+    citados = {p.get("doc_id") for p in evidencia} & set(fuentes)
+    if not citados:
+        return True
+
+    del_documento = _raices(" ".join(
+        str(p.get("texto", "")) for p in evidencia
+        if p.get("doc_id") in citados
+    ))
+    if not del_documento:
+        return True
+
+    sustancia = _raices(texto) - identidad
+    if not sustancia:
+        return False
+
+    return len(sustancia & del_documento) / len(sustancia) >= ANCLAJE_MINIMO
+
+
 def _esta_respaldado(valor: float, disponibles: set[float]) -> bool:
     for referencia in disponibles:
         if abs(valor - referencia) <= TOLERANCIA_ABSOLUTA:
@@ -121,13 +206,18 @@ class ResultadoValidacion:
 def _filtrar(
     afirmaciones: list[Afirmacion], disponibles: set[float],
     evidencia: list[dict[str, Any]] | None = None,
+    identidad: set[str] | None = None,
 ) -> tuple[list[Afirmacion], list[str], int, int]:
-    """Aplica las dos verificaciones a cada afirmación.
+    """Aplica las verificaciones a cada afirmación.
 
     Primero de dónde salieron los números; después si la relación que el texto
     afirma sobre ellos es cierta. Una afirmación puede pasar la primera y fallar
     la segunda: "lidera con 242 frente a 257" tiene ambas cifras respaldadas y
     dice algo aritméticamente falso.
+
+    Y las que no traen números se verifican contra el documento que citan, que
+    hasta el 2026-08-28 era el hueco por donde entraba todo: sin cifras que
+    auditar, la afirmación se aceptaba sin mirarla.
     """
     aceptadas, rechazadas = [], []
     con_numeros = respaldadas = 0
@@ -135,6 +225,18 @@ def _filtrar(
     for a in afirmaciones:
         numeros = extraer_numeros_de_negocio(a.texto)
         if not numeros:
+            # Sin cifras, lo único que respalda a la afirmación es el documento
+            # que cita. Se descarta la AFIRMACIÓN y no solo la cita: quitarle la
+            # fuente la dejaría atribuida a los datos, y un hecho inventado con
+            # el sello de SQL es peor que uno con una cita que no lo sostiene.
+            if not _anclada_en_su_cita(
+                a.texto, a.fuentes, evidencia or [], identidad or set()
+            ):
+                rechazadas.append(
+                    f"{a.texto!r} — el documento citado "
+                    f"({', '.join(a.fuentes)}) no sostiene lo que afirma"
+                )
+                continue
             aceptadas.append(a)
             continue
 
@@ -191,10 +293,12 @@ def validar_informe(informe: Report, resultados_tools: dict[str, Any],
             *[Afirmacion(texto=a.texto, tipo="recomendacion") for a in reubicadas],
         ]
 
+    identidad = _identidad_de_productos(resultados_tools)
+
     resumen, rech_resumen, con_num_r, ok_r = _filtrar(
-        informe.resumen_ejecutivo, disponibles, evidencia)
+        informe.resumen_ejecutivo, disponibles, evidencia, identidad)
     contexto, rech_contexto, con_num_c, ok_c = _filtrar(
-        informe.contexto_mercado, disponibles, evidencia)
+        informe.contexto_mercado, disponibles, evidencia, identidad)
 
     informe.resumen_ejecutivo = resumen
     informe.contexto_mercado = contexto

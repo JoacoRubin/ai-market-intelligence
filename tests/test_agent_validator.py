@@ -129,6 +129,143 @@ EVIDENCIA = [{
 }]
 
 
+# --- Anclaje léxico: la cita tiene que sostener lo que la afirmación dice ----
+#
+# DEFECTO REAL, encontrado el 2026-08-28 auditando el sitio publicado. El primer
+# caso del replay mostraba, en vivo:
+#
+#   HECHO  "El proveedor de Vertex calzado (P001) reportó defectos de costura
+#           en el lote"                                  fuente: doc_ficha_P001
+#
+# `doc_ficha_P001` es una ficha técnica y no menciona defectos, ni costura, ni
+# un lote. El texto salía del EJEMPLO del propio prompt del sintetizador
+# (`{"texto": "El proveedor reportó defectos de costura en el lote"}`): el
+# modelo copió el ejemplo y le pegó un identificador real.
+#
+# NADIE LA AGARRÓ, y por dos motivos distintos:
+#  · el validador numérico solo mira cifras, y esa frase no tiene ninguna;
+#  · `usa_la_evidencia_documental` solo verifica que el id citado esté entre los
+#    recuperados, no que la afirmación venga de ahí. Le daba 100%.
+#
+# Es el ADR-003 un nivel más arriba: un validador numérico es necesario y no
+# suficiente; una métrica de citación también.
+#
+# EL ALCANCE ES DELIBERADO: solo se juzgan las afirmaciones SIN cifras. Una
+# afirmación con cifras ya está anclada por ellas —`_numeros_del_documento` le
+# exige que el número figure en el pasaje citado— y exigirle además parecido
+# léxico la castigaría por parafrasear, que es su trabajo. Medido: "La campaña
+# de descuento del 30%" comparte una sola raíz con "La acción combinó un
+# descuento del 30%", y es correcta.
+
+FICHA = "doc_ficha_P001"
+
+EVIDENCIA_FICHA = [{
+    "doc_id": FICHA,
+    "texto": "Artículo P001 de la línea Alfa, categoría calzado. Incorporado al "
+             "catálogo el 2026-05-26. El artículo se posiciona en el segmento "
+             "medio y comparte proveedor con el resto de la línea.",
+}]
+
+
+def test_descarta_una_afirmacion_sin_cifras_que_su_cita_no_sostiene() -> None:
+    """El caso exacto que estuvo publicado. La ficha técnica no dice nada de
+    esto, y sin cifras que validar la afirmación entraba intacta."""
+    informe = _informe([
+        Afirmacion(texto="El proveedor de Alfa reportó defectos de costura en "
+                         "el lote", tipo="hecho", fuentes=[FICHA]),
+    ], docs=[FICHA])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}},
+        evidencia=EVIDENCIA_FICHA)
+
+    assert resultado.informe.resumen_ejecutivo == []
+    assert "costura" in resultado.afirmaciones_rechazadas[0]
+
+
+def test_conserva_una_afirmacion_sin_cifras_que_el_documento_si_sostiene() -> None:
+    """El control, y es el que evita que el guardrail se coma lo bueno.
+
+    Le faltan al documento "explica" y "temporal" —las palabras con las que el
+    modelo INTERPRETA, que es lo único que se le pide— y aun así se conserva.
+    """
+    evidencia = [{
+        "doc_id": FICHA,
+        "texto": "Reporte de quiebre de stock del artículo. Durante la ventana "
+                 "sin stock las unidades vendidas cayeron respecto de la "
+                 "semana previa.",
+    }]
+    informe = _informe([
+        Afirmacion(texto="El reporte de quiebre de stock explica la caída "
+                         "temporal de unidades vendidas",
+                   tipo="hecho", fuentes=[FICHA]),
+    ], docs=[FICHA])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=evidencia)
+
+    assert resultado.afirmaciones_rechazadas == []
+    assert len(resultado.informe.resumen_ejecutivo) == 1
+
+
+def test_la_identidad_del_producto_no_alcanza_para_anclar_una_afirmacion() -> None:
+    """El corazón del arreglo, y lo que lo separa de contar palabras.
+
+    El nombre, el identificador y la categoría aparecen en TODO documento sobre
+    ese producto: que coincidan no dice nada sobre si el documento sostiene la
+    afirmación. En el caso publicado, lo único que coincidía era eso.
+    """
+    evidencia = [{
+        "doc_id": FICHA,
+        "texto": "Artículo P001 de la línea Alfa. Ficha técnica del catálogo.",
+    }]
+    informe = _informe([
+        Afirmacion(texto="Alfa (P001) sufrió una rotura de contrato con su "
+                         "distribuidor mayorista",
+                   tipo="hecho", fuentes=[FICHA]),
+    ], docs=[FICHA])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=evidencia)
+
+    assert resultado.informe.resumen_ejecutivo == []
+
+
+def test_una_afirmacion_con_cifras_no_se_juzga_por_parecido_lexico() -> None:
+    """El límite del alcance, y no es un detalle: es lo que evita castigar la
+    paráfrasis. "campaña" por "acción", "salto" por "la demanda se multiplicó".
+
+    Comparte UNA raíz con el documento y es correcta, porque lo que la ancla es
+    el 30 que figura textualmente en el pasaje citado.
+    """
+    informe = _informe([
+        Afirmacion(texto="La campaña de descuento del 30% explica el salto",
+                   tipo="hecho", fuentes=[FUENTE_DOC]),
+    ], docs=[FUENTE_DOC])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}}, evidencia=EVIDENCIA)
+
+    assert resultado.afirmaciones_rechazadas == []
+    assert len(resultado.informe.resumen_ejecutivo) == 1
+
+
+def test_una_afirmacion_sin_cita_documental_no_se_juzga_por_anclaje() -> None:
+    """Sin cita a un documento no hay documento contra el cual anclar. Las
+    afirmaciones atribuidas a los datos las siguen juzgando sus cifras."""
+    informe = _informe([
+        Afirmacion(texto="El producto lidera el segmento medio del catálogo",
+                   tipo="hecho", fuentes=[FUENTE_SQL]),
+    ])
+
+    resultado = validar_informe(
+        informe, {"product_metrics": {"P001": _metrica()}},
+        evidencia=EVIDENCIA_FICHA)
+
+    assert resultado.afirmaciones_rechazadas == []
+    assert len(resultado.informe.resumen_ejecutivo) == 1
+
+
 def test_acepta_una_cifra_que_figura_en_el_documento_citado() -> None:
     informe = _informe([
         Afirmacion(texto="La campaña de descuento del 30% explica el salto",

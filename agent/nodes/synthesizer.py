@@ -298,10 +298,22 @@ def sintetizar(
         predicciones=_predicciones_del_estado(estado),
         advertencias=list(estado.advertencias) + _alertas_de_devolucion(metricas),
         trace=list(estado.trace),
+        # La segunda limitación es CONDICIONAL, y no lo era: se imprimía siempre.
+        # El informe del caso `cmp-01` citaba un documento y tres bloques más
+        # abajo declaraba no usar ninguno, en el sitio publicado. Una limitación
+        # que no describe al informe que la lleva es tan falsa como una cifra
+        # inventada, y encima desmiente el único argumento del proyecto.
+        #
+        # Se condiciona a la evidencia RECUPERADA y no a la citada: el análisis
+        # tuvo los documentos delante aunque el sintetizador no los haya usado.
+        # Ese caso —tenerlos y no usarlos— es un defecto de calidad que mide
+        # `usa_la_evidencia_documental`, y no una limitación del alcance.
         limitaciones=[
             "Los datos son sintéticos y no representan operaciones comerciales reales.",
-            "Las conclusiones se derivan de métricas internas: no incluyen "
-            "evidencia documental ni contexto de mercado.",
+            *([] if estado.evidencia else [
+                "Las conclusiones se derivan de métricas internas: no incluyen "
+                "evidencia documental ni contexto de mercado."
+            ]),
         ],
     )
 
