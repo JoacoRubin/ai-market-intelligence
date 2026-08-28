@@ -78,17 +78,28 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
+Última corrida: `eval/corridas/20260827T163223.json` — `qwen3:4b`, commit
+`b21e6ab`, árbol limpio.
+
 | Métrica | Resultado | Umbral |
 |---|---|---|
 | `analiza_el_producto_del_evento` | 100% (15/15) | 80% |
-| `atribuye_al_producto_correcto` | 100% (2/2) | 90% |
+| `atribuye_al_producto_correcto` | *pendiente de re-medir* | 90% |
 | `no_invierte_el_sentido_del_error` | 100% (3/3) | 90% |
 | `reporta_magnitudes_absolutas` | 100% (15/15) | 75% |
-| `usa_la_evidencia_documental` | **80%** (12/15) | 90% ❌ |
+| `usa_la_evidencia_documental` | 100% (15/15) | 90% |
 
-> La última **no alcanza el umbral, y el test queda rojo a propósito.** La causa
-> está medida —varianza del sintetizador, no un bug— y el umbral no se baja.
-> Un umbral que se ajusta para que el test pase deja de ser un umbral.
+> `usa_la_evidencia_documental` **pasó de 80% a 100% al adoptar `qwen3:4b`**. Era
+> la única bajo umbral, y el diagnóstico anterior —"varianza del sintetizador,
+> no un bug"— quedó superado: con este modelo esa varianza desapareció. El
+> umbral nunca se tocó, que era la condición para poder decir esto.
+
+> `atribuye_al_producto_correcto` **no tiene número, y no se le pone uno viejo.**
+> Esa misma corrida la dejó en 0 casos aplicables, y la causa no era el agente
+> sino el instrumento: la métrica leía `informe.recomendaciones`, una sección que
+> el sintetizador tiene prohibido escribir, y buscaba identificadores (`P010`)
+> donde el informe escribe marcas. Corregida el 2026-08-28, se re-mide antes de
+> volver a publicar un número.
 
 **Costo** — medido reconstruyendo los prompts reales del agente: **~2.346 tokens
 de entrada y ~133 de salida por consulta**.
