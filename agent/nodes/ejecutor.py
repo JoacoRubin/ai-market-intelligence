@@ -11,32 +11,15 @@ from __future__ import annotations
 from typing import Any
 
 from agent.state import AnalysisState
-from agent.tools.forecast_sales import (
-    EntradaForecastSales,
-    ejecutar_forecast_sales,
-)
-from agent.tools.product_metrics import (
-    EntradaProductMetrics,
-    ejecutar_product_metrics,
-)
-from agent.tools.search_documents import (
-    EntradaSearchDocuments,
-    ejecutar_search_documents,
-)
-
-NOMBRE_A_TOOL = {
-    "product_metrics": EntradaProductMetrics,
-    "search_documents": EntradaSearchDocuments,
-    "forecast_sales": EntradaForecastSales,
-}
+from agent.tools.registry import buscar_tool
 
 
 def ejecutar_plan(estado: AnalysisState, indice: Any = None) -> AnalysisState:
     estado.ya_ejecutado = True
 
     for paso in estado.plan:
-        entrada_cls = NOMBRE_A_TOOL.get(paso.tool)
-        if entrada_cls is None or (paso.tool == "search_documents" and indice is None):
+        definicion = buscar_tool(paso.tool)
+        if definicion is None or not definicion.esta_disponible(indice):
             estado._advertir(
                 f"El plan pedía la herramienta '{paso.tool}', que no está "
                 "disponible en esta versión."
@@ -44,7 +27,7 @@ def ejecutar_plan(estado: AnalysisState, indice: Any = None) -> AnalysisState:
             continue
 
         try:
-            entrada = entrada_cls(**paso.argumentos)
+            entrada = definicion.validar_argumentos(paso.argumentos)
         except Exception as e:
             # Un argumento inválido no tumba el grafo: se salta ese paso y se
             # deja constancia. El resto del plan puede seguir siendo útil.
@@ -54,11 +37,6 @@ def ejecutar_plan(estado: AnalysisState, indice: Any = None) -> AnalysisState:
             )
             continue
 
-        if paso.tool == "search_documents":
-            ejecutar_search_documents(entrada, estado, indice)
-        elif paso.tool == "forecast_sales":
-            ejecutar_forecast_sales(entrada, estado)
-        else:
-            ejecutar_product_metrics(entrada, estado)
+        definicion.ejecutar(entrada, estado, indice)
 
     return estado

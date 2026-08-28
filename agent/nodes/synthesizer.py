@@ -23,6 +23,7 @@ from typing import Any
 
 from agent.llm import ClienteLLM
 from agent.state import AnalysisState
+from agent.tools.registry import ToolName
 from core.conclusiones import _alertas_de_devolucion, _conclusiones
 from core.kpis import FUENTE
 from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
@@ -216,12 +217,12 @@ def _fuentes_documentales(
 
 
 def _predicciones_del_estado(estado: AnalysisState) -> list[Prediccion]:
-    crudas = estado.resultados_tools.get("forecast_sales", [])
+    crudas = estado.resultados_tools.get(ToolName.FORECAST_SALES, [])
     return [p for p in (crudas or []) if isinstance(p, Prediccion)]
 
 
 def _metricas_del_estado(estado: AnalysisState) -> list[MetricaProducto]:
-    resultado = estado.resultados_tools.get("product_metrics", {})
+    resultado = estado.resultados_tools.get(ToolName.PRODUCT_METRICS, {})
     valores = resultado.values() if isinstance(resultado, dict) else resultado
     return [m for m in (valores or []) if isinstance(m, MetricaProducto)]
 

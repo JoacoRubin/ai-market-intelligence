@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from agent.tools.registry import ToolName
 from core.report import Prediccion
 from ml.forecast import pronosticar
 from ml.series import serie_diaria
@@ -24,7 +25,7 @@ from ml.series import serie_diaria
 if TYPE_CHECKING:
     from agent.state import AnalysisState
 
-NOMBRE = "forecast_sales"
+NOMBRE = ToolName.FORECAST_SALES
 MAX_HORIZONTE = 90
 MIN_HISTORICO = 60
 

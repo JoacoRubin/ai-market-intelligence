@@ -21,6 +21,7 @@ from datetime import date, datetime
 import pytest
 
 from agent.state import AnalysisState, Intencion, PasoPlan, Periodo
+from agent.tools.registry import ToolName
 from core.report import Afirmacion, Fuente, MetricaProducto, Report
 from replay.captura import Captura, Manifiesto
 
@@ -65,7 +66,7 @@ def _estado_completo() -> AnalysisState:
         intencion=Intencion.PRODUCT_PERFORMANCE,
         entidades=["P001", "P002"],
         periodo=Periodo(desde=date(2026, 1, 1), hasta=date(2026, 1, 31)),
-        plan=[PasoPlan(tool="product_metrics",
+        plan=[PasoPlan(tool=ToolName.PRODUCT_METRICS,
                        argumentos={"product_ids": ["P001", "P002"]},
                        razon="los KPIs se calculan por SQL, no por el modelo")],
         informe=_informe(),
@@ -237,7 +238,7 @@ def test_el_manifiesto_lista_las_capturas_y_dice_como_reproducirlas() -> None:
     assert manifiesto.total == 2
     assert [c.id for c in manifiesto.casos] == ["cmp-01", "out-01"]
     assert manifiesto.modelo_llm == MODELO
-    assert "docker compose up" in manifiesto.reproducible_con
+    assert "tasks.ps1 db-up" in manifiesto.reproducible_con
 
 
 def test_el_manifiesto_resume_cada_caso_sin_arrastrar_el_informe_entero() -> None:

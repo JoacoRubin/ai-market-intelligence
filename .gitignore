@@ -26,6 +26,11 @@ data/public/cache/
 *.index
 models/
 *.pkl
+# El indice paso de chunks.pkl a chunks.json al dejar de usar pickle
+# (que ejecuta codigo al deserializar). Sigue siendo un artefacto de
+# build --se rehace con `rag-build`-- asi que sigue fuera del repo: el
+# cambio de formato no lo convirtio en fuente.
+data/indice/chunks.json
 *.joblib
 
 # --- Secretos ---------------------------------------------------------------

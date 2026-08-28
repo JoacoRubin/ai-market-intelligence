@@ -27,29 +27,14 @@ from __future__ import annotations
 import os
 import threading
 from collections import OrderedDict
-from typing import Protocol, runtime_checkable
+from collections.abc import Mapping
+from typing import Any
 
-from apps.api.schemas import Analisis
+from application.lifecycle import TransicionInvalida, aplicar_transicion
+from application.models import Analisis, EstadoAnalisis
+from application.ports import Almacen
 
 MAX_ANALISIS_EN_MEMORIA = 200
-
-
-@runtime_checkable
-class Almacen(Protocol):
-    """Lo que la API necesita de un almacén de análisis.
-
-    Existe para que `main.py` no dependa de CUÁL de las dos
-    implementaciones está corriendo. Es el mismo criterio que `ClienteLLM`:
-    un puerto chico, definido por lo que el consumidor usa.
-    """
-
-    def guardar(self, analisis: Analisis) -> None: ...
-    def obtener(self, id_: str) -> Analisis | None: ...
-    def listar(
-        self, limite: int = 50, offset: int = 0
-    ) -> tuple[int, list[Analisis]]: ...
-    def eliminar(self, id_: str) -> bool: ...
-    def limpiar(self) -> None: ...
 
 
 class AlmacenAnalisis:
@@ -66,24 +51,83 @@ class AlmacenAnalisis:
         self._capacidad = capacidad
 
     def guardar(self, analisis: Analisis) -> None:
+        """Crea el recurso o conserva la actualización legacy con CAS.
+
+        El caso de uso usa ``transicionar``; aceptar una actualización acá se
+        mantiene por compatibilidad. Aun así compara ``version`` y nunca pisa
+        un tombstone de cancelación.
+        """
         with self._lock:
-            self._datos[analisis.id] = analisis
+            actual = self._datos.get(analisis.id)
+            copia = analisis.model_copy(deep=True)
+            if actual is not None:
+                if actual.estado == EstadoAnalisis.CANCELADO:
+                    raise RuntimeError(
+                        f"el análisis {analisis.id} fue cancelado"
+                    )
+                if copia.version != actual.version:
+                    raise RuntimeError(
+                        f"versión obsoleta para {analisis.id}: "
+                        f"{copia.version} != {actual.version}"
+                    )
+                copia.version = actual.version + 1
+            self._datos[analisis.id] = copia
             self._datos.move_to_end(analisis.id)
             while len(self._datos) > self._capacidad:
                 self._datos.popitem(last=False)
 
     def obtener(self, id_: str) -> Analisis | None:
         with self._lock:
-            return self._datos.get(id_)
+            analisis = self._datos.get(id_)
+            if analisis is None or analisis.estado == EstadoAnalisis.CANCELADO:
+                return None
+            return analisis.model_copy(deep=True)
 
     def listar(self, limite: int = 50, offset: int = 0) -> tuple[int, list[Analisis]]:
         with self._lock:
-            todos = list(reversed(self._datos.values()))
+            todos = [
+                item.model_copy(deep=True)
+                for item in reversed(self._datos.values())
+                if item.estado != EstadoAnalisis.CANCELADO
+            ]
         return len(todos), todos[offset:offset + limite]
 
-    def eliminar(self, id_: str) -> bool:
+    def transicionar(
+        self,
+        id_: str,
+        *,
+        desde: EstadoAnalisis,
+        hacia: EstadoAnalisis,
+        version_esperada: int | None = None,
+        cambios: Mapping[str, Any] | None = None,
+    ) -> Analisis | None:
+        """Compare-and-set atómico bajo el mismo lock que lectura/escritura."""
         with self._lock:
-            return self._datos.pop(id_, None) is not None
+            actual = self._datos.get(id_)
+            if actual is None or actual.estado != desde:
+                return None
+            if (
+                version_esperada is not None
+                and actual.version != version_esperada
+            ):
+                return None
+            try:
+                siguiente = aplicar_transicion(actual, hacia, cambios)
+            except TransicionInvalida:
+                return None
+            self._datos[id_] = siguiente
+            return siguiente.model_copy(deep=True)
+
+    def eliminar(self, id_: str) -> bool:
+        """Marca un tombstone atómico que los lectores públicos no ven."""
+        with self._lock:
+            actual = self._datos.get(id_)
+            if actual is None or actual.estado == EstadoAnalisis.CANCELADO:
+                return False
+            self._datos[id_] = aplicar_transicion(
+                actual, EstadoAnalisis.CANCELADO
+            )
+            return True
 
     def limpiar(self) -> None:
         with self._lock:

@@ -21,6 +21,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent.state import AnalysisState, Intencion, PasoPlan, Periodo
+from agent.tools.registry import ToolName
 
 
 def _estado(**kw: Any) -> AnalysisState:
@@ -117,7 +118,7 @@ def test_el_plan_solo_admite_herramientas_conocidas() -> None:
 
 
 def test_un_paso_valido_se_construye() -> None:
-    p = PasoPlan(tool="product_metrics",
+    p = PasoPlan(tool=ToolName.PRODUCT_METRICS,
                  argumentos={"product_ids": ["P001"]},
                  razon="Necesito los KPIs para comparar")
     assert p.tool == "product_metrics"

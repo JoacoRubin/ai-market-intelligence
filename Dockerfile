@@ -93,6 +93,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
+# UID/GID estable para que API y worker no corran con privilegios de root.
+# Los directorios montados como volumen se crean con este ownership; Docker lo
+# conserva al inicializar un volumen nuevo.
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --create-home \
+        --home-dir /home/app --shell /usr/sbin/nologin app
+
 WORKDIR /app
 
 # El entorno virtual ya resuelto, tal cual quedó en el builder. Nada de
@@ -112,6 +119,10 @@ COPY ml/ ml/
 COPY rag/ rag/
 COPY seeds/ seeds/
 
+RUN install -d -o app -g app \
+        /app/data/indice \
+        /home/app/.cache/huggingface
+
 # HF_HUB_OFFLINE=1: mismo criterio que tasks.ps1 (ver rag/indice.py). El
 # modelo de embeddings y el índice FAISS NO viajan en la imagen — son datos
 # generados, no código — y llegan por los volúmenes `hf_cache` e
@@ -119,9 +130,13 @@ COPY seeds/ seeds/
 # devuelve None y el agente degrada solo a análisis sin evidencia documental
 # (ya implementado en rag/build.py); no hace falta nada especial acá para
 # sostener esa degradación.
-ENV HF_HUB_OFFLINE=1 \
+ENV HOME=/home/app \
+    HF_HOME=/home/app/.cache/huggingface \
+    HF_HUB_OFFLINE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+USER app:app
 
 EXPOSE 8000
 

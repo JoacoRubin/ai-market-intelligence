@@ -54,7 +54,7 @@ def test_el_manifiesto_escrito_es_json_valido_y_lista_los_casos(tmp_path: Path) 
 
     assert datos["total"] == 1
     assert datos["casos"][0]["id"] == "cmp-01"
-    assert "docker compose up" in datos["reproducible_con"]
+    assert "tasks.ps1 db-up" in datos["reproducible_con"]
 
 
 def test_genera_el_pdf_solo_de_los_casos_que_tienen_informe(tmp_path: Path) -> None:

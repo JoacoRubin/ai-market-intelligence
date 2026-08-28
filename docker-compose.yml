@@ -9,7 +9,8 @@ services:
       MSSQL_PID: Developer
       MSSQL_COLLATION: SQL_Latin1_General_CP1_CI_AS
     ports:
-      - "1433:1433"
+      # SQL queda disponible para herramientas locales, pero nunca para la LAN.
+      - "127.0.0.1:1433:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
       - ./infra/sql:/scripts:ro
@@ -32,9 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ami-api
-    env_file:
-      - .env
-    # OJO — estas tres van con valor FIJO y NO con ${VAR:-default}.
+    # OJO — las variables de red van con valor FIJO y NO con ${VAR:-default}.
     #
     # Compose interpola ${VAR} contra el .env del proyecto, así que un
     # `${OLLAMA_HOST:-http://host.docker.internal:11434}` NUNCA usa ese
@@ -45,40 +44,59 @@ services:
     # La regla, entonces: las variables que describen CÓMO LLEGAR a otro
     # servicio valen distinto adentro y afuera de Docker. El .env describe
     # correr la API a mano (localhost); el compose las pisa acá. Las
-    # credenciales sí vienen del .env vía env_file — esas no cambian.
+    # variables necesarias se permiten una por una para que la credencial
+    # administrativa nunca llegue al runtime de API ni worker.
     environment:
       # `sqlserver` es el nombre del SERVICIO: dentro de la red de compose
-      # ese es el hostname. Y es MSSQL_SERVER, no MSSQL_DSN — core/db.py
-      # arma la cadena de conexión a mano en `_cadena()` y lee esta.
-      # (MSSQL_DSN figura en env.example pero no la lee nadie en el código.)
+      # ese es el hostname. core/db.py arma la cadena de conexión a mano con
+      # MSSQL_SERVER y las credenciales read-only permitidas acá.
       MSSQL_SERVER: sqlserver,1433
+      MSSQL_DB: "${MSSQL_DB:-ami}"
+      MSSQL_APP_USER: "${MSSQL_APP_USER:-ami_reader}"
+      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:-Reader_Local_2026!}"
       # Ollama NO entra a este compose (ver README y ADR-010): es un
       # requisito de la máquina host, no un servicio del sistema.
       # host.docker.internal es cómo Docker expone el host al container.
       OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen3:4b}"
+      LLM_BACKEND: "${LLM_BACKEND:-httpx}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_AUTH_TOKEN: "${ANTHROPIC_AUTH_TOKEN:-}"
       # Adentro de Docker el análisis va a la cola y lo consume el worker
       # (ADR-012). El default del código sigue siendo `memoria`, que es lo
       # que corre cuando se levanta la API a mano con tasks.ps1.
       JOBS_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
+      JOBS_COLA: "${JOBS_COLA:-analisis}"
+      JOBS_TIMEOUT: "${JOBS_TIMEOUT:-900}"
+      SIN_MLFLOW: "${SIN_MLFLOW:-}"
+      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
+      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY:-}"
+      LANGSMITH_PROJECT: "${LANGSMITH_PROJECT:-ai-market-intelligence}"
     extra_hosts:
       # No-op en Docker Desktop (ya resuelve host.docker.internal solo).
       # Necesario en Linux nativo para que el mismo compose ande igual ahí.
       - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       # El índice FAISS y la caché de embeddings de HuggingFace NO viajan en
       # la imagen (ver Dockerfile): son datos generados, no código. Sin este
       # volumen, cargar_indice() devuelve None y el agente degrada solo a
       # análisis sin evidencia documental — no hace falta nada más acá.
       - indice_data:/app/data/indice
-      - hf_cache:/root/.cache/huggingface
+      - hf_cache:/home/app/.cache/huggingface
     depends_on:
       sqlserver:
         condition: service_healthy
       redis:
         condition: service_healthy
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
   redis:
@@ -89,12 +107,9 @@ services:
     # momento equivocado pierde justo los jobs encolados — que es
     # exactamente el agujero que este servicio vino a tapar.
     command: redis-server --appendonly yes
-    ports:
-      # Publicado por el mismo motivo que el 1433 de SQL Server: los tests
-      # marcados `redis` corren FUERA de Docker, contra el venv local, y sin
-      # el puerto expuesto se saltearían siempre — un test que nunca corre
-      # da la misma señal que uno que no existe.
-      - "6379:6379"
+    # Deliberadamente SIN `ports`: RQ deserializa jobs con pickle y Redis no
+    # puede quedar alcanzable desde el host o la LAN. API y worker llegan por
+    # la red privada que Compose crea para el proyecto.
     volumes:
       - redis_data:/data
     healthcheck:
@@ -115,20 +130,32 @@ services:
     # las tools, el almacén— y dos imágenes que tienen que quedar en sincro
     # es una que en algún momento no lo está.
     command: ["python", "-m", "apps.jobs.worker"]
-    env_file:
-      - .env
     environment:
       MSSQL_SERVER: sqlserver,1433
+      MSSQL_DB: "${MSSQL_DB:-ami}"
+      MSSQL_APP_USER: "${MSSQL_APP_USER:-ami_reader}"
+      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:-Reader_Local_2026!}"
       OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen3:4b}"
+      LLM_BACKEND: "${LLM_BACKEND:-httpx}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_AUTH_TOKEN: "${ANTHROPIC_AUTH_TOKEN:-}"
       JOBS_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
+      JOBS_COLA: "${JOBS_COLA:-analisis}"
+      JOBS_TIMEOUT: "${JOBS_TIMEOUT:-900}"
+      SIN_MLFLOW: "${SIN_MLFLOW:-}"
+      LANGSMITH_TRACING: "${LANGSMITH_TRACING:-false}"
+      LANGSMITH_API_KEY: "${LANGSMITH_API_KEY:-}"
+      LANGSMITH_PROJECT: "${LANGSMITH_PROJECT:-ai-market-intelligence}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       # Los MISMOS volúmenes que la API: el worker es quien corre el grafo,
       # así que es el que necesita el índice FAISS y el modelo de embeddings.
       - indice_data:/app/data/indice
-      - hf_cache:/root/.cache/huggingface
+      - hf_cache:/home/app/.cache/huggingface
     # El HEALTHCHECK de la imagen le pega a http://localhost:8000/health, y
     # este contenedor NO sirve HTTP: heredarlo lo dejaría `unhealthy` para
     # siempre. Se reemplaza por la pregunta que sí tiene sentido acá —
@@ -154,6 +181,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
 volumes:

@@ -28,17 +28,19 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 from dataclasses import dataclass
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 import numpy as np
 
 from rag.corpus import Documento
 
 MODELO_EMBEDDINGS = "intfloat/multilingual-e5-small"
+DIMENSION_EMBEDDINGS = 384
+SCHEMA_INDICE = 1
 PREFIJO_CONSULTA = "query: "
 PREFIJO_PASAJE = "passage: "
 
@@ -123,6 +125,96 @@ class Chunk:
 class Resultado:
     chunk: Chunk
     score: float
+
+
+class IndiceIncompatibleError(RuntimeError):
+    """El artefacto existe, pero no cumple el contrato seguro vigente."""
+
+
+_CAMPOS_CHUNK = {
+    "chunk_id",
+    "doc_id",
+    "texto",
+    "tipo",
+    "titulo",
+    "seccion",
+    "fecha",
+    "product_id",
+}
+
+
+def _serializar_chunk(chunk: Chunk) -> dict[str, str | None]:
+    return {
+        "chunk_id": chunk.chunk_id,
+        "doc_id": chunk.doc_id,
+        "texto": chunk.texto,
+        "tipo": chunk.tipo,
+        "titulo": chunk.titulo,
+        "seccion": chunk.seccion,
+        "fecha": chunk.fecha.isoformat(),
+        "product_id": chunk.product_id,
+    }
+
+
+def _deserializar_chunk(datos: object, posicion: int) -> Chunk:
+    if not isinstance(datos, dict) or set(datos) != _CAMPOS_CHUNK:
+        raise IndiceIncompatibleError(
+            f"chunk {posicion} no cumple el schema {SCHEMA_INDICE}"
+        )
+
+    campos_texto = _CAMPOS_CHUNK - {"fecha", "product_id"}
+    if any(not isinstance(datos[campo], str) for campo in campos_texto):
+        raise IndiceIncompatibleError(
+            f"chunk {posicion} contiene campos de texto invalidos"
+        )
+    product_id = datos["product_id"]
+    if product_id is not None and not isinstance(product_id, str):
+        raise IndiceIncompatibleError(
+            f"chunk {posicion} contiene un product_id invalido"
+        )
+    fecha_cruda = datos["fecha"]
+    if not isinstance(fecha_cruda, str):
+        raise IndiceIncompatibleError(f"chunk {posicion} contiene una fecha invalida")
+    try:
+        fecha = date.fromisoformat(fecha_cruda)
+    except ValueError as error:
+        raise IndiceIncompatibleError(
+            f"chunk {posicion} contiene una fecha invalida: {fecha_cruda!r}"
+        ) from error
+
+    return Chunk(
+        chunk_id=datos["chunk_id"],
+        doc_id=datos["doc_id"],
+        texto=datos["texto"],
+        tipo=datos["tipo"],
+        titulo=datos["titulo"],
+        seccion=datos["seccion"],
+        fecha=fecha,
+        product_id=product_id,
+    )
+
+
+def _sha256(archivo: Path) -> str:
+    digest = sha256()
+    with archivo.open("rb") as contenido:
+        for bloque in iter(lambda: contenido.read(1024 * 1024), b""):
+            digest.update(bloque)
+    return digest.hexdigest()
+
+
+def _leer_json(archivo: Path, descripcion: str) -> object:
+    try:
+        return json.loads(archivo.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise IndiceIncompatibleError(f"falta {descripcion}: {archivo.name}") from error
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise IndiceIncompatibleError(
+            f"{descripcion} no contiene JSON valido: {archivo.name}"
+        ) from error
+
+
+def _entero_estricto(valor: object) -> TypeGuard[int]:
+    return isinstance(valor, int) and not isinstance(valor, bool)
 
 
 def _partir(texto: str) -> list[str]:
@@ -244,16 +336,54 @@ class IndiceVectorial:
     def guardar(self, destino: str | Path) -> Path:
         import faiss
 
+        if self._indice is None:
+            raise RuntimeError("no se puede guardar un indice que no fue construido")
+        dimension = getattr(self._indice, "d", None)
+        if dimension != DIMENSION_EMBEDDINGS:
+            raise IndiceIncompatibleError(
+                "la dimension del indice no coincide con el modelo configurado: "
+                f"esperada {DIMENSION_EMBEDDINGS}, recibida {dimension!r}"
+            )
+        total = getattr(self._indice, "ntotal", None)
+        if total != len(self._chunks):
+            raise IndiceIncompatibleError(
+                "la cantidad de vectores no coincide con la cantidad de chunks: "
+                f"{total!r} contra {len(self._chunks)}"
+            )
+
         destino = Path(destino)
         destino.mkdir(parents=True, exist_ok=True)
-        faiss.write_index(self._indice, str(destino / "vectores.faiss"))
-        with open(destino / "chunks.pkl", "wb") as f:
-            pickle.dump(self._chunks, f)
-        (destino / "meta.json").write_text(
-            json.dumps({"modelo": MODELO_EMBEDDINGS, "chunks": len(self._chunks)},
-                       indent=2),
+        archivo_vectores = destino / "vectores.faiss"
+        archivo_chunks = destino / "chunks.json"
+        faiss.write_index(self._indice, str(archivo_vectores))
+        archivo_chunks.write_text(
+            json.dumps(
+                {
+                    "schema_version": SCHEMA_INDICE,
+                    "chunks": [_serializar_chunk(chunk) for chunk in self._chunks],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
+
+        meta = {
+            "schema_version": SCHEMA_INDICE,
+            "modelo": MODELO_EMBEDDINGS,
+            "dimension": DIMENSION_EMBEDDINGS,
+            "chunks": len(self._chunks),
+            "checksums": {
+                "vectores.faiss": _sha256(archivo_vectores),
+                "chunks.json": _sha256(archivo_chunks),
+            },
+        }
+        (destino / "meta.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (destino / "chunks.pkl").unlink(missing_ok=True)
         return destino
 
     def cargar(self, origen: str | Path) -> IndiceVectorial:
@@ -264,7 +394,89 @@ class IndiceVectorial:
         if not archivo.exists():
             raise FileNotFoundError(f"no hay un índice en {origen}")
 
-        self._indice = faiss.read_index(str(archivo))
-        with open(origen / "chunks.pkl", "rb") as f:
-            self._chunks = pickle.load(f)
+        archivo_chunks = origen / "chunks.json"
+        archivo_meta = origen / "meta.json"
+        if (origen / "chunks.pkl").exists() and not archivo_chunks.exists():
+            raise IndiceIncompatibleError(
+                "el indice usa el formato legado chunks.pkl, que no se carga porque "
+                "pickle puede ejecutar codigo; reconstruí el indice con 'rag-build'"
+            )
+
+        meta = _leer_json(archivo_meta, "la metadata del indice")
+        if not isinstance(meta, dict):
+            raise IndiceIncompatibleError("la metadata del indice debe ser un objeto JSON")
+        schema = meta.get("schema_version")
+        if schema != SCHEMA_INDICE:
+            raise IndiceIncompatibleError(
+                "version de schema del indice incompatible: "
+                f"esperada {SCHEMA_INDICE}, recibida {schema!r}; reconstruí el indice"
+            )
+        modelo = meta.get("modelo")
+        if modelo != MODELO_EMBEDDINGS:
+            raise IndiceIncompatibleError(
+                "modelo de embeddings incompatible: "
+                f"esperado {MODELO_EMBEDDINGS!r}, recibido {modelo!r}"
+            )
+        dimension = meta.get("dimension")
+        if dimension != DIMENSION_EMBEDDINGS:
+            raise IndiceIncompatibleError(
+                "dimension de embeddings incompatible: "
+                f"esperada {DIMENSION_EMBEDDINGS}, recibida {dimension!r}"
+            )
+        cantidad = meta.get("chunks")
+        if not _entero_estricto(cantidad) or cantidad < 0:
+            raise IndiceIncompatibleError("la cantidad de chunks de la metadata es invalida")
+
+        checksums = meta.get("checksums")
+        nombres = ("vectores.faiss", "chunks.json")
+        if not isinstance(checksums, dict) or set(checksums) != set(nombres):
+            raise IndiceIncompatibleError("la metadata no declara todos los checksums")
+        for nombre in nombres:
+            esperado = checksums[nombre]
+            if not isinstance(esperado, str) or len(esperado) != 64:
+                raise IndiceIncompatibleError(f"checksum invalido para {nombre}")
+            archivo_contenido = origen / nombre
+            try:
+                recibido = _sha256(archivo_contenido)
+            except FileNotFoundError as error:
+                raise IndiceIncompatibleError(
+                    f"falta un archivo del indice: {nombre}"
+                ) from error
+            if recibido != esperado:
+                raise IndiceIncompatibleError(
+                    f"checksum invalido para {nombre}: el indice fue modificado o esta corrupto"
+                )
+
+        payload = _leer_json(archivo_chunks, "los chunks del indice")
+        if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_INDICE:
+            raise IndiceIncompatibleError("los chunks no cumplen el schema del indice")
+        chunks_crudos = payload.get("chunks")
+        if not isinstance(chunks_crudos, list):
+            raise IndiceIncompatibleError("el archivo de chunks no contiene una lista")
+        if len(chunks_crudos) != cantidad:
+            raise IndiceIncompatibleError(
+                "la cantidad de chunks no coincide con la metadata: "
+                f"{len(chunks_crudos)} contra {cantidad}"
+            )
+        chunks = [
+            _deserializar_chunk(datos, posicion)
+            for posicion, datos in enumerate(chunks_crudos)
+        ]
+
+        indice = faiss.read_index(str(archivo))
+        dimension_real = getattr(indice, "d", None)
+        if dimension_real != dimension:
+            raise IndiceIncompatibleError(
+                "la dimension real del indice FAISS no coincide con la metadata: "
+                f"{dimension_real!r} contra {dimension}"
+            )
+        total_real = getattr(indice, "ntotal", None)
+        if total_real != cantidad:
+            raise IndiceIncompatibleError(
+                "la cantidad real de vectores no coincide con los chunks: "
+                f"{total_real!r} contra {cantidad}"
+            )
+
+        self._indice = indice
+        self._chunks = chunks
         return self

@@ -31,6 +31,7 @@ from typing import Any
 import pytest
 
 from agent.state import AnalysisState, Intencion, PasoPlan, Periodo
+from agent.tools.registry import ToolName
 from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
 from replay.captura import Captura
 from replay.escritura import escribir
@@ -83,7 +84,7 @@ def _con_informe() -> AnalysisState:
         request_id="req-abc", consulta=informe.consulta,
         intencion=Intencion.PRODUCT_PERFORMANCE, entidades=["P001", "P002"],
         periodo=Periodo(desde=date(2026, 1, 1), hasta=date(2026, 1, 31)),
-        plan=[PasoPlan(tool="product_metrics", argumentos={}, razon="KPIs por SQL")],
+        plan=[PasoPlan(tool=ToolName.PRODUCT_METRICS, argumentos={}, razon="KPIs por SQL")],
         informe=informe,
     )
     e.registrar_paso("router", 12_400)

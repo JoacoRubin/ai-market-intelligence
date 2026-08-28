@@ -64,7 +64,9 @@ def main() -> int:
     # el primer job.
     SpawnWorker(
         [NOMBRE_COLA], connection=_cliente(decodificar=False)
-    ).work(with_scheduler=False)
+    # Los retries con intervalo quedan en ScheduledJobRegistry. Sin scheduler
+    # el primer fallo se persiste, pero NUNCA vuelve a la cola.
+    ).work(with_scheduler=True)
     return 0
 
 

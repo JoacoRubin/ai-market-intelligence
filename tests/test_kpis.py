@@ -308,3 +308,13 @@ def test_metricas_coinciden_con_los_kpis_individuales(productos_de_prueba: list[
     assert m.unidades == unidades_vendidas(pid, DESDE, HASTA)
     assert m.revenue == pytest.approx(revenue(pid, DESDE, HASTA), abs=TOLERANCIA)
     assert m.margen_pct == pytest.approx(margen_pct(pid, DESDE, HASTA), abs=0.01)
+    crecimiento_esperado = crecimiento_pct(pid, DESDE, HASTA)
+    if crecimiento_esperado is None:
+        assert m.crecimiento_pct is None
+    else:
+        assert m.crecimiento_pct == pytest.approx(crecimiento_esperado, abs=0.01)
+    devolucion_esperada = tasa_devolucion_pct(pid, DESDE, HASTA)
+    if devolucion_esperada is None:
+        assert m.tasa_devolucion_pct is None
+    else:
+        assert m.tasa_devolucion_pct == pytest.approx(devolucion_esperada, abs=0.01)

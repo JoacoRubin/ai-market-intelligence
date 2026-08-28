@@ -21,21 +21,12 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from agent.tools.registry import ToolName
 from core.report import PasoTrace, Report
-
-# Herramientas que el agente tiene permitido usar. Un plan que nombre algo
-# fuera de esta lista es una alucinación del modelo, y se rechaza en el borde.
-TOOLS_PERMITIDAS = Literal[
-    "product_metrics",
-    "search_documents",
-    "public_research",
-    "forecast_sales",
-    "calculator",
-]
 
 
 class Intencion(StrEnum):
@@ -73,7 +64,9 @@ class PasoPlan(BaseModel):
     que permite auditar si el agente eligió bien la herramienta.
     """
 
-    tool: TOOLS_PERMITIDAS
+    # ToolName sale del catálogo ejecutable. Cualquier otro nombre es una
+    # alucinación del plan y Pydantic la rechaza en este borde.
+    tool: ToolName
     argumentos: dict[str, Any] = Field(default_factory=dict)
     razon: str = ""
 

@@ -29,9 +29,11 @@ en el servidor, que es exactamente para lo que existe.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from typing import Any
 
-from apps.api.schemas import Analisis
+from application.lifecycle import TransicionInvalida, aplicar_transicion
+from application.models import Analisis, EstadoAnalisis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 PREFIJO_POR_DEFECTO = "ami:analisis"
@@ -119,21 +121,51 @@ class AlmacenRedis:
         aparecería en `listar()` — invisible sin estar ausente, que es la
         clase de inconsistencia más difícil de diagnosticar.
         """
-        pipe = self._r.pipeline()
-        pipe.set(self._clave(analisis.id), analisis.model_dump_json(), ex=self._ttl)
-        # El puntaje es el instante de creación: es lo que define el orden de
-        # `listar()`, y no cambia aunque el análisis se re-guarde al pasar a
-        # PROCESANDO o COMPLETADO. Usar "ahora" acá reordenaría la lista cada
-        # vez que el worker actualiza el estado.
-        pipe.zadd(self._indice, {analisis.id: analisis.creado_en.timestamp()})
-        pipe.expire(self._indice, self._ttl)
-        pipe.execute()
+        from redis.exceptions import WatchError
+
+        clave = self._clave(analisis.id)
+        while True:
+            try:
+                with self._r.pipeline() as pipe:
+                    pipe.watch(clave)
+                    crudo = pipe.get(clave)
+                    copia = analisis.model_copy(deep=True)
+                    if crudo is not None:
+                        actual = Analisis.model_validate_json(crudo)
+                        if actual.estado == EstadoAnalisis.CANCELADO:
+                            raise RuntimeError(
+                                f"el análisis {analisis.id} fue cancelado"
+                            )
+                        if copia.version != actual.version:
+                            raise RuntimeError(
+                                f"versión obsoleta para {analisis.id}: "
+                                f"{copia.version} != {actual.version}"
+                            )
+                        copia.version = actual.version + 1
+
+                    pipe.multi()
+                    pipe.set(clave, copia.model_dump_json(), ex=self._ttl)
+                    # El puntaje es el instante de creación: actualizar estado
+                    # nunca reordena el listado.
+                    pipe.zadd(
+                        self._indice,
+                        {copia.id: copia.creado_en.timestamp()},
+                    )
+                    pipe.expire(self._indice, self._ttl)
+                    pipe.execute()
+                    return
+            except WatchError:
+                # Otro proceso ganó la carrera: releer y volver a comparar.
+                continue
 
     def obtener(self, id_: str) -> Analisis | None:
         crudo = self._r.get(self._clave(id_))
         if crudo is None:
             return None
-        return Analisis.model_validate_json(crudo)
+        analisis = Analisis.model_validate_json(crudo)
+        if analisis.estado == EstadoAnalisis.CANCELADO:
+            return None
+        return analisis
 
     def listar(self, limite: int = 50, offset: int = 0) -> tuple[int, list[Analisis]]:
         """Devuelve (total, página), del más nuevo al más viejo.
@@ -155,18 +187,83 @@ class AlmacenRedis:
                 items.append(analisis)
         return total, items
 
-    def eliminar(self, id_: str) -> bool:
-        """Borra el análisis y su entrada del índice. Dice si existía.
+    def transicionar(
+        self,
+        id_: str,
+        *,
+        desde: EstadoAnalisis,
+        hacia: EstadoAnalisis,
+        version_esperada: int | None = None,
+        cambios: Mapping[str, Any] | None = None,
+    ) -> Analisis | None:
+        """CAS distribuido mediante WATCH/MULTI/EXEC."""
+        from redis.exceptions import WatchError
 
-        El booleano lo mira el endpoint DELETE para distinguir 204 de 404,
-        así que se toma de `delete` —la fuente de verdad del dato— y no de
-        `zrem`, que podría devolver 1 sobre un índice con un id fantasma.
-        """
-        pipe = self._r.pipeline()
-        pipe.delete(self._clave(id_))
-        pipe.zrem(self._indice, id_)
-        borrados, _ = pipe.execute()
-        return bool(borrados)
+        clave = self._clave(id_)
+        while True:
+            try:
+                with self._r.pipeline() as pipe:
+                    pipe.watch(clave)
+                    crudo = pipe.get(clave)
+                    if crudo is None:
+                        return None
+                    actual = Analisis.model_validate_json(crudo)
+                    if actual.estado != desde:
+                        return None
+                    if (
+                        version_esperada is not None
+                        and actual.version != version_esperada
+                    ):
+                        return None
+                    try:
+                        siguiente = aplicar_transicion(actual, hacia, cambios)
+                    except TransicionInvalida:
+                        return None
+
+                    pipe.multi()
+                    pipe.set(
+                        clave, siguiente.model_dump_json(), ex=self._ttl
+                    )
+                    if hacia == EstadoAnalisis.CANCELADO:
+                        pipe.zrem(self._indice, id_)
+                    else:
+                        pipe.zadd(
+                            self._indice,
+                            {id_: siguiente.creado_en.timestamp()},
+                        )
+                        pipe.expire(self._indice, self._ttl)
+                    pipe.execute()
+                    return siguiente.model_copy(deep=True)
+            except WatchError:
+                continue
+
+    def eliminar(self, id_: str) -> bool:
+        """Deja un tombstone y lo quita del índice de recursos visibles."""
+        from redis.exceptions import WatchError
+
+        clave = self._clave(id_)
+        while True:
+            try:
+                with self._r.pipeline() as pipe:
+                    pipe.watch(clave)
+                    crudo = pipe.get(clave)
+                    if crudo is None:
+                        return False
+                    actual = Analisis.model_validate_json(crudo)
+                    if actual.estado == EstadoAnalisis.CANCELADO:
+                        return False
+                    cancelado = aplicar_transicion(
+                        actual, EstadoAnalisis.CANCELADO
+                    )
+                    pipe.multi()
+                    pipe.set(
+                        clave, cancelado.model_dump_json(), ex=self._ttl
+                    )
+                    pipe.zrem(self._indice, id_)
+                    pipe.execute()
+                    return True
+            except WatchError:
+                continue
 
     def limpiar(self) -> None:
         """Borra todo lo de ESTE prefijo. No toca el resto del keyspace.
@@ -176,9 +273,10 @@ class AlmacenRedis:
         que comparte con otros — y en desarrollo esa base suele ser la misma
         que usa la cola de trabajos.
         """
-        ids = self._r.zrange(self._indice, 0, -1)
+        # Los cancelados son tombstones fuera del índice visible; SCAN permite
+        # limpiarlos también sin bloquear Redis como haría KEYS.
+        claves = list(self._r.scan_iter(match=f"{self._prefijo}:*"))
         pipe = self._r.pipeline()
-        for id_ in ids:
-            pipe.delete(self._clave(id_))
-        pipe.delete(self._indice)
+        for clave in claves:
+            pipe.delete(clave)
         pipe.execute()

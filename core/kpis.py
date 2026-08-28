@@ -164,13 +164,88 @@ def metricas_de_producto(
     directamente el modelo del informe, sin traducciones intermedias donde se
     puedan perder las reglas de negocio.
     """
+    # Una sola sentencia no es solamente una optimizacion. Antes, este agregado
+    # abria hasta siete conexiones independientes: una orden creada entre dos
+    # lecturas podia hacer que unidades, revenue y margen describieran estados
+    # distintos de la base. La consulta condicional calcula periodo actual y
+    # anterior sobre el mismo conjunto leido por SQL Server.
+    dias = (hasta - desde).days
+    desde_previo = desde - timedelta(days=dias + 1)
+    hasta_previo = desde - timedelta(days=1)
+    sql = """
+        WITH parametros AS (
+            SELECT CAST(? AS varchar(64)) AS product_id,
+                   CAST(? AS date)        AS desde,
+                   CAST(? AS date)        AS hasta,
+                   CAST(? AS date)        AS desde_previo,
+                   CAST(? AS date)        AS hasta_previo
+        ),
+        devoluciones AS (
+            SELECT DISTINCT order_item_id
+            FROM dbo.returns
+        )
+        SELECT p.brand,
+               p.category,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date) BETWEEN prm.desde AND prm.hasta
+                   THEN oi.quantity ELSE 0 END), 0) AS unidades,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date) BETWEEN prm.desde AND prm.hasta
+                   THEN oi.quantity * oi.unit_price ELSE 0 END), 0) AS revenue,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date) BETWEEN prm.desde AND prm.hasta
+                   THEN oi.quantity * p.cost ELSE 0 END), 0) AS costo,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date) BETWEEN prm.desde AND prm.hasta
+                   THEN 1 ELSE 0 END), 0) AS lineas,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date) BETWEEN prm.desde AND prm.hasta
+                    AND d.order_item_id IS NOT NULL
+                   THEN 1 ELSE 0 END), 0) AS devueltas,
+               COALESCE(SUM(CASE
+                   WHEN o.status <> 'cancelada'
+                    AND CAST(o.created_at AS date)
+                        BETWEEN prm.desde_previo AND prm.hasta_previo
+                   THEN oi.quantity * oi.unit_price ELSE 0 END), 0) AS revenue_previo
+        FROM parametros prm
+        LEFT JOIN dbo.products p     ON p.id = prm.product_id
+        LEFT JOIN dbo.order_items oi ON oi.product_id = p.id
+        LEFT JOIN dbo.orders o       ON o.id = oi.order_id
+        LEFT JOIN devoluciones d     ON d.order_item_id = oi.id
+        GROUP BY prm.product_id, p.brand, p.category
+    """
+    parametros = (
+        product_id,
+        *_rango(desde, hasta),
+        *_rango(desde_previo, hasta_previo),
+    )
+    with cursor_lectura() as cur:
+        fila = cur.execute(sql, parametros).fetchone()
+
+    # La fila siempre existe porque la CTE ``parametros`` es la raiz del LEFT
+    # JOIN. El fallback mantiene el contrato historico ante un product_id que
+    # no existe, aunque normalmente esa validacion ocurre antes, en la tool.
+    marca, categoria = fila[0], fila[1]
+    unidades = int(fila[2] or 0)
+    rev = float(fila[3] or 0.0)
+    costo = float(fila[4] or 0.0)
+    lineas = int(fila[5] or 0)
+    devueltas = int(fila[6] or 0)
+    rev_previo = float(fila[7] or 0.0)
+
     return MetricaProducto(
         product_id=product_id,
-        nombre=_nombre_de_producto(product_id),
-        unidades=unidades_vendidas(product_id, desde, hasta),
-        revenue=revenue(product_id, desde, hasta),
-        margen_pct=margen_pct(product_id, desde, hasta),
-        crecimiento_pct=crecimiento_pct(product_id, desde, hasta),
-        tasa_devolucion_pct=tasa_devolucion_pct(product_id, desde, hasta),
+        nombre=f"{marca} {categoria}" if marca is not None and categoria is not None
+        else product_id,
+        unidades=unidades,
+        revenue=rev,
+        margen_pct=(rev - costo) / rev * 100 if rev else None,
+        crecimiento_pct=(rev - rev_previo) / rev_previo * 100 if rev_previo else None,
+        tasa_devolucion_pct=devueltas / lineas * 100 if lineas else None,
         fuente=FUENTE,
     )

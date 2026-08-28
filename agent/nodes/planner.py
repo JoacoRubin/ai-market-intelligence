@@ -8,9 +8,9 @@ por consulta en esta máquina, podría equivocarse, y no aportaría nada que el
 software no resuelva mejor. Es la misma lección que dejó el diagnóstico del
 router: cuando hay un LLM a mano, todo empieza a parecer clavo.
 
-En la V1 hay una sola herramienta (`product_metrics`). El plan igual existe
-como estructura porque las fases 3 y 4 van a sumar RAG, research público y ML —
-ahí sí habrá algo que planificar. Lo que no va a cambiar es quién decide.
+El catálogo activo tiene tres herramientas: métricas, evidencia documental y
+forecast. El planificador solo referencia esos nombres tipados; una capacidad
+futura no entra al plan hasta tener implementación y contrato ejecutable.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import time
 from datetime import date, timedelta
 
 from agent.state import AnalysisState, Intencion, PasoPlan, Periodo
+from agent.tools.registry import ToolName
 
 DIAS_POR_DEFECTO = 30
 
@@ -124,7 +125,7 @@ def planificar(
     if estado.entidades:
         periodo = _asegurar_periodo(estado)
         estado.plan.append(PasoPlan(
-            tool="product_metrics",
+            tool=ToolName.PRODUCT_METRICS,
             argumentos={
                 "product_ids": list(estado.entidades),
                 "desde": periodo.desde,
@@ -142,7 +143,7 @@ def planificar(
     # único que puede explicar POR QUÉ pasó lo que los números muestran.
     if con_rag and estado.entidades and estado.puede_llamar_tool():
         estado.plan.append(PasoPlan(
-            tool="search_documents",
+            tool=ToolName.SEARCH_DOCUMENTS,
             argumentos={
                 "consulta": estado.consulta,
                 "product_id": estado.entidades[0],
@@ -162,7 +163,7 @@ def planificar(
             if not estado.puede_llamar_tool():
                 break
             estado.plan.append(PasoPlan(
-                tool="forecast_sales",
+                tool=ToolName.FORECAST_SALES,
                 argumentos={"product_id": pid, "horizonte_dias": 30},
                 razon=(
                     f"La consulta pide una proyección: estimar la demanda de "

@@ -22,13 +22,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from agent.tools.registry import ToolName
 from core.kpis import metricas_de_producto
 from core.report import MetricaProducto
 
 if TYPE_CHECKING:
     from agent.state import AnalysisState
 
-NOMBRE = "product_metrics"
+NOMBRE = ToolName.PRODUCT_METRICS
 PATRON_PRODUCTO = re.compile(r"^P\d{1,6}$")
 MAX_PRODUCTOS = 10
 MAX_DIAS_RANGO = 366 * 3

@@ -23,10 +23,11 @@ from pydantic import BaseModel, Field, computed_field
 
 from agent.state import AnalysisState, Intencion, PasoPlan, Periodo
 from core.report import PasoTrace, Report
+from replay.procedencia import ProcedenciaReplay
 
 # Cómo volver a generar estas capturas. Viaja en el manifiesto y se publica junto
 # al replay: sin esto, "es una ejecución real" es una afirmación sin respaldo.
-REPRODUCIBLE_CON = "docker compose up -d && .\\tasks.ps1 replay"
+REPRODUCIBLE_CON = ".\\tasks.ps1 db-up; .\\tasks.ps1 replay"
 
 
 class Captura(BaseModel):
@@ -127,10 +128,15 @@ class Manifiesto(BaseModel):
     total: int
     casos: list[ResumenCaso]
     reproducible_con: str = REPRODUCIBLE_CON
+    procedencia: ProcedenciaReplay | None = None
 
     @classmethod
     def desde_capturas(
-        cls, capturas: list[Captura], *, capturado_en: datetime
+        cls,
+        capturas: list[Captura],
+        *,
+        capturado_en: datetime,
+        procedencia: ProcedenciaReplay | None = None,
     ) -> Manifiesto:
         if not capturas:
             raise ValueError(
@@ -153,6 +159,7 @@ class Manifiesto(BaseModel):
             capturado_en=capturado_en,
             modelo_llm=modelos.pop(),
             total=len(capturas),
+            procedencia=procedencia,
             casos=[
                 ResumenCaso(
                     id=c.id,

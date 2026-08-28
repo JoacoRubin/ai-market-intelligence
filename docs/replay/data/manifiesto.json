@@ -70,5 +70,6 @@
       "tiene_informe": false
     }
   ],
-  "reproducible_con": "docker compose up -d && .\\tasks.ps1 replay"
+  "reproducible_con": ".\\tasks.ps1 db-up; .\\tasks.ps1 replay",
+  "procedencia": null
 }

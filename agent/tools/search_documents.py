@@ -25,12 +25,13 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from agent.tools.registry import ToolName
 from rag.indice import IndiceVectorial, Resultado
 
 if TYPE_CHECKING:
     from agent.state import AnalysisState
 
-NOMBRE = "search_documents"
+NOMBRE = ToolName.SEARCH_DOCUMENTS
 MAX_TOP_K = 8
 
 # Un pasaje cuya similitud queda esta distancia por debajo del mejor resultado

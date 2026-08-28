@@ -102,14 +102,43 @@ def rango_validado(
 
 # --- salud -------------------------------------------------------------------
 
-@app.get("/health", response_model=Salud, tags=["operación"])
-def salud() -> Salud:
+def _estado_readiness() -> Salud:
     disponible = hay_base_disponible()
     return Salud(
         estado="ok" if disponible else "degradado",
         base_de_datos="disponible" if disponible else "no disponible",
         version=VERSION,
     )
+
+
+@app.get("/health/live", response_model=Salud, tags=["operación"])
+def liveness() -> Salud:
+    """El proceso atiende HTTP; no consulta dependencias externas."""
+    return Salud(
+        estado="ok",
+        base_de_datos="no verificada",
+        version=VERSION,
+    )
+
+
+@app.get(
+    "/health/ready",
+    response_model=Salud,
+    tags=["operación"],
+    responses={503: {"model": Salud}},
+)
+def readiness(respuesta: Response) -> Salud:
+    """Indica si la API está lista para servir operaciones con datos."""
+    estado = _estado_readiness()
+    if estado.estado != "ok":
+        respuesta.status_code = 503
+    return estado
+
+
+@app.get("/health", response_model=Salud, tags=["operación"])
+def salud() -> Salud:
+    """Compatibilidad: conserva el 200 histórico aun estando degradado."""
+    return _estado_readiness()
 
 
 # --- recurso: products -------------------------------------------------------

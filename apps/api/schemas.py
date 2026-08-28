@@ -9,12 +9,13 @@ refactor rompe a los consumidores.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime
-from enum import StrEnum
+from datetime import date
 
 from pydantic import BaseModel, Field, model_validator
 
-from core.report import Report
+from application.models import Analisis as Analisis
+from application.models import AnalisisResumen as AnalisisResumen
+from application.models import EstadoAnalisis as EstadoAnalisis
 
 MAX_PRODUCTOS_POR_ANALISIS = 10
 
@@ -110,46 +111,6 @@ class SolicitudAnalisis(BaseModel):
     @property
     def es_estructurada(self) -> bool:
         return bool(self.product_ids)
-
-
-class EstadoAnalisis(StrEnum):
-    """Estados del recurso análisis.
-
-    El recurso existe desde que se crea; lo que cambia es su estado. Por eso el
-    POST responde 202 y no 201: fue aceptado, todavía no terminó.
-    """
-
-    PENDIENTE = "pendiente"
-    PROCESANDO = "procesando"
-    COMPLETADO = "completado"
-    FALLIDO = "fallido"
-
-
-class AnalisisResumen(BaseModel):
-    """Vista liviana, para el listado."""
-
-    id: str
-    estado: EstadoAnalisis
-    creado_en: datetime
-    consulta: str
-    product_ids: list[str] = Field(default_factory=list)
-    desde: date | None = None
-    hasta: date | None = None
-
-
-class Analisis(AnalisisResumen):
-    """Vista completa. `informe` sólo aparece cuando el estado es completado.
-
-    `intencion` y `advertencias` exponen el trabajo del agente aunque no haya
-    informe: una consulta fuera de alcance no produce análisis, pero el usuario
-    merece saber por qué.
-    """
-
-    intencion: str | None = None
-    informe: Report | None = None
-    error: str | None = None
-    etapas: list[str] = Field(default_factory=list)
-    advertencias: list[str] = Field(default_factory=list)
 
 
 class ListaAnalisis(BaseModel):

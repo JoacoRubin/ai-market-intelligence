@@ -4,8 +4,8 @@
     en la herramienta nativa de la plataforma.
 
 .DESCRIPTION
-    Encapsula la ruta de uv y la variable UV_PROJECT_ENVIRONMENT para que nadie
-    tenga que recordarlas. Ese "nadie" incluye a vos dentro de tres semanas.
+    Resuelve las herramientas desde PATH, carga la configuración local cuando
+    una tarea la necesita y mantiene los preflight en un solo lugar.
 
 .EXAMPLE
     .\tasks.ps1 help
@@ -20,10 +20,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# El venv vive FUERA de OneDrive a propósito: sincronizar decenas de miles de
-# archivos de un entorno virtual ralentiza la máquina y corrompe archivos en uso.
-$env:UV_PROJECT_ENVIRONMENT = "C:\Users\famas\.venvs\ai-market-intelligence"
-$UV = "C:\Users\famas\.local\bin\uv.exe"
 $RAIZ = $PSScriptRoot
 
 # Sin esto, Python en Windows escribe en la codificación de la consola (cp1252)
@@ -37,18 +33,83 @@ $env:PYTHONIOENCODING = "utf-8"
 # apaga para poder bajar el modelo la primera vez.
 if (-not $env:HF_HUB_OFFLINE) { $env:HF_HUB_OFFLINE = "1" }
 
-if (-not (Test-Path $UV)) {
-    Write-Host "No se encontró uv en $UV" -ForegroundColor Red
-    Write-Host "Instalalo con: irm https://astral.sh/uv/install.ps1 | iex"
-    exit 1
-}
-
 Set-Location $RAIZ
 
 function Titulo($texto) {
     Write-Host ""
     Write-Host "  $texto" -ForegroundColor Cyan
     Write-Host "  $('-' * $texto.Length)" -ForegroundColor DarkGray
+}
+
+function Invoke-Uv {
+    $uv = Get-Command uv -ErrorAction SilentlyContinue
+    if (-not $uv) {
+        Write-Host "No se encontró uv en PATH." -ForegroundColor Red
+        Write-Host "Instalalo desde https://docs.astral.sh/uv/ y abrí otra consola."
+        exit 1
+    }
+
+    & $uv.Source @args
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+function Require-EnvFile {
+    $rutaEnv = Join-Path $RAIZ ".env"
+    if (-not (Test-Path -LiteralPath $rutaEnv -PathType Leaf)) {
+        Write-Host "  Falta .env. Copiá env.example y cambiá las credenciales locales." `
+            -ForegroundColor Red
+        exit 1
+    }
+}
+
+function Import-ProjectEnv {
+    Require-EnvFile
+    $rutaEnv = Join-Path $RAIZ ".env"
+
+    foreach ($linea in Get-Content -LiteralPath $rutaEnv -Encoding UTF8) {
+        $limpia = $linea.Trim()
+        if (-not $limpia -or $limpia.StartsWith("#") -or -not $limpia.Contains("=")) {
+            continue
+        }
+
+        $partes = $limpia.Split(@("="), 2, [System.StringSplitOptions]::None)
+        $nombre = $partes[0].Trim()
+        if ($nombre -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { continue }
+
+        # Una variable explícita de la consola gana sobre .env. Esto permite
+        # usar una credencial efímera sin editar archivos y evita imprimirla.
+        if (-not (Test-Path "Env:$nombre")) {
+            [Environment]::SetEnvironmentVariable($nombre, $partes[1], "Process")
+        }
+    }
+}
+
+function Require-SaPassword {
+    if ([string]::IsNullOrWhiteSpace($env:MSSQL_SA_PASSWORD)) {
+        Write-Host "  MSSQL_SA_PASSWORD no está definida en el proceso ni en .env." `
+            -ForegroundColor Red
+        exit 1
+    }
+}
+
+function Require-Docker {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Host "  No se encontró docker en PATH." -ForegroundColor Red
+        exit 1
+    }
+
+    docker compose version *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Docker Compose no está disponible." -ForegroundColor Red
+        exit 1
+    }
+
+    docker info *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Docker no responde. Levantá Docker Desktop y reintentá." `
+            -ForegroundColor Red
+        exit 1
+    }
 }
 
 switch ($Tarea.ToLower()) {
@@ -59,7 +120,7 @@ switch ($Tarea.ToLower()) {
         Write-Host ""
         Write-Host "  setup      Instala dependencias (uv sync)"
         Write-Host "  test       Corre toda la suite de tests"
-        Write-Host "  test-fast  Solo los tests que no necesitan base de datos"
+        Write-Host "  test-fast  Tests sin SQL Server ni modelo de lenguaje real"
         Write-Host "  check      Linter (ruff)"
         Write-Host "  all        check + test. Lo que debe pasar antes de un commit"
         Write-Host ""
@@ -74,17 +135,24 @@ switch ($Tarea.ToLower()) {
         Write-Host "  docker-logs    Sigue los logs de la API containerizada"
         Write-Host "  docker-down    Detiene todo el stack de Docker"
         Write-Host ""
-        Write-Host "  redis-up       Solo Redis (para correr los tests marcados 'redis')"
+        Write-Host "  redis-up       Redis privado, accesible solo por la red Compose"
+        Write-Host "  redis-test-up  Redis temporal en 127.0.0.1 para tests locales"
         Write-Host "  worker         Corre el worker de analisis en esta consola"
         Write-Host "  worker-logs    Sigue los logs del worker containerizado"
         Write-Host "  cola           Cuantos trabajos hay encolados y en curso"
         Write-Host ""
         Write-Host "  dataset    Muestra un resumen del dataset generado (sin base)"
+        Write-Host "  api        Levanta la API local con recarga"
+        Write-Host "  agente     Ejecuta una consulta contra el agente real"
+        Write-Host "  api-demo   Recorre el flujo REST completo"
         Write-Host "  pdf        Genera un informe PDF de ejemplo y lo abre"
         Write-Host "  demo       Demostración de los guardrails de seguridad"
+        Write-Host "  ml-train   Entrena, backtestea y proyecta P001 desde SQL"
+        Write-Host "  rag-build  Construye el índice documental local"
         Write-Host "  replay     Captura las ejecuciones del replay estático (lento)"
         Write-Host "  replay-servir  Sirve el sitio del replay en localhost:8080"
         Write-Host "  rag-descargar  Baja el modelo de embeddings (una vez por máquina)"
+        Write-Host "  eval       Corre el golden set contra el modelo real (lento)"
         Write-Host "  estado     Estado de todos los componentes"
         Write-Host ""
     }
@@ -97,34 +165,38 @@ switch ($Tarea.ToLower()) {
         # una lista parcial deja el repo en un estado donde `test` ni
         # colecta. Es exactamente lo que corre el CI, y de eso se trata:
         # una sola fuente de verdad para lo que el proyecto necesita.
-        & $UV sync --all-extras --group dev
+        Invoke-Uv sync --all-extras --group dev
     }
 
     "test" {
         Titulo "Suite completa"
-        & $UV run pytest -v
+        Invoke-Uv run pytest -v
     }
 
     "test-fast" {
         Titulo "Tests sin base de datos"
-        & $UV run pytest -m "not db" -q
+        Invoke-Uv run pytest -m "not db and not llm" -q
     }
 
     "check" {
         Titulo "Linter"
-        & $UV run ruff check .
+        Invoke-Uv run ruff check .
     }
 
     "all" {
         Titulo "Linter"
-        & $UV run ruff check .
+        Invoke-Uv run ruff check .
         Titulo "Suite completa"
-        & $UV run pytest -q
+        Invoke-Uv run pytest -q
     }
 
     "db-up" {
+        Require-Docker
+        Require-EnvFile
+        Import-ProjectEnv
+        Require-SaPassword
         Titulo "Levantando SQL Server"
-        docker compose up -d
+        docker compose up -d sqlserver
         Write-Host "  Esperando healthcheck..." -NoNewline
         for ($i = 0; $i -lt 40; $i++) {
             $estado = docker inspect --format '{{.State.Health.Status}}' ami-sqlserver 2>$null
@@ -139,35 +211,44 @@ switch ($Tarea.ToLower()) {
     }
 
     "db-init" {
+        Require-Docker
+        Import-ProjectEnv
+        Require-SaPassword
         Titulo "Creando esquema y usuario read-only"
         $env:MSYS_NO_PATHCONV = "1"
         docker exec ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P 'Dev_Local_2026!' -C -i /scripts/01_schema.sql
+            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -i /scripts/01_schema.sql
         docker exec ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P 'Dev_Local_2026!' -C -i /scripts/02_readonly_user.sql
+            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -i /scripts/02_readonly_user.sql
     }
 
     "db-down" {
+        Require-Docker
         Titulo "Deteniendo SQL Server"
-        docker compose down
+        docker compose stop sqlserver
     }
 
     "db-shell" {
+        Require-Docker
+        Import-ProjectEnv
+        Require-SaPassword
         Titulo "Consola sqlcmd (escribí 'exit' para salir)"
         docker exec -it ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P 'Dev_Local_2026!' -C -d ami
+            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -d ami
     }
 
     "docker-build" {
+        Require-Docker
+        Require-EnvFile
         Titulo "Buildeando la imagen de la API"
         docker compose build api
     }
 
     "docker-up" {
-        if (-not (Test-Path (Join-Path $RAIZ ".env"))) {
-            Write-Host "  Falta .env — copiá env.example y completá las credenciales." -ForegroundColor Red
-            exit 1
-        }
+        Require-Docker
+        Require-EnvFile
+        Import-ProjectEnv
+        Require-SaPassword
         Titulo "Levantando SQL Server + API containerizada"
         docker compose up -d --build
         Write-Host "  Esperando healthcheck de la API..." -NoNewline
@@ -185,13 +266,39 @@ switch ($Tarea.ToLower()) {
     }
 
     "docker-logs" {
+        Require-Docker
         docker compose logs -f api
     }
 
     "redis-up" {
-        Titulo "Levantando Redis"
+        Require-Docker
+        Titulo "Levantando Redis dentro de la red privada de Compose"
         docker compose up -d redis
-        Write-Host "  Los tests marcados 'redis' ya no se saltean." -ForegroundColor Green
+        Write-Host "  Redis NO está publicado al host." -ForegroundColor Green
+        Write-Host "  Para tests locales usá: .\tasks.ps1 redis-test-up" -ForegroundColor Yellow
+    }
+
+    "redis-test-up" {
+        Require-Docker
+        Titulo "Levantando Redis para tests, limitado a 127.0.0.1"
+        $override = Join-Path ([IO.Path]::GetTempPath()) `
+            ("ami-redis-test-" + [guid]::NewGuid().ToString("N") + ".yml")
+        $contenido = @"
+services:
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+"@
+        try {
+            $utf8SinBom = New-Object System.Text.UTF8Encoding($false)
+            [IO.File]::WriteAllText($override, $contenido, $utf8SinBom)
+            docker compose -f docker-compose.yml -f $override up -d redis
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        } finally {
+            Remove-Item -LiteralPath $override -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "  Redis escucha solo en 127.0.0.1:6379." -ForegroundColor Green
+        Write-Host "  Al terminar: .\tasks.ps1 docker-down" -ForegroundColor Yellow
     }
 
     "worker" {
@@ -202,17 +309,18 @@ switch ($Tarea.ToLower()) {
         $env:JOBS_BACKEND = "redis"
         Write-Host "  Requiere Redis levantado (.\tasks.ps1 redis-up)" -ForegroundColor Yellow
         Write-Host ""
-        & $UV run python -m apps.jobs.worker
+        Invoke-Uv run python -m apps.jobs.worker
     }
 
     "worker-logs" {
+        Require-Docker
         docker compose logs -f worker
     }
 
     "cola" {
         Titulo "Estado de la cola de analisis"
         $env:JOBS_BACKEND = "redis"
-        & $UV run python -c @"
+        Invoke-Uv run python -c @"
 from apps.api.store_redis import hay_redis_disponible, REDIS_URL
 if not hay_redis_disponible():
     print(f'  Redis no responde en {REDIS_URL}')
@@ -228,14 +336,17 @@ print(f'  terminados    {c.finished_job_registry.count}')
     }
 
     "docker-down" {
+        Require-Docker
         Titulo "Deteniendo el stack de Docker"
         docker compose down
     }
 
     "seed" {
+        Import-ProjectEnv
+        Require-SaPassword
         Titulo "Generando y cargando el dataset"
         Write-Host "  Sin ODBC Driver 18 esto tarda varios minutos." -ForegroundColor Yellow
-        & $UV run python -m seeds.load
+        Invoke-Uv run python -m seeds.load
     }
 
     "api" {
@@ -243,22 +354,36 @@ print(f'  terminados    {c.finished_job_registry.count}')
         Write-Host "  Documentacion interactiva: http://localhost:8000/docs" -ForegroundColor Green
         Write-Host "  Ctrl+C para detener"
         Write-Host ""
-        & $UV run uvicorn apps.api.main:app --reload --port 8000
+        Invoke-Uv run uvicorn apps.api.main:app --reload --port 8000
     }
 
     "agente" {
         Titulo "Agente completo con el modelo real (lento: minutos en CPU)"
-        & $UV run python -m agent.demo $args[1]
+        Invoke-Uv run python -m agent.demo @args
     }
 
     "ml-train" {
-        Titulo "Forecast con backtesting y registro en MLflow"
-        & $UV run python -m ml.demo
+        Import-ProjectEnv
+        Titulo "Forecast de P001 con backtesting y registro en MLflow"
+        Invoke-Uv run python -c @"
+from datetime import date
+from ml.forecast import pronosticar
+from ml.series import serie_diaria
+
+desde, hasta = date(2025, 7, 1), date(2026, 6, 30)
+_, serie = serie_diaria('P001', desde, hasta)
+resultado = pronosticar('P001', serie, horizonte=30, desde=desde, hasta=hasta)
+print(f'  prediccion    {resultado.valor:,.1f} unidades / 30 dias')
+print(f'  MAPE modelo   {resultado.backtest.mape_modelo}')
+print(f'  MAPE baseline {resultado.backtest.mape_baseline}')
+print(f'  uso baseline  {resultado.uso_baseline}')
+print(f'  MLflow run    {resultado.run_id or "no disponible"}')
+"@
     }
 
     "rag-build" {
         Titulo "Construyendo el indice documental (embeddings en CPU)"
-        & $UV run python -m rag.build
+        Invoke-Uv run python -m rag.build
     }
 
     "rag-descargar" {
@@ -268,14 +393,14 @@ print(f'  terminados    {c.finished_job_registry.count}')
         $env:HF_HUB_OFFLINE = "0"
         Write-Host "  Modelo: intfloat/multilingual-e5-small" -ForegroundColor Yellow
         Write-Host ""
-        & $UV run python -c "from rag.indice import obtener_modelo; obtener_modelo(); print('  Modelo en cache local.')"
+        Invoke-Uv run python -c "from rag.indice import obtener_modelo; obtener_modelo(); print('  Modelo en cache local.')"
     }
 
     "replay" {
         Titulo "Capturando ejecuciones para el replay estatico (lento: minutos)"
         Write-Host "  Requiere SQL Server levantado y Ollama respondiendo." -ForegroundColor Yellow
         Write-Host ""
-        & $UV run python -m replay
+        Invoke-Uv run python -m replay
     }
 
     "replay-servir" {
@@ -284,22 +409,22 @@ print(f'  terminados    {c.finished_job_registry.count}')
         # file:// y los JSON no cargan. Hace falta HTTP, aunque sea local.
         Write-Host "  Ctrl+C para detener"
         Write-Host ""
-        & $UV run python -m http.server 8080 --directory (Join-Path $RAIZ "docs\replay")
+        Invoke-Uv run python -m http.server 8080 --directory (Join-Path $RAIZ "docs\replay")
     }
 
     "eval" {
         Titulo "Evaluacion del router contra el golden set (modelo real, lento)"
-        & $UV run pytest -m llm -v -s
+        Invoke-Uv run pytest -m llm -v -s
     }
 
     "api-demo" {
         Titulo "Recorrido del flujo REST completo"
-        & $UV run python -m apps.api.demo
+        Invoke-Uv run python -m apps.api.demo
     }
 
     "dataset" {
         Titulo "Resumen del dataset (generado en memoria, sin base)"
-        & $UV run python -c @"
+        Invoke-Uv run python -c @"
 from seeds.generate import DatasetConfig, generar_dataset
 ds = generar_dataset(DatasetConfig())
 it = ds['order_items']
@@ -319,7 +444,7 @@ print(ds['ground_truth'][['tipo','product_id','fecha']].to_string(index=False))
 
     "pdf" {
         Titulo "Generando informe PDF de ejemplo"
-        & $UV run python -m core.demo_pdf
+        Invoke-Uv run python -m core.demo_pdf
         $ruta = Join-Path $RAIZ "docs\ejemplos\informe_ejemplo.pdf"
         if (Test-Path $ruta) {
             Write-Host "  Abriendo $ruta" -ForegroundColor Green
@@ -329,16 +454,16 @@ print(ds['ground_truth'][['tipo','product_id','fecha']].to_string(index=False))
 
     "demo" {
         Titulo "Guardrails de seguridad en vivo"
-        & $UV run python -m core.demo_guardrails
+        Invoke-Uv run python -m core.demo_guardrails
     }
 
     "estado" {
         Titulo "Estado de los componentes"
         Write-Host "  uv          " -NoNewline
-        Write-Host (& $UV --version) -ForegroundColor Green
+        Write-Host (Invoke-Uv --version) -ForegroundColor Green
 
         Write-Host "  python      " -NoNewline
-        Write-Host (& $UV run python --version) -ForegroundColor Green
+        Write-Host (Invoke-Uv run python --version) -ForegroundColor Green
 
         Write-Host "  docker      " -NoNewline
         $d = docker inspect --format '{{.State.Health.Status}}' ami-sqlserver 2>$null

@@ -29,6 +29,11 @@ TIMEOUT_JOB_SEGUNDOS = int(os.getenv("JOBS_TIMEOUT", "900"))
 # rato y no para consultar después.
 TTL_RESULTADO_SEGUNDOS = 3600
 
+# RQ solo reintenta excepciones que escapan del job. El entrypoint durable
+# propaga después de persistir FALLIDO; BackgroundTasks usa otra semántica.
+REINTENTOS_JOB = int(os.getenv("JOBS_RETRIES", "3"))
+INTERVALOS_REINTENTO_SEGUNDOS = [10, 30, 60]
+
 
 def usa_redis() -> bool:
     """Indica si el despacho va a la cola de Redis.
@@ -60,6 +65,16 @@ def obtener_cola() -> Any:
     return Queue(NOMBRE_COLA, connection=_cliente(decodificar=False))
 
 
+def _crear_retry() -> Any:
+    """Construye la política solo cuando está instalado el extra de RQ."""
+    from rq import Retry
+
+    return Retry(
+        max=REINTENTOS_JOB,
+        interval=INTERVALOS_REINTENTO_SEGUNDOS,
+    )
+
+
 def despachar(analysis_id: str, tareas: Any, cliente: Any, almacen: Any) -> str:
     """Manda el análisis a ejecutarse. Devuelve dónde quedó.
 
@@ -78,6 +93,7 @@ def despachar(analysis_id: str, tareas: Any, cliente: Any, almacen: Any) -> str:
             job_id=analysis_id,
             job_timeout=TIMEOUT_JOB_SEGUNDOS,
             result_ttl=TTL_RESULTADO_SEGUNDOS,
+            retry=_crear_retry(),
         )
         return "redis"
 

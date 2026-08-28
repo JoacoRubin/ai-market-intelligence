@@ -49,6 +49,13 @@ def cargar_indice(destino: Path = DESTINO) -> IndiceVectorial | None:
     Devolver None en vez de fallar es deliberado: sin índice el sistema degrada
     a un análisis sin evidencia documental, que sigue siendo un informe válido.
     Tirar una excepción convertiría una capacidad ausente en un error fatal.
+
+    Esa degradación aplica solamente cuando el artefacto no existe. Un índice
+    presente pero incompatible, corrupto o con checksum inválido sí falla: tomar
+    manipulación o drift por "RAG opcional" ocultaría un problema operativo y,
+    peor, podría asociar evidencia documental a los vectores equivocados. Los
+    índices legados con ``chunks.pkl`` se migran reconstruyéndolos; nunca se
+    deserializan.
     """
     global _cache
     if _cache is not None:

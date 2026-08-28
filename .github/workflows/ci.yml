@@ -1,8 +1,6 @@
-# CI — linter + tipos + tests. Deliberadamente NO corre lo que necesita
-# SQL Server (marca `db`) ni lo que llama al modelo real (marca `llm`,
-# ya excluida por default en pyproject.toml). Levantar SQL Server en el
-# runner es una ampliación real de este workflow, no una que se hizo acá:
-# ver docs/adr/ADR-011-ci-github-actions.md.
+# CI — linter + tipos + tests rápidos, más un job separado que verifica los
+# permisos reales del usuario SQL read-only. El modelo de lenguaje sigue fuera:
+# una inferencia local de minutos no pertenece al feedback loop de cada commit.
 name: CI
 
 on:
@@ -15,16 +13,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Redis sí entra al pipeline y SQL Server no, y la diferencia no es
-    # arbitraria: esta imagen levanta en segundos y no necesita esquema ni
-    # datos sembrados, así que los tests marcados `redis` corren de verdad
-    # en vez de saltearse. SQL Server pediría healthcheck, `db-init` y el
-    # seed completo — eso sigue pendiente (ADR-011).
+    # Redis entra en este job porque levanta en segundos y no necesita datos.
+    # El bind se limita al loopback del runner efímero; el Compose del proyecto
+    # no publica Redis al host.
     services:
       redis:
         image: redis:8-alpine
         ports:
-          - 6379:6379
+          - 127.0.0.1:6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -91,5 +87,75 @@ jobs:
       - name: Tipos (mypy strict)
         run: uv run mypy .
 
-      - name: Tests (sin SQL Server, sin modelo real)
-        run: uv run pytest -m "not db" -q
+      # Baseline medido el 2026-08-28 sobre esta misma selección y estos nueve
+      # paquetes: 71,06%. Se fija 70%, con un punto de tolerancia por plataforma;
+      # no es un número aspiracional puesto después de mirar un badge.
+      - name: Tests y cobertura (sin SQL Server, sin modelo real)
+        run: >-
+          uv run pytest -m "not db and not llm" -q
+          --cov=agent --cov=application --cov=apps --cov=core --cov=eval
+          --cov=ml --cov=rag --cov=replay --cov=seeds
+          --cov-report=term-missing --cov-fail-under=70
+
+  guardrails-db:
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SERVER: localhost,1433
+      MSSQL_DB: ami
+      MSSQL_SA_PASSWORD: Dev_CI_Only_2026!
+      MSSQL_APP_USER: ami_reader
+      MSSQL_APP_PASSWORD: Reader_Local_2026!
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2025-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: Dev_CI_Only_2026!
+        ports:
+          - 127.0.0.1:1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Dev_CI_Only_2026!' -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Instalar Python 3.13
+        run: uv python install 3.13
+
+      # Secuencia oficial de Microsoft para Ubuntu. El runner necesita el
+      # driver ODBC; sqlcmd ya vive dentro del contenedor de SQL Server.
+      - name: Instalar ODBC Driver 18
+        run: |
+          version_id="$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"
+          curl -sSL -O "https://packages.microsoft.com/config/ubuntu/${version_id}/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          rm packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+
+      - name: Instalar dependencias mínimas de test
+        run: uv sync --frozen --group dev
+
+      - name: Crear esquema y usuario read-only
+        env:
+          SQL_CONTAINER: ${{ job.services.sqlserver.id }}
+        run: |
+          docker cp infra/sql/01_schema.sql "${SQL_CONTAINER}:/tmp/01_schema.sql"
+          docker cp infra/sql/02_readonly_user.sql "${SQL_CONTAINER}:/tmp/02_readonly_user.sql"
+          docker exec "${SQL_CONTAINER}" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -i /tmp/01_schema.sql
+          docker exec "${SQL_CONTAINER}" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -i /tmp/02_readonly_user.sql
+
+      - name: Guardrails de permisos SQL
+        run: uv run pytest tests/test_db_guardrails.py -m db -q

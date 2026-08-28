@@ -1,4 +1,10 @@
 {
+  "schema_version": 1,
   "modelo": "intfloat/multilingual-e5-small",
-  "chunks": 36
+  "dimension": 384,
+  "chunks": 36,
+  "checksums": {
+    "vectores.faiss": "e9d1976d174642ab274a65b0c74c882c1ea4a321a3b17efc2cc31af7baf7aa13",
+    "chunks.json": "45d31fd9c5bd71c48f7d5a9de4bd049951dfb2702311377da8ae9ac72a54eb90"
+  }
 }

@@ -14,75 +14,11 @@ un doble del modelo y sin infraestructura.
 
 from __future__ import annotations
 
-from agent.graph import ejecutar as ejecutar_grafo
-from agent.llm import ClienteLLM, crear_cliente
-from agent.state import AnalysisState, Intencion, Periodo
-from apps.api.schemas import Analisis, EstadoAnalisis
-from apps.api.store import Almacen
-from rag.build import cargar_indice
+from agent.llm import crear_cliente
+from application.analisis import estado_inicial, procesar_analisis
+from apps.api.store import crear_almacen
 
-
-def estado_inicial(registro: Analisis) -> AnalysisState:
-    """Construye el estado del grafo según cómo llegó la solicitud.
-
-    Cuando vienen identificadores y rango, la interpretación ya está hecha: se
-    precarga el estado y el router se saltea solo. Cuando viene lenguaje
-    natural, el estado arranca vacío y el agente interpreta.
-    """
-    estado = AnalysisState(request_id=registro.id, consulta=registro.consulta)
-
-    if registro.product_ids and registro.desde and registro.hasta:
-        estado.intencion = Intencion.PRODUCT_PERFORMANCE
-        estado.entidades = list(registro.product_ids)
-        estado.periodo = Periodo(desde=registro.desde, hasta=registro.hasta)
-
-    return estado
-
-
-def procesar_analisis(
-    analysis_id: str, cliente: ClienteLLM, almacen: Almacen
-) -> None:
-    """Ejecuta el grafo del agente y actualiza el recurso.
-
-    Con el modelo real tarda cerca de dos minutos en esta máquina — que es
-    exactamente el motivo por el que el POST responde 202 desde el principio
-    y no hubo que cambiar el contrato al conectar el agente, ni ahora al
-    mover el trabajo a un worker.
-
-    El almacén se **inyecta** y no se importa como global: el worker corre en
-    otro proceso y tiene que escribir en el almacén compartido, no en el
-    diccionario en memoria de su propio proceso. Recibirlo por parámetro es
-    lo que hace que esa diferencia sea imposible de olvidar.
-    """
-    registro = almacen.obtener(analysis_id)
-    if registro is None:
-        # El análisis pudo haberse borrado entre el encolado y el consumo —una
-        # ventana que antes no existía, porque todo pasaba en el mismo
-        # proceso—. Salir en silencio es correcto: no hay recurso que
-        # actualizar y no es un error del sistema.
-        return
-
-    registro.estado = EstadoAnalisis.PROCESANDO
-    almacen.guardar(registro)
-
-    try:
-        estado = ejecutar_grafo(
-            estado_inicial(registro), cliente, indice=cargar_indice()
-        )
-
-        registro.informe = estado.informe
-        registro.intencion = estado.intencion.value if estado.intencion else None
-        registro.product_ids = estado.entidades
-        if estado.periodo:
-            registro.desde = estado.periodo.desde
-            registro.hasta = estado.periodo.hasta
-        registro.etapas = [p.nodo for p in estado.trace]
-        registro.advertencias = list(estado.advertencias)
-        registro.estado = EstadoAnalisis.COMPLETADO
-    except Exception as e:  # el fallo viaja en el recurso, no revienta la API
-        registro.estado = EstadoAnalisis.FALLIDO
-        registro.error = f"{type(e).__name__}: {e}"
-    almacen.guardar(registro)
+__all__ = ["ejecutar_analisis", "estado_inicial", "procesar_analisis"]
 
 
 def ejecutar_analisis(analysis_id: str) -> None:
@@ -98,6 +34,9 @@ def ejecutar_analisis(analysis_id: str) -> None:
     puede correr contra otro backend que la API sin que la API se entere,
     que es justamente lo que promete el puerto (ADR-007).
     """
-    from apps.api.store import crear_almacen
-
-    procesar_analisis(analysis_id, crear_cliente(), crear_almacen())
+    procesar_analisis(
+        analysis_id,
+        crear_cliente(),
+        crear_almacen(),
+        propagar_error=True,
+    )

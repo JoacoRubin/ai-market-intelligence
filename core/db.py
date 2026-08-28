@@ -35,6 +35,16 @@ SERVIDOR = os.getenv("MSSQL_SERVER", "localhost,1433")
 BASE = os.getenv("MSSQL_DB", "ami")
 
 
+def _variable_requerida(nombre: str) -> str:
+    valor = os.getenv(nombre)
+    if not valor:
+        raise RuntimeError(
+            f"{nombre} no está definida. La credencial administrativa debe "
+            "inyectarse solo en procesos explícitos de init/seed."
+        )
+    return valor
+
+
 @lru_cache(maxsize=1)
 def driver_disponible() -> str:
     """Devuelve el mejor driver ODBC instalado, en orden de preferencia."""
@@ -72,7 +82,7 @@ def conectar_admin(base: str | None = BASE) -> pyodbc.Connection:
     Nunca debe usarse desde una tool del agente ni desde un endpoint de la API.
     """
     return pyodbc.connect(
-        _cadena("sa", os.getenv("MSSQL_SA_PASSWORD", "Dev_Local_2026!"), base),
+        _cadena("sa", _variable_requerida("MSSQL_SA_PASSWORD"), base),
         timeout=15,
     )
 
@@ -104,9 +114,14 @@ def cursor_lectura() -> Iterator[Any]:
 
 
 def hay_base_disponible() -> bool:
-    """Indica si SQL Server responde. Se usa para saltear tests que la requieren."""
+    """Indica si la base responde con la misma identidad read-only del agente.
+
+    Este chequeo también alimenta el health de la API. Usar ``sa`` acá
+    obligaría a entregar una credencial administrativa al runtime solo para
+    ejecutar ``SELECT 1`` y daría verde aunque el usuario real estuviera roto.
+    """
     try:
-        con = conectar_admin(base=None)
+        con = conectar_lectura()
         con.close()
         return True
     except Exception:

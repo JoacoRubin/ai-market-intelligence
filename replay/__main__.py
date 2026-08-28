@@ -27,8 +27,10 @@ from replay.captura import Captura
 from replay.casos import CasoGolden, casos_para_replay
 from replay.entorno import problemas_de_entorno
 from replay.escritura import escribir
+from replay.procedencia import capturar_procedencia
 
-DESTINO = Path(__file__).resolve().parent.parent / "docs" / "replay" / "data"
+RAIZ = Path(__file__).resolve().parent.parent
+DESTINO = RAIZ / "docs" / "replay" / "data"
 
 if os.name == "nt":
     # Habilita las secuencias ANSI en la consola de Windows.
@@ -98,6 +100,7 @@ def main() -> int:
 
     casos = casos_para_replay()
     inicio = datetime.now()
+    procedencia = capturar_procedencia(RAIZ)
 
     print()
     print(f"  {'=' * 76}")
@@ -119,7 +122,12 @@ def main() -> int:
             print(f"           {ROJO}{captura.error}{FIN}")
         print()
 
-    manifiesto = escribir(capturas, destino=DESTINO, capturado_en=inicio)
+    manifiesto = escribir(
+        capturas,
+        destino=DESTINO,
+        capturado_en=inicio,
+        procedencia=procedencia,
+    )
 
     total_s = sum(c.duracion_total_ms for c in capturas) / 1000
     con_informe = sum(1 for c in capturas if c.informe is not None)

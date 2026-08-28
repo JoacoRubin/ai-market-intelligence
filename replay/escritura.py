@@ -24,10 +24,15 @@ from pathlib import Path
 
 from core.report_pdf import render_pdf
 from replay.captura import Captura, Manifiesto
+from replay.procedencia import ProcedenciaReplay
 
 
 def escribir(
-    capturas: list[Captura], *, destino: Path, capturado_en: datetime
+    capturas: list[Captura],
+    *,
+    destino: Path,
+    capturado_en: datetime,
+    procedencia: ProcedenciaReplay | None = None,
 ) -> Manifiesto:
     """Escribe el manifiesto, las ejecuciones y los PDF. Devuelve el manifiesto.
 
@@ -35,7 +40,11 @@ def escribir(
     lista vacía o corridas de modelos distintos. Escribir primero y validar
     después dejaría un replay a medias publicable.
     """
-    manifiesto = Manifiesto.desde_capturas(capturas, capturado_en=capturado_en)
+    manifiesto = Manifiesto.desde_capturas(
+        capturas,
+        capturado_en=capturado_en,
+        procedencia=procedencia,
+    )
 
     destino.mkdir(parents=True, exist_ok=True)
     (destino / "casos").mkdir(exist_ok=True)

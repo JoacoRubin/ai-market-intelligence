@@ -1,36 +1,35 @@
 # AI Market & Product Intelligence Platform
 
 Plataforma de inteligencia comercial asistida por IA. Un agente orquesta consultas
-SQL, recuperación documental, fuentes públicas y modelos predictivos para producir
-un informe ejecutivo **con evidencia trazable**.
+SQL, recuperación documental local y modelos predictivos para producir un informe
+ejecutivo **con evidencia trazable**.
 
 > No es un chatbot. Es un analista asistido: el LLM planifica, selecciona
 > herramientas e interpreta. **Los números los calcula el software, no el modelo.**
 
-**Estado:** Fases 0 a 6 completas — diseño, datos, agente, RAG, ML, evals y
-plataforma (Docker, CI, y el análisis corriendo en un worker aparte). El
-sistema funciona de punta a punta: una consulta en castellano entra por
-`POST /analyses`, el grafo la interpreta, consulta SQL, recupera evidencia
-documental, proyecta con un modelo validado contra su baseline, redacta y
-valida — y sale un PDF descargable.
+**Estado verificable:** el flujo de análisis funciona de punta a punta: una
+consulta en castellano entra por `POST /analyses`, el grafo la interpreta,
+consulta SQL, recupera evidencia del corpus local y, cuando el pedido lo exige,
+proyecta con un modelo validado contra su baseline. El resultado se valida y se
+puede descargar como PDF. Docker, CI y un worker separado cubren la operación.
 
-**645 tests en verde** con el stack levantado, ruff limpio y mypy strict sin
-errores en 109 archivos. La suite colecta **662**: los 17 marcados `llm` quedan
-fuera por default porque invocan al modelo real, y sin infraestructura los 82
-marcados `db` y los 9 `redis` se saltean solos — no fallan.
+**Research público todavía no está implementado.** La intención
+`company_research` se reconoce, pero hoy el planner devuelve un plan vacío antes
+que inventar una consulta a una fuente inexistente. El corpus RAG es local; no
+hay navegación web ni proveedor externo de noticias.
 
-> Ese "se saltean solos" es cómodo y **es una trampa**: un test que se saltea en
+La suite separa los tests que requieren SQL Server, Redis o un LLM real. Que
+puedan omitirse fuera de esos entornos es útil, pero **es una trampa**: un test que se saltea en
 > silencio se ve idéntico a uno que pasa. Dos veces en este proyecto una red de
 > seguridad estuvo desconectada sin que nadie lo notara —los tests de Redis en
 > la fase 6, y tres tests de la API que escondían un `/openapi.json` roto—. Las
 > dos aparecieron al correr la suite **con el stack arriba**. Un `skipped` alto
 > no es ruido: es deuda de verificación.
 
-De la fase 6 queda **solo el caching de análisis, y está postergado a
-propósito**: sin una regla de invalidación atada a los datos de la base, un
+El caching de análisis está **postergado a propósito**: sin una regla de
+invalidación atada a los datos de la base, un
 informe cacheado es un informe incorrecto servido rápido
-([ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md)). Pendiente: fase 7
-(portfolio).
+([ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md)).
 
 ---
 
@@ -40,18 +39,23 @@ informe cacheado es un informe incorrecto servido rápido
 
 El sitio de replay reproduce ejecuciones reales del agente: la traza etapa por
 etapa con la duración verdadera de cada nodo, el criterio con que eligió cada
-herramienta, las citas documentales con su identificador, el forecast contra su
-baseline y el PDF descargable.
+herramienta, las citas documentales con su identificador y el PDF descargable.
+La capacidad de forecast existe y tiene backtesting, pero **el replay publicado
+no incluye un caso de forecast**: sus cuatro informes tienen `predicciones: []`.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 7
-> segundos y 65 segundos sobre CPU — la comparación entre dos productos es la más
+> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 6
+> segundos y 122 segundos sobre CPU — la comparación entre dos productos es la más
 > cara, y la consulta que el agente rechaza es la más barata porque corta en el
 > router sin gastar una sola herramienta. Nadie mira un spinner, y el replay
 > además muestra más que un demo en vivo: la traza y el criterio quedan
 > invisibles cuando solo ves el resultado.
 
-> Las capturas se rehicieron el 2026-08-28 con `qwen3:4b`. Las anteriores eran de
+> Las capturas se hicieron el 2026-08-28 con `qwen3:4b`. Son anteriores a la
+> incorporación de procedencia verificable al manifiesto: no registraron commit,
+> dirty state ni hashes del lock y del índice. Por eso se conservan como una
+> evidencia histórica, no como validación del código actual. Una captura nueva
+> sí agrega esos datos automáticamente. Las anteriores eran de
 > `llama3.2:3b` y tardaban entre 108 y 281 segundos: la vidriera mostraba un
 > sistema **2,9 veces más lento** que el que el repositorio ya tenía medido. Un
 > demo desactualizado no es neutral — miente sobre el trabajo hecho.
@@ -92,8 +96,10 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
-Última corrida: `eval/corridas/20260828T141833.json` — `qwen3:4b`, commit
-`d45c841`, árbol limpio.
+Última corrida archivada: `eval/corridas/20260828T141833.json` — `qwen3:4b`,
+commit `d45c841`, árbol limpio. Está **stale respecto de HEAD**: esos resultados
+son evidencia del commit declarado, NO una certificación del árbol actual. Para
+revalidarlos hay que correr `.\tasks.ps1 eval` y publicar la nueva corrida.
 
 | Métrica | Resultado | Umbral |
 |---|---|---|
@@ -159,7 +165,7 @@ Lo que corre hoy:
 | Observability del agente | LangSmith ([ADR-009](docs/adr/ADR-009-observability-langsmith.md)), **opcional y apagado por default** |
 | API containerizada | Docker (build multi-etapa, [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md)) — Ollama sigue siendo requisito del host, no entra al compose |
 | Base de datos containerizada | Docker Compose |
-| Integración continua | GitHub Actions ([ADR-011](docs/adr/ADR-011-ci-github-actions.md)) — linter + mypy strict + tests, con Redis como servicio del job; SQL Server todavía no |
+| Integración continua | GitHub Actions ([ADR-011](docs/adr/ADR-011-ci-github-actions.md)) — linter + mypy strict + tests con cobertura; Redis en el job principal y guardrails read-only contra SQL Server real en un job separado |
 | Jobs y almacén de análisis | RQ + Redis, worker en proceso aparte ([ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md)). Elegible con `JOBS_BACKEND`; sin Redis el sistema corre igual |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
 
@@ -168,6 +174,7 @@ Y lo que **todavía no está construido**, para que no haya confusión:
 | Responsabilidad | Tecnología prevista | Fase |
 |---|---|---|
 | UI y visualización | React + TypeScript + Vite | 7 |
+| Research público | Sin proveedor elegido — hoy `company_research` corta sin plan para no simular una capacidad ausente | pendiente |
 | Caching de análisis | Redis — **postergado a propósito**, ver [ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md): sin una regla de invalidación, un informe calculado sobre datos viejos no es una optimización, es un informe incorrecto servido rápido | 6 |
 
 ### Flujo del agente
@@ -176,9 +183,9 @@ Y lo que **todavía no está construido**, para que no haya confusión:
 START
   ↓ IntentRouter
   ↓ PlanBuilder
-  ↓ ┌──────────┬──────────┬───────────┬─────────┐
-    │ SQL Tool │ RAG Tool │ Research  │ ML Tool │
-    └──────────┴──────────┴───────────┴─────────┘
+  ↓ ┌──────────┬──────────┬─────────┐
+    │ SQL Tool │ RAG Tool │ ML Tool │
+    └──────────┴──────────┴─────────┘
   ↓ EvidenceGate ──¿suficiente?── No ──→ replan (máx. 2)
   ↓ Sí
   ↓ Synthesizer
@@ -229,11 +236,13 @@ OneDrive sincroniza archivo por archivo. Un entorno virtual son decenas de miles
 de archivos chicos que va a intentar subir a la nube: ralentiza la máquina, come
 cuota y ocasionalmente corrompe archivos en uso.
 
-**Mitigación:** el entorno virtual se crea FUERA de OneDrive.
+**Mitigación opcional:** definí un entorno virtual fuera de OneDrive antes de
+ejecutar `setup`. `tasks.ps1` no fija una ruta de una máquina particular: uv se
+resuelve desde `PATH` y respeta esta variable si vos la configurás.
 
 ```powershell
-# Agregalo a tu perfil de PowerShell para no repetirlo cada vez
-$env:UV_PROJECT_ENVIRONMENT = "C:\Users\famas\.venvs\ai-market-intelligence"
+# Podés agregarlo a tu perfil de PowerShell
+$env:UV_PROJECT_ENVIRONMENT = Join-Path $env:LOCALAPPDATA "uv\venvs\ai-market-intelligence"
 ```
 
 El `.gitignore` ya excluye `mlruns/`, índices FAISS, `data/raw/` y modelos
@@ -281,6 +290,7 @@ la herramienta nativa de la plataforma.
 .\tasks.ps1 pdf         # genera un informe PDF y lo abre
 .\tasks.ps1 api         # levanta la API en http://localhost:8000/docs
 .\tasks.ps1 db-shell    # consola sqlcmd contra la base
+.\tasks.ps1 ml-train    # forecast real de P001 con backtest + MLflow
 .\tasks.ps1 replay-servir  # el sitio de replay en http://localhost:8080
 ```
 
@@ -313,7 +323,7 @@ análisis en el mismo proceso y no necesita Redis para nada.
 Para correr el worker a mano contra el `.venv` local:
 
 ```powershell
-.\tasks.ps1 redis-up       # solo Redis
+.\tasks.ps1 redis-test-up  # override temporal: bind solo a 127.0.0.1
 .\tasks.ps1 worker         # el worker en esta consola
 ```
 
@@ -332,7 +342,9 @@ algo, y negociación de contenido.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `GET` | `/health` | Estado del servicio y sus dependencias |
+| `GET` | `/health/live` | Liveness del proceso, sin consultar dependencias |
+| `GET` | `/health/ready` | Readiness; responde 503 si SQL de lectura no está disponible |
+| `GET` | `/health` | Alias legacy de readiness, conservado por compatibilidad |
 | `GET` | `/products` | Catálogo, con paginación y filtro por categoría |
 | `GET` | `/products/{id}` | Un producto |
 | `GET` | `/products/{id}/metrics` | KPIs del producto en un período |
@@ -357,9 +369,10 @@ Se eligió 202 igual, porque la síntesis con el LLM local iba a tardar minutos 
 el hardware de referencia (ver [ADR-003](docs/adr/ADR-003-llm-local.md)) y
 cambiar el contrato más tarde habría roto a todos los consumidores.
 
-Hoy el agente está conectado y una corrida real tarda **entre 70 y 95 segundos**
-—medido, no estimado—. La previsión dejó de ser previsión y el contrato no hubo
-que tocarlo. El recurso existe desde el instante cero; lo que cambia es su estado.
+Hoy el agente está conectado. En el replay histórico, los informes exitosos
+tardaron **entre 44 y 122 segundos** y el rechazo en router, 6 segundos. Son
+mediciones de esas capturas, no una promesa de latencia para HEAD. El recurso
+existe desde el instante cero; lo que cambia es su estado.
 
 ### El PDF es una representación, no otro recurso
 
@@ -398,7 +411,7 @@ permite y cuáles rechaza.
 
 ```powershell
 .\tasks.ps1 test        # todo, con detalle
-.\tasks.ps1 test-fast   # saltea los que necesitan base de datos
+.\tasks.ps1 test-fast   # excluye SQL Server y el modelo de lenguaje real
 .\tasks.ps1 check       # solo el linter
 ```
 
@@ -407,13 +420,16 @@ Los tests que requieren infraestructura se saltean solos si no está levantada
 
 | Marca | Qué necesita | Cómo levantarlo |
 |---|---|---|
-| `db` | SQL Server | `.	asks.ps1 db-up` |
-| `redis` | Redis | `.	asks.ps1 redis-up` |
+| `db` | SQL Server | `.\tasks.ps1 db-up` |
+| `redis` | Redis en loopback | `.\tasks.ps1 redis-test-up` |
 
 Que se salteen no es indulgencia: un test que falla por falta de
-infraestructura enseña a ignorar el rojo, y esa es la peor clase de test. Los
-marcados `redis` sí corren en el CI, que levanta la imagen como `services:`
-([ADR-011](docs/adr/ADR-011-ci-github-actions.md)); los `db` todavía no.
+infraestructura enseña a ignorar el rojo, y esa es la peor clase de test.
+Redis no se publica desde el Compose normal: `redis-up` lo deja disponible solo
+dentro de su red privada. Para pruebas desde el host, `redis-test-up` genera un
+override efímero limitado a `127.0.0.1`. Los marcados `redis` corren en CI y los
+guardrails `db` tienen un job separado con SQL Server real
+([ADR-011](docs/adr/ADR-011-ci-github-actions.md)).
 
 ---
 
@@ -447,7 +463,7 @@ marcados `redis` sí corren en el CI, que levanta la imagen como `services:`
 | 0. Diseño | Dominio, schemas y decisiones | Puedas explicar el flujo sin nombrar frameworks |
 | 1. Data/API | Datos útiles y métricas confiables | Las métricas se validen con tests SQL |
 | 2. Agent V1 | Comparar dos productos con tools | El LLM nunca invente KPIs |
-| 3. RAG/Research | Evidencia documental y pública | Cada claim externo sea rastreable |
+| 3. RAG/Research | RAG local completo; research público pendiente | Cada claim implementado sea rastreable y ninguna capacidad se simule |
 | 4. ML | Forecast versionado | Haya baseline y backtesting |
 | 5. Production AI | Evals, tracing, retries, guardrails | Sepas medir calidad y fallos |
 | 6. Platform | Jobs, caching, CI, Docker | El repo se levante con pocos comandos |
