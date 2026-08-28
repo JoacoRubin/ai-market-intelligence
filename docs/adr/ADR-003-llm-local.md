@@ -162,6 +162,12 @@ Mitigación: el `ReportValidator` necesita chequeos semánticos además de
 numéricos, y el golden set debe incluir aserciones sobre *afirmaciones*, no solo
 sobre *números*.
 
+> **Se implementó, y no alcanzó.** Ver la *Revisión (2026-08-28)*: dos de las
+> cinco métricas que salieron de esta mitigación estuvieron mal —una midiendo
+> una sección que el sistema tiene prohibido escribir, otra aprobando una
+> afirmación inventada— sin que ninguna fallara. La conclusión de arriba tiene
+> hermana: una métrica de citación también es necesaria y no suficiente.
+
 ### 3. El instrumento de auditoría sobreestima
 
 El auditor contó como claims numéricos los IDs de documentos (`doc_112` → 112) y
@@ -283,3 +289,147 @@ el modelo — que es exactamente cómo apareció este bug.
 - **Que `qwen3:1.7b` deba reconsiderarse.** Sigue descartado por no citar
   fuentes RAG, que es un ítem de la Definition of Done y no una cuestión de
   velocidad.
+
+---
+
+## Revisión (2026-08-28) — dos instrumentos en verde sobre informes incorrectos
+
+**Estado del riesgo 2: la mitigación se implementó, y falló de dos maneras que
+el riesgo no anticipaba.**
+
+El riesgo 2 pedía que "el golden set incluya aserciones sobre *afirmaciones*, no
+solo sobre *números*". Se hizo: `eval/metricas.py` mide cinco defectos concretos
+del informe. Un año de disciplina después, dos de esas cinco métricas estuvieron
+mal —una midiendo nada, otra aprobando una mentira— y **ninguna falló**. Es el
+riesgo 3 otra vez, un nivel más arriba: el instrumento también necesita ser
+validado, y validarlo no se hace una sola vez.
+
+### Hallazgo 1 — una métrica midió 0 de 15 y nada se había roto
+
+`atribuye_al_producto_correcto` leía `informe.recomendaciones`. Esa sección **el
+sistema tiene prohibido escribirla**: la regla 3 de `synthesizer.SISTEMA` veta
+las recomendaciones y las lista entre sus ejemplos incorrectos. La única vía a
+esa sección es `validator.validar_informe`, que reubica lo que el modelo escribió
+*desobedeciendo* esa regla.
+
+| modelo | obediencia a la regla 3 | cobertura de la métrica |
+|---|---|---|
+| `llama3.2:3b` | desobedecía 2 de 15 veces | 2/15 |
+| `qwen3:4b` | obedece 15 de 15 | **0/15** |
+
+La cobertura no medía atribución: medía **desobediencia**. El modelo mejoró y el
+instrumento lo registró como una regresión.
+
+Abajo había un segundo defecto. La métrica buscaba identificadores (`\bP\d{3,}\b`)
+donde el informe escribe **marcas**: en las cinco capturas de `docs/replay/` de
+esa fecha había un solo `P010` en toda la prosa, contra "Ribera", "Vertex" y
+"Lumen" por todas partes. Aunque hubiera habido recomendaciones, la métrica
+habría fallado igual — por formato, no por atribución.
+
+**Por qué ningún test lo detectó en meses:** el fixture usaba
+`nombre="Producto 010"` y escribía `"P010"` en el texto. `seeds/generate.py`
+genera `"<marca> <categoría>"`. El fixture no se parecía a los datos de
+producción, así que la regla se validaba a sí misma.
+
+> **Lección.** Una regla léxica se valida contra **salidas reales del sistema**,
+> no contra el fixture que la acompaña. Corregida la métrica, se verificó sobre
+> las cuatro capturas con informe: pasaron de cobertura nula a resolver su
+> producto en las cuatro.
+
+### Hallazgo 2 — una afirmación inventada, con 100% de la métrica que debía verla
+
+En el sitio publicado, primer caso del replay:
+
+```
+HECHO  "El proveedor de Vertex calzado (P001) reportó defectos de costura
+        en el lote"                              fuente: doc_ficha_P001
+```
+
+`doc_ficha_P001` es una ficha técnica: no menciona defectos, ni costura, ni un
+lote. El texto salía del **ejemplo del propio prompt** del sintetizador. El
+modelo copió el ejemplo y le pegó un identificador real, que es la peor forma de
+alucinación porque no parece una: parece rigor.
+
+Vivía en el hueco entre dos guardrails, cada uno mirando la mitad:
+
+| guardrail | qué verifica | por qué no la vio |
+|---|---|---|
+| `ReportValidator` (numérico) | que cada cifra salga de una herramienta | la frase no tiene ninguna cifra: caía en `if not numeros: aceptadas.append(a)` |
+| `usa_la_evidencia_documental` | que el id citado esté entre los recuperados | `doc_ficha_P001` **sí** estaba entre los recuperados. Le dio **100%** |
+
+> **Conclusión, que extiende la del riesgo 2.** Una **métrica de citación** es
+> necesaria y no es suficiente. Detecta la cita ausente; no detecta la cita que
+> no sostiene lo que dice sostener.
+
+### Mitigación implementada
+
+`_anclada_en_su_cita` en `agent/nodes/validator.py`: una afirmación que cita un
+documento tiene que estar hecha de las palabras de ese documento. Es el criterio
+que ya se le aplicaba a las cifras —un número vale si figura en el pasaje
+citado— extendido a la prosa.
+
+Va en el **validador y no en el prompt**, porque un prompt es una sugerencia.
+
+**El alcance es la parte que decidió el diseño.** Solo se juzgan las afirmaciones
+**sin cifras**: las que traen cifras ya están ancladas por ellas, y exigirles
+además parecido léxico las castigaría por parafrasear, que es su trabajo.
+
+| afirmación | sustancia en el documento citado | veredicto correcto |
+|---|---|---|
+| "El proveedor... defectos de costura" (`doc_ficha_P001`) | **20%** | fabricada |
+| "El reporte de quiebre de stock explica..." (`doc_stock_006`) | 75% | correcta |
+| "El lote L4990 del proveedor..." (`doc_prov_010`) | 100% | correcta |
+| "La campaña de descuento del 30%..." (`doc_promo_001`) | 25% | **correcta** — la ancla su cifra |
+
+La última fila es la que fija el alcance: el modelo parafraseó "acción" como
+"campaña" y "salto" por "la demanda se multiplicó". Sin acotar la regla a las
+afirmaciones sin cifras, el arreglo habría borrado una afirmación válida.
+
+Dos detalles que la regla necesita y no son cosméticos:
+
+- **La identidad del producto no cuenta.** `vertex`, `calzado` y `p001` aparecen
+  en *todo* documento sobre ese producto. Era lo único que la frase inventada
+  compartía con su ficha.
+- **Se compara por raíz de cinco letras.** El español conjuga y pluraliza: la
+  primera medición de este arreglo dio un falso negativo comparando `costura`
+  con `costuras`. El instrumento del arreglo también estaba mal.
+
+Umbral `ANCLAJE_MINIMO = 0.5`, puesto donde el hueco es ancho (20% contra 75% y
+100%) y no ajustado al decimal.
+
+Se descarta la **afirmación** y no solo la cita: quitarle la fuente la dejaría
+atribuida a los datos, y un hecho inventado con el sello de SQL es peor que uno
+con una cita que no lo sostiene.
+
+### La verificación, y por qué salió mejor de lo esperado
+
+Al recapturar, **el modelo volvió a inventar la misma frase** y el validador la
+frenó. Queda escrita en las advertencias del informe publicado.
+
+Que reincida es el resultado útil. Si la corrida hubiera salido limpia no se
+sabría si el guardrail funciona o si tocó un sorteo favorable; así quedó medido
+contra el modelo vivo y no contra un fixture propio. Y sin falsos positivos:
+`hyb-02` y `perf-01` conservaron sus citas legítimas.
+
+### Defecto menor del mismo informe
+
+Las limitaciones declaraban "no incluyen evidencia documental" **siempre**,
+incluso tres bloques debajo de una cita documental. Ahora es condicional a la
+evidencia recuperada. Un informe que se contradice en la misma página no tiene un
+problema de redacción: tiene uno de credibilidad, y justo en el proyecto cuyo
+argumento entero es la trazabilidad.
+
+### Lo que esta revisión NO afirma
+
+- **Que el anclaje léxico detecte alucinaciones en general.** Detecta la que ya
+  ocurrió: una afirmación construida con palabras que el documento no tiene. Una
+  paráfrasis lo bastante creativa lo pasa, y una alucinación que reuse el
+  vocabulario del documento también. Es un piso verificable, no un techo.
+- **Que el umbral esté calibrado.** Está fijado sobre dos ejemplos correctos y
+  uno inventado. Se eligió el medio del hueco más ancho justamente porque tres
+  muestras no alcanzan para calibrar un número; hace falta más corridas antes de
+  moverlo, y moverlo con el resultado a la vista no sería calibrar.
+- **Que las cinco métricas en 100% signifiquen que el informe sea correcto.**
+  Es, literalmente, el error que este ADR documenta en el riesgo 2: la auditoría
+  daba 22/22 y el informe estaba mal. El 100% de hoy dice que los cinco defectos
+  *conocidos* no aparecen en quince casos. No dice nada sobre el sexto.
