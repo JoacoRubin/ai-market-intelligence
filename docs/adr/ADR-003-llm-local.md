@@ -513,3 +513,79 @@ este ADR lo registra funcionando.
 - **Que no haya nada que optimizar.** El outlier de 49,1 s y la bimodalidad ya
   anotada en la revisión anterior apuntan a `keep_alive` —la recarga del modelo
   entre llamadas—, que es un experimento distinto y sigue pendiente.
+
+
+---
+
+## Revisión (2026-08-28 ter) — `keep_alive` se mide y se descarta
+
+**Resultado negativo. No se aplica ningún cambio.** Es la segunda optimización
+propuesta que la medición desarma, y la segunda cuya premisa resultó falsa.
+
+### La premisa era falsa
+
+La revisión anterior dejó anotado que la bimodalidad del control apuntaba a
+"~66 s de recarga del modelo entre llamadas". **La recarga cuesta 4,35 s.**
+
+El número salió de `load_duration`, que Ollama reporta en cada respuesta y que
+no hubo que inferir del tiempo de pared. Si el modelo ya está cargado vale
+0,01 s; si no, vale lo que cuesta cargarlo.
+
+### Qué controla realmente `keep_alive`
+
+No cambia el costo de nada: cambia **cuál de dos costos te toca**. Por eso lo
+que hay que medir no son las condiciones sino la brecha entre los dos estados.
+
+| estado | `load_duration` mediana | pared mediana | mín | máx |
+|---|---|---|---|---|
+| caliente (modelo cargado) | **0,01 s** | 2,49 s | 0,01 s | 0,01 s |
+| frío (descargado a propósito) | **4,36 s** | 8,65 s | 3,82 s | 5,61 s |
+
+**Brecha: 4,35 s.** Es el máximo que `keep_alive` puede ahorrar, y solo en la
+primera llamada después de un período inactivo. Contra un análisis real de 60 a
+300 s eso es entre el **1,5% y el 7,3%**.
+
+Criterio fijado antes de medir: adoptar solo si elimina un costo material —≥6 s,
+o ≥10% de un análisis típico—. No llega a ninguno de los dos.
+
+En el eval y en el replay las llamadas van una detrás de otra, así que el modelo
+está siempre caliente y `keep_alive` es irrelevante. En la API, un pedido
+después de cinco minutos de inactividad paga esos 4,35 s sobre un análisis de
+minutos. El default de Ollama alcanza.
+
+### El defecto de la primera versión de este experimento
+
+La v1 puso `keep_alive=0` en la rotación junto al control y a `keep_alive=30m`.
+Dio esto:
+
+```
+control   load 0,01 s    pared 2,61 s
+ka_0      load 0,01 s    pared 2,48 s
+ka_30m    load 5,40 s    pared 9,47 s     <- el "mas lento"
+```
+
+Leído crudo: *"`keep_alive=30m` es cuatro veces más lento"*. **Falso.**
+
+`keep_alive=0` descarga el modelo **al terminar**, así que la recarga no la paga
+esa condición: la paga la llamada siguiente. Y en la rotación la siguiente era
+siempre `ka_30m`, que quedó absorbiendo un costo que no causó.
+
+> **Alternar no alcanza cuando una condición deja estado.** El punto 4 de la
+> metodología protege contra la deriva en el tiempo; no contra la contaminación
+> entre condiciones. La v2 fija el estado explícitamente antes de cada medición
+> —calienta o descarga a propósito— en vez de heredarlo de la condición previa.
+
+Es la tercera vez que este ADR registra un instrumento defectuoso: primero el
+auditor que contaba `doc_112` como cifra, después la métrica que medía
+desobediencia, ahora una ablación que atribuía un costo al vecino.
+
+### Lo que esta revisión NO afirma
+
+- **Que el outlier de 49,1 s de la ablación de `num_ctx` quede explicado.** No
+  queda. Ahora se sabe qué **no** es: no es una recarga del modelo, porque las
+  recargas cuestan 4,35 s y no 45. La causa sigue abierta.
+- **Que 4,35 s sea el costo de carga en cualquier máquina.** Es el de esta, con
+  este modelo cuantizado y este disco. En hardware más lento la brecha crece y
+  el cálculo habría que rehacerlo.
+- **Que no haya nada que optimizar en latencia.** El sintetizador se lleva el
+  59% del tiempo de un análisis. Ahí hay margen; en la carga del modelo no.
