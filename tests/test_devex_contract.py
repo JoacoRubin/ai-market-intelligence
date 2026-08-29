@@ -115,8 +115,19 @@ def test_readme_declara_los_limites_verificables_del_producto() -> None:
 
     assert "research público todavía no está implementado" in readme
     assert "no incluye un caso de forecast" in readme
-    assert "stale respecto de head" in readme
     assert "c:\\users\\" not in readme
+
+    # Antes esta linea exigia el texto "stale respecto de head", que era cierto
+    # cuando se escribio y dejo de serlo al re-medir sobre HEAD el 2026-08-28.
+    # Un test que obliga al README a declararse desactualizado PARA SIEMPRE deja
+    # dos salidas: no volver a medir, o mentir. Fijaba un hecho transitorio como
+    # si fuera un contrato.
+    #
+    # Lo que no caduca es el MECANISMO: que los resultados valgan para un commit
+    # y que el registro diga cual. Eso sigue atrapando el defecto real --publicar
+    # numeros sin decir a que codigo pertenecen-- y sobrevive a cada re-medicion.
+    assert "certifican ese commit" in readme
+    assert "evidencia histórica" in readme
 
 
 # --- El loop local: correr los tests no puede pedir un ritual no escrito -----
