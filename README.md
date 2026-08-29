@@ -18,13 +18,15 @@ puede descargar como PDF. Docker, CI y un worker separado cubren la operación.
 que inventar una consulta a una fuente inexistente. El corpus RAG es local; no
 hay navegación web ni proveedor externo de noticias.
 
-La suite separa los tests que requieren SQL Server, Redis o un LLM real. Que
-puedan omitirse fuera de esos entornos es útil, pero **es una trampa**: un test que se saltea en
-> silencio se ve idéntico a uno que pasa. Dos veces en este proyecto una red de
-> seguridad estuvo desconectada sin que nadie lo notara —los tests de Redis en
-> la fase 6, y tres tests de la API que escondían un `/openapi.json` roto—. Las
-> dos aparecieron al correr la suite **con el stack arriba**. Un `skipped` alto
-> no es ruido: es deuda de verificación.
+La suite separa los tests que requieren SQL Server, Redis o un LLM real, y que
+puedan omitirse fuera de esos entornos es útil.
+
+> **Pero es una trampa**: un test que se saltea en silencio se ve idéntico a uno
+> que pasa. Dos veces en este proyecto una red de seguridad estuvo desconectada
+> sin que nadie lo notara —los tests de Redis en la fase 6, y tres tests de la
+> API que escondían un `/openapi.json` roto—. Las dos aparecieron al correr la
+> suite **con el stack arriba**. Un `skipped` alto no es ruido: es deuda de
+> verificación.
 
 El caching de análisis está **postergado a propósito**: sin una regla de
 invalidación atada a los datos de la base, un
@@ -96,10 +98,11 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
-Última corrida archivada: `eval/corridas/20260828T141833.json` — `qwen3:4b`,
-commit `d45c841`, árbol limpio. Está **stale respecto de HEAD**: esos resultados
-son evidencia del commit declarado, NO una certificación del árbol actual. Para
-revalidarlos hay que correr `.\tasks.ps1 eval` y publicar la nueva corrida.
+Última corrida: `eval/corridas/20260828T212253.json` — `qwen3:4b`, commit
+`69ca05f`, árbol limpio, 48 minutos. **Los resultados certifican ese commit y
+no otro**: el registro guarda cuál, y si el árbol estaba sucio lo dice. Cuando
+el código avance sin re-medir, esta tabla pasa a ser evidencia histórica — que
+es exactamente lo que le pasó a la corrida anterior.
 
 | Métrica | Resultado | Umbral |
 |---|---|---|
