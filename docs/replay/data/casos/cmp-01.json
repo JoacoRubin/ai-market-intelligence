@@ -1,7 +1,7 @@
 {
   "id": "cmp-01",
   "consulta": "Compará P001 y P002 en los últimos 30 días",
-  "capturada_en": "2026-08-28T16:54:26.814123",
+  "capturada_en": "2026-08-28T22:13:05.907755",
   "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
@@ -38,7 +38,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 37350,
+      "duracion_ms": 89097,
       "tool": null
     },
     {
@@ -48,17 +48,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 339,
+      "duracion_ms": 388,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 10899,
+      "duracion_ms": 14161,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 73287,
+      "duracion_ms": 201529,
       "tool": null
     }
   ],
@@ -67,7 +67,7 @@
   "informe": {
     "request_id": "replay-cmp-01",
     "consulta": "Compará P001 y P002 en los últimos 30 días",
-    "generado_en": "2026-08-28T16:53:13.522579",
+    "generado_en": "2026-08-28T22:09:44.365834",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -130,7 +130,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T16:53:13.522579",
+        "consultada_en": "2026-08-28T22:09:44.365834",
         "seccion": null,
         "url": null
       },
@@ -138,7 +138,7 @@
         "id": "doc_ficha_P001",
         "tipo": "documento",
         "referencia": "Ficha técnica — Vertex calzado (P001)",
-        "consultada_en": "2026-08-28T16:53:13.522579",
+        "consultada_en": "2026-08-28T22:09:44.365834",
         "seccion": "§1.1",
         "url": null
       }
@@ -146,7 +146,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 37350,
+        "duracion_ms": 89097,
         "tool": null
       },
       {
@@ -156,17 +156,17 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 339,
+        "duracion_ms": 388,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 10899,
+        "duracion_ms": 14161,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 73287,
+        "duracion_ms": 201529,
         "tool": null
       }
     ],
@@ -181,5 +181,5 @@
     "Se descartaron 1 afirmación que no superaron la validación: 'El proveedor de Vertex calzado (P001) reportó defectos de costura en el lote' — el documento citado (doc_ficha_P001) no sostiene lo que afirma"
   ],
   "error": null,
-  "duracion_total_ms": 121875
+  "duracion_total_ms": 305175
 }
