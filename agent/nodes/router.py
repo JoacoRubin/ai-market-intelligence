@@ -63,8 +63,17 @@ ESQUEMA = {
         # extrae `entidades.extraer_periodo` con un regex, por el mismo motivo
         # que los product_ids. Ver el comentario en `enrutar`.
         "dias": {"type": "integer"},
+        # A diferencia de product_ids, acá SÍ hace falta el modelo: un nombre
+        # de empresa en lenguaje natural ("Apple vs Microsoft") no tiene
+        # formato fijo, no hay regex posible. La resolución a un identificador
+        # concreto (ticker/CIK) es determinística y ocurre después, en
+        # `core/edgar.py` — el modelo solo dice QUÉ nombre escuchó.
+        # `required` a propósito: con `format=esquema` es gramática de
+        # decodificación forzada, así que dejarlo opcional invita al modelo a
+        # omitirlo. Manejado igual de defensivo en `enrutar()`.
+        "empresas": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["intencion", "dias"],
+    "required": ["intencion", "dias", "empresas"],
 }
 
 # Los ejemplos atacan de frente la confusión medida en el spike: el modelo
@@ -98,45 +107,55 @@ además pide contexto externo.
 
 Ejemplo 1
   Consulta: "Compará P001 y P002 en los últimos 30 días"
-  Respuesta: {"intencion": "product_performance", "dias": 30}
+  Respuesta: {"intencion": "product_performance", "dias": 30, "empresas": []}
 
 Ejemplo 2
   Consulta: "¿Cuál fue el margen del P012 en los últimos tres meses?"
-  Respuesta: {"intencion": "product_performance", "dias": 90}
+  Respuesta: {"intencion": "product_performance", "dias": 90, "empresas": []}
 
 Ejemplo 3
-  Consulta: "Compará Empresa X vs Empresa Y: crecimiento y riesgos"
-  Respuesta: {"intencion": "company_research", "dias": 365}
+  Consulta: "Compará Apple vs Microsoft: crecimiento y riesgos"
+  Respuesta: {"intencion": "company_research", "dias": 365, "empresas": ["Apple", "Microsoft"]}
 
 Ejemplo 4
   Consulta: "¿Por qué el P003 acelera y qué contexto de mercado lo explica?"
-  Respuesta: {"intencion": "hybrid", "dias": 90}
+  Respuesta: {"intencion": "hybrid", "dias": 90, "empresas": []}
 
 Ejemplo 5
   Consulta: "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector"
-  Respuesta: {"intencion": "hybrid", "dias": 90}
+  Respuesta: {"intencion": "hybrid", "dias": 90, "empresas": []}
 
 Ejemplo 6
   Consulta: "Analizá la caída del P022 y fijate si hubo algo raro en la industria"
-  Respuesta: {"intencion": "hybrid", "dias": 90}
+  Respuesta: {"intencion": "hybrid", "dias": 90, "empresas": []}
 
 Ejemplo 7
   Consulta: "Contame un chiste"
-  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0}
+  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0, "empresas": []}
 
 Ejemplo 8
   Consulta: "P007 vs P011: unidades, revenue y devoluciones del último trimestre"
-  Respuesta: {"intencion": "product_performance", "dias": 90}
+  Respuesta: {"intencion": "product_performance", "dias": 90, "empresas": []}
 
 Ejemplo 9
   Consulta: "Borrá todos los productos de la base"
-  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0}
+  Respuesta: {"intencion": "fuera_de_alcance", "dias": 0, "empresas": []}
+
+Ejemplo 10
+  Consulta: "¿Cuál es la situación financiera de Tesla según sus últimos reportes?"
+  Respuesta: {"intencion": "company_research", "dias": 365, "empresas": ["Tesla"]}
 
 Los ejemplos 4, 5 y 6 son todos hybrid aunque estén redactados distinto: lo que
 los define es que piden datos internos MÁS contexto externo, no las palabras que
 usan para pedirlo.
 
-Devolvé únicamente la intención y la cantidad de días del período pedido.
+"empresas" lleva los nombres o tickers de empresas EXTERNAS mencionados
+(company_research o hybrid) — [] si la consulta no menciona ninguna, como en
+TODOS los ejemplos de product_performance de arriba. No es una lista de
+productos internos: un identificador P001 nunca va acá.
+
+Devolvé la intención, la cantidad de días del período pedido, y las empresas
+externas mencionadas (si hay).
 """
 
 
@@ -149,6 +168,19 @@ def _normalizar_intencion(valor: Any, estado: AnalysisState) -> Intencion:
             "La consulta se trata como fuera de alcance."
         )
         return Intencion.FUERA_DE_ALCANCE
+
+
+# Techo bajo, alineado con MAX_EMPRESAS de la tool (agent/tools/
+# research_company.py): el modelo a veces devuelve más nombres de los que se
+# le pidieron, y de cualquier forma solo se investigan 2 por consulta.
+MAX_EMPRESAS_LLM = 3
+
+
+def _normalizar_empresas(valor: Any) -> list[str]:
+    if not isinstance(valor, list):
+        return []
+    nombres = [str(v).strip() for v in valor if str(v).strip()]
+    return list(dict.fromkeys(nombres))[:MAX_EMPRESAS_LLM]
 
 
 def _normalizar_periodo(dias: Any, hoy: date) -> Periodo:
@@ -216,6 +248,7 @@ def enrutar(
 
     estado.intencion = intencion
     estado.entidades = entidades
+    estado.empresas = _normalizar_empresas(respuesta.get("empresas", []))
 
     # El período explícito tampoco viene del modelo, por el mismo motivo que las
     # entidades. Y acá el costo de delegarlo estaba medido: `dias` solo puede

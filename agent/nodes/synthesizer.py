@@ -24,7 +24,13 @@ from typing import Any
 from agent.llm import ClienteLLM
 from agent.state import AnalysisState
 from agent.tools.registry import ToolName
-from core.conclusiones import _alertas_de_devolucion, _conclusiones
+from core.conclusiones import (
+    _alertas_de_devolucion,
+    _conclusiones,
+    _id_fuente_empresa,
+    afirmaciones_de_empresas,
+)
+from core.edgar import HechoFinanciero
 from core.kpis import FUENTE
 from core.report import Afirmacion, Fuente, MetricaProducto, Prediccion, Report
 
@@ -227,6 +233,33 @@ def _metricas_del_estado(estado: AnalysisState) -> list[MetricaProducto]:
     return [m for m in (valores or []) if isinstance(m, MetricaProducto)]
 
 
+def _hechos_empresas_del_estado(estado: AnalysisState) -> list[HechoFinanciero]:
+    crudos = estado.resultados_tools.get(ToolName.RESEARCH_COMPANY, [])
+    return [h for h in (crudos or []) if isinstance(h, HechoFinanciero)]
+
+
+def _fuentes_de_empresas(hechos: list[HechoFinanciero], ahora: datetime) -> list[Fuente]:
+    """Declara cada hecho financiero citado como fuente `api_publica` — el
+    tipo existe en `core/report.py` desde el día uno, esta es la primera vez
+    que se instancia en la práctica. La URL apunta al listado de 10-K de la
+    empresa en EDGAR, no a un endpoint JSON: es lo que un lector humano puede
+    abrir."""
+    vistos: dict[str, Fuente] = {}
+    for h in hechos:
+        clave = _id_fuente_empresa(h)
+        if clave not in vistos:
+            vistos[clave] = Fuente(
+                id=clave, tipo="api_publica",
+                referencia=f"SEC EDGAR 10-K — {h.empresa} ({h.ticker})",
+                consultada_en=ahora,
+                url=(
+                    "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+                    f"&CIK={h.cik:010d}&type=10-K"
+                ),
+            )
+    return list(vistos.values())
+
+
 def sintetizar(
     estado: AnalysisState,
     cliente: ClienteLLM,
@@ -236,8 +269,9 @@ def sintetizar(
     inicio = time.perf_counter()
     ahora = ahora or datetime.now()
     metricas = _metricas_del_estado(estado)
+    hechos_empresas = _hechos_empresas_del_estado(estado)
 
-    if not metricas:
+    if not metricas and not hechos_empresas:
         # Sin datos no hay informe. Dejar que el modelo redacte igual es
         # exactamente cómo se producen los informes inventados.
         estado._advertir(
@@ -248,70 +282,83 @@ def sintetizar(
                               int((time.perf_counter() - inicio) * 1000))
         return estado
 
+    # Determinístico siempre, con o sin productos internos en la consulta: son
+    # cifras oficiales de SEC EDGAR, no texto ambiguo que necesite
+    # interpretación. Ver `core/conclusiones.py::afirmaciones_de_empresas`.
+    contexto_mercado = afirmaciones_de_empresas(hechos_empresas)
+    fuentes_empresas = _fuentes_de_empresas(hechos_empresas, ahora)
+
     conclusiones: list[Afirmacion] = []
     modelo_usado = cliente.nombre
 
-    fallo: str | None = None
-    docs_validos = {e["doc_id"] for e in estado.evidencia}
-    bloque = _datos_para_el_modelo(metricas)
-    if estado.evidencia:
-        bloque += ("\n\nEvidencia documental disponible:\n"
-                   + _evidencia_para_el_modelo(estado.evidencia))
+    if metricas:
+        fallo: str | None = None
+        docs_validos = {e["doc_id"] for e in estado.evidencia}
+        bloque = _datos_para_el_modelo(metricas)
+        if estado.evidencia:
+            bloque += ("\n\nEvidencia documental disponible:\n"
+                       + _evidencia_para_el_modelo(estado.evidencia))
 
-    try:
-        respuesta = cliente.estructurado(SISTEMA, bloque, ESQUEMA)
-        crudas = respuesta.get("conclusiones", []) if isinstance(respuesta, dict) else []
-        for c in crudas[:MAX_CONCLUSIONES]:
-            if isinstance(c, dict):
-                texto = str(c.get("texto", "")).strip()
-                fuente = str(c.get("fuente", "")).strip()
-            else:
-                texto, fuente = str(c).strip(), ""
-            if not texto:
-                continue
-            # Misma idea que la reparación de la cita documental de abajo, sobre
-            # el otro tipo de referencia que lleva el informe.
-            texto = _reparar_ids(texto, {m.product_id for m in metricas})
-            # El modelo suele copiar el encabezado entero del pasaje
-            # ("doc_prov_011 §1.1 - 2026-03-12") en vez del identificador solo.
-            # Rescatar el id de ahí adentro recupera una cita válida que si no
-            # se descartaría por un problema de formato, no de veracidad.
-            if fuente and fuente not in docs_validos:
-                fuente = next(
-                    (d for d in docs_validos if d in fuente), fuente
-                )
+        try:
+            respuesta = cliente.estructurado(SISTEMA, bloque, ESQUEMA)
+            crudas = respuesta.get("conclusiones", []) if isinstance(respuesta, dict) else []
+            for c in crudas[:MAX_CONCLUSIONES]:
+                if isinstance(c, dict):
+                    texto = str(c.get("texto", "")).strip()
+                    fuente = str(c.get("fuente", "")).strip()
+                else:
+                    texto, fuente = str(c).strip(), ""
+                if not texto:
+                    continue
+                # Misma idea que la reparación de la cita documental de abajo, sobre
+                # el otro tipo de referencia que lleva el informe.
+                texto = _reparar_ids(texto, {m.product_id for m in metricas})
+                # El modelo suele copiar el encabezado entero del pasaje
+                # ("doc_prov_011 §1.1 - 2026-03-12") en vez del identificador solo.
+                # Rescatar el id de ahí adentro recupera una cita válida que si no
+                # se descartaría por un problema de formato, no de veracidad.
+                if fuente and fuente not in docs_validos:
+                    fuente = next(
+                        (d for d in docs_validos if d in fuente), fuente
+                    )
 
-            # Citar un documento que no se recuperó es una alucinación de
-            # referencia: se descarta la cita, no la afirmación.
-            if fuente and fuente not in docs_validos:
-                estado._advertir(
-                    f"El modelo citó un documento inexistente ({fuente}). La "
-                    "afirmación se conserva atribuida a los datos."
-                )
-                fuente = ""
-            conclusiones.append(Afirmacion(
-                texto=texto, tipo="hecho",
-                fuentes=[fuente] if fuente else [FUENTE],
-            ))
-    except Exception as e:
-        fallo = f"{type(e).__name__}: {e}"
-        estado.error = fallo
+                # Citar un documento que no se recuperó es una alucinación de
+                # referencia: se descarta la cita, no la afirmación.
+                if fuente and fuente not in docs_validos:
+                    estado._advertir(
+                        f"El modelo citó un documento inexistente ({fuente}). La "
+                        "afirmación se conserva atribuida a los datos."
+                    )
+                    fuente = ""
+                conclusiones.append(Afirmacion(
+                    texto=texto, tipo="hecho",
+                    fuentes=[fuente] if fuente else [FUENTE],
+                ))
+        except Exception as e:
+            fallo = f"{type(e).__name__}: {e}"
+            estado.error = fallo
 
-    if not conclusiones:
-        # Respaldo determinístico: más seco, pero correcto. El informe sale igual.
-        conclusiones = _conclusiones(metricas)
-        modelo_usado = f"{cliente.nombre} (respaldo determinístico)"
-        # El motivo viaja en la advertencia y no solo en `estado.error`, que no
-        # lo lee nadie: el `Report` no tiene ese campo y `registro.error` solo
-        # se escribe si revienta el grafo entero. Sin esto, un timeout y un
-        # modelo que contesta una lista vacía se ven idénticos desde afuera —y
-        # son dos problemas distintos, uno de infraestructura y uno del prompt.
-        motivo = f" La llamada al modelo falló con {fallo}." if fallo else ""
-        estado._advertir(
-            "El modelo de lenguaje no produjo conclusiones utilizables. Se "
-            "generaron a partir de los datos con reglas determinísticas."
-            + motivo
-        )
+        if not conclusiones:
+            # Respaldo determinístico: más seco, pero correcto. El informe sale igual.
+            conclusiones = _conclusiones(metricas)
+            modelo_usado = f"{cliente.nombre} (respaldo determinístico)"
+            # El motivo viaja en la advertencia y no solo en `estado.error`, que no
+            # lo lee nadie: el `Report` no tiene ese campo y `registro.error` solo
+            # se escribe si revienta el grafo entero. Sin esto, un timeout y un
+            # modelo que contesta una lista vacía se ven idénticos desde afuera —y
+            # son dos problemas distintos, uno de infraestructura y uno del prompt.
+            motivo = f" La llamada al modelo falló con {fallo}." if fallo else ""
+            estado._advertir(
+                "El modelo de lenguaje no produjo conclusiones utilizables. Se "
+                "generaron a partir de los datos con reglas determinísticas."
+                + motivo
+            )
+    else:
+        # company_research puro: sin productos internos que redactar, CERO
+        # llamada al modelo. Los hechos de SEC ya son cifras oficiales
+        # duras — el principio "el modelo no calcula, redacta" se cumple acá
+        # con cero redacción libre, porque el template YA es la redacción.
+        modelo_usado = "ninguno (contexto_mercado determinístico, sin datos internos)"
 
     # El paso se registra ANTES de construir el informe: el informe copia el
     # trace, y hacerlo después dejaba la etapa de síntesis fuera de "Cómo se
@@ -324,16 +371,23 @@ def sintetizar(
         generado_en=ahora,
         modelo_llm=modelo_usado,
         fuentes=[
-            Fuente(
+            # La fuente SQL solo se declara si de verdad se usó: una `Fuente`
+            # sin ninguna cita apuntándole no rompe la validación (nadie la
+            # referencia), pero es prolijidad de auditoría — declarar lo que
+            # no se consultó es el mismo tipo de imprecisión que ya se corrigió
+            # abajo en las limitaciones.
+            *([Fuente(
                 id=FUENTE, tipo="sql",
                 referencia="dbo.order_items JOIN dbo.orders JOIN dbo.products",
                 consultada_en=ahora,
-            ),
+            )] if metricas else []),
             *_fuentes_documentales(estado.evidencia, ahora),
             *_fuentes_de_modelo(_predicciones_del_estado(estado), ahora),
+            *fuentes_empresas,
         ],
         resumen_ejecutivo=conclusiones,
         metricas=metricas,
+        contexto_mercado=contexto_mercado,
         predicciones=_predicciones_del_estado(estado),
         advertencias=list(estado.advertencias) + _alertas_de_devolucion(metricas),
         trace=list(estado.trace),
@@ -347,12 +401,21 @@ def sintetizar(
         # tuvo los documentos delante aunque el sintetizador no los haya usado.
         # Ese caso —tenerlos y no usarlos— es un defecto de calidad que mide
         # `usa_la_evidencia_documental`, y no una limitación del alcance.
+        #
+        # La primera limitación ("datos sintéticos") también pasó a ser
+        # condicional: es cierta sobre `metricas` (el catálogo interno,
+        # inventado para la demo) y FALSA sobre `contexto_mercado` (SEC EDGAR
+        # es un dato real). Declararla siempre habría sido la misma mentira
+        # por descuido que ya se corrigió acá una vez.
         limitaciones=[
-            "Los datos son sintéticos y no representan operaciones comerciales reales.",
-            *([] if estado.evidencia else [
-                "Las conclusiones se derivan de métricas internas: no incluyen "
-                "evidencia documental ni contexto de mercado."
-            ]),
+            *(["Los datos son sintéticos y no representan operaciones comerciales reales."]
+              if metricas else []),
+            *(["Las conclusiones se derivan de métricas internas: no incluyen "
+               "evidencia documental ni contexto de mercado."]
+              if metricas and not estado.evidencia and not hechos_empresas else []),
+            *(["Los datos de mercado provienen de los filings públicos más recientes "
+               "en SEC EDGAR (data.sec.gov) y solo cubren empresas que cotizan en "
+               "EE. UU."] if hechos_empresas else []),
         ],
     )
 

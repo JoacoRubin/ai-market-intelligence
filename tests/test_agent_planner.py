@@ -59,17 +59,45 @@ def test_hybrid_tambien_consulta_metricas_en_la_v1() -> None:
                for w in estado.advertencias), estado.advertencias
 
 
-def test_company_research_no_tiene_herramientas_en_la_v1() -> None:
-    """Sin acceso a fuentes públicas todavía, no hay nada que ejecutar.
-
-    El plan queda vacío y el grafo va a cortar en el EvidenceGate. Inventar un
-    plan que no se puede cumplir solo gasta tiempo para llegar al mismo lugar.
-    """
+def test_company_research_sin_empresa_identificada_no_genera_plan() -> None:
+    """El router puede clasificar company_research sin lograr extraer a
+    quién investigar. Sin empresa no hay nada que ejecutar — cortar sigue
+    siendo correcto, el motivo ya no dice "no implementado": ahora sí lo
+    está, conectado a SEC EDGAR (ADR-014)."""
     estado = planificar(_estado(intencion=Intencion.COMPANY_RESEARCH,
                                 entidades=[]))
     assert estado.plan == []
-    assert any("no está disponible" in w.lower() or "fase" in w.lower()
+    assert any("identificar" in w.lower() and "empresa" in w.lower()
                for w in estado.advertencias), estado.advertencias
+
+
+def test_company_research_con_empresa_planifica_research_company() -> None:
+    """Con `estado.empresas` poblado (lo hace el router, no un regex — ver
+    `agent/nodes/router.py`), el planner arma un PasoPlan real contra
+    `research_company`."""
+    estado = _estado(intencion=Intencion.COMPANY_RESEARCH, entidades=[])
+    estado.empresas = ["Apple", "Microsoft"]
+    resultado = planificar(estado)
+    assert [p.tool for p in resultado.plan] == ["research_company"]
+    assert resultado.plan[0].argumentos["nombres"] == ["Apple", "Microsoft"]
+
+
+def test_company_research_limita_a_dos_empresas_por_consulta() -> None:
+    """Mismo techo que `forecast_sales` aplica sobre entidades: auditable,
+    no arbitrario."""
+    estado = _estado(intencion=Intencion.COMPANY_RESEARCH, entidades=[])
+    estado.empresas = ["Apple", "Microsoft", "Tesla"]
+    resultado = planificar(estado)
+    assert resultado.plan[0].argumentos["nombres"] == ["Apple", "Microsoft"]
+
+
+def test_hybrid_con_empresa_planifica_ambas_tools() -> None:
+    """Un híbrido con productos internos Y una empresa externa identificada
+    termina con las dos tools en el plan — las dos ramas conviven."""
+    estado = _estado(intencion=Intencion.HYBRID)
+    estado.empresas = ["Tesla"]
+    resultado = planificar(estado)
+    assert {p.tool for p in resultado.plan} == {"product_metrics", "research_company"}
 
 
 def test_fuera_de_alcance_no_genera_plan() -> None:

@@ -43,6 +43,7 @@ def test_el_catalogo_declara_exactamente_las_tools_implementadas() -> None:
         "product_metrics",
         "search_documents",
         "forecast_sales",
+        "research_company",
     }
     assert all(definicion.name == nombre for nombre, definicion in catalogo.items())
 

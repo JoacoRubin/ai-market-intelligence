@@ -113,7 +113,7 @@ def test_el_wheel_incluye_todos_los_paquetes_runtime() -> None:
 def test_readme_declara_los_limites_verificables_del_producto() -> None:
     readme = _leer("README.md").lower()
 
-    assert "research público todavía no está implementado" in readme
+    assert "conectado a sec edgar" in readme
     assert "no incluye un caso de forecast" in readme
     assert "c:\\users\\" not in readme
 

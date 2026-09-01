@@ -82,6 +82,12 @@ class AnalysisState(BaseModel):
     # --- comprensión ---
     intencion: Intencion | None = None
     entidades: list[str] = Field(default_factory=list)
+    # Nombres de empresa/tickers extraídos por el LLM ("Apple", "AMZN") — a
+    # diferencia de `entidades` (product_ids, regex determinístico), esto SÍ
+    # sale del modelo: es una tarea de lenguaje natural sin formato fijo, no
+    # hay regex posible para "Apple vs Microsoft". La resolución a un CIK
+    # concreto es determinística y vive en `core/edgar.py`, no acá.
+    empresas: list[str] = Field(default_factory=list)
     periodo: Periodo | None = None
 
     # --- ejecución ---

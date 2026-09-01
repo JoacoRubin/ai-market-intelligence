@@ -25,6 +25,9 @@ import pytest
 
 from agent.nodes.numeros import extraer_numeros_de_negocio
 from agent.nodes.validator import validar_informe
+from agent.tools.registry import ToolName
+from core.conclusiones import afirmaciones_de_empresas
+from core.edgar import HechoFinanciero
 from core.report import Afirmacion, Fuente, MetricaProducto, Report
 
 FUENTE_SQL = "sql:product_metrics"
@@ -626,3 +629,77 @@ def test_una_recomendacion_mal_etiquetada_se_mueve_a_su_seccion() -> None:
     assert len(resultado.informe.resumen_ejecutivo) == 1
     assert len(resultado.informe.recomendaciones) == 1
     assert resultado.informe.recomendaciones[0].tipo == "recomendacion"
+
+
+# --- Hechos financieros de SEC EDGAR (ADR-014) --------------------------------
+
+def _hecho_apple() -> HechoFinanciero:
+    return HechoFinanciero(
+        empresa="Apple Inc.", ticker="AAPL", cik=320193,
+        concepto="revenue",
+        concepto_xbrl="RevenueFromContractWithCustomerExcludingAssessedTax",
+        valor=383_285_000_000.0, fiscal_year=2025, fiscal_period="FY",
+        filed="2025-11-01", form="10-K", accn="0000320193-25-000001",
+    )
+
+
+def test_hecho_financiero_de_empresa_sobrevive_la_validacion() -> None:
+    """El fix crítico de ADR-014: antes de esto, `_numeros_disponibles` solo
+    reconocía `MetricaProducto` — cualquier cifra de SEC EDGAR en
+    `contexto_mercado` quedaba sin respaldo y `_filtrar()` la borraba en
+    silencio, sin que nada del lado del informe avisara.
+
+    Este test falla sin el fix: `afirmaciones_de_empresas` escribe "USD
+    383.285 millones" (escalado), y sin `en_millones()` en
+    `_numeros_disponibles` esa cifra no matchea contra el valor crudo de
+    XBRL — son 6 órdenes de magnitud de diferencia.
+    """
+    hecho = _hecho_apple()
+    afirmaciones = afirmaciones_de_empresas([hecho])
+    fuente_id = afirmaciones[0].fuentes[0]
+
+    informe = Report(
+        request_id="req-edgar", consulta="Situación financiera de Apple",
+        generado_en=datetime(2026, 9, 1, 12, 0),
+        modelo_llm="ninguno (contexto_mercado determinístico, sin datos internos)",
+        fuentes=[Fuente(
+            id=fuente_id, tipo="api_publica",
+            referencia="SEC EDGAR 10-K — Apple Inc. (AAPL)",
+            consultada_en=datetime(2026, 9, 1, 12, 0),
+        )],
+        contexto_mercado=afirmaciones,
+        metricas=[],
+    )
+
+    resultado = validar_informe(
+        informe,
+        resultados_tools={ToolName.RESEARCH_COMPANY: [hecho]},
+        evidencia=[],
+    )
+
+    assert resultado.informe.contexto_mercado == afirmaciones
+    assert resultado.aprobado
+    assert resultado.groundedness == 1.0
+
+
+def test_el_fiscal_year_en_prosa_no_se_marca_como_cifra_sin_respaldo() -> None:
+    """La plantilla menciona "año fiscal 2025" como número suelto — sin
+    registrar `fiscal_year` en `disponibles`, esa mención sola ya alcanzaría
+    para rechazar la afirmación completa."""
+    hecho = _hecho_apple()
+    afirmaciones = afirmaciones_de_empresas([hecho])
+    assert any(str(hecho.fiscal_year) in a.texto for a in afirmaciones)
+
+    resultado = validar_informe(
+        Report(
+            request_id="req-edgar", consulta="x",
+            generado_en=datetime(2026, 9, 1, 12, 0), modelo_llm="ninguno",
+            fuentes=[Fuente(id=afirmaciones[0].fuentes[0], tipo="api_publica",
+                            referencia="x", consultada_en=datetime(2026, 9, 1, 12, 0))],
+            contexto_mercado=afirmaciones, metricas=[],
+        ),
+        resultados_tools={ToolName.RESEARCH_COMPANY: [hecho]},
+        evidencia=[],
+    )
+
+    assert len(resultado.informe.contexto_mercado) == 1

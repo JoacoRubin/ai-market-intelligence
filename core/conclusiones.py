@@ -10,6 +10,7 @@ permite que el sistema no dependa del modelo para tener razón.
 
 from __future__ import annotations
 
+from core.edgar import HechoFinanciero, en_millones
 from core.kpis import FUENTE
 from core.report import Afirmacion, MetricaProducto
 
@@ -94,6 +95,55 @@ def _conclusiones(metricas: list[MetricaProducto]) -> list[Afirmacion]:
             ))
 
     return conclusiones
+
+
+def _id_fuente_empresa(hecho: HechoFinanciero) -> str:
+    """El mismo id que declara `Fuente` en `synthesizer.py` — se define una
+    sola vez acá para que las dos partes nunca puedan desincronizarse."""
+    return f"sec:{hecho.ticker}:{hecho.concepto_xbrl}:{hecho.fiscal_year}"
+
+
+def afirmaciones_de_empresas(hechos: list[HechoFinanciero]) -> list[Afirmacion]:
+    """Traduce hechos financieros de SEC EDGAR a prosa — 100% determinístico,
+    CERO llamada al modelo.
+
+    Es la misma decisión que ya tomó `_conclusiones()` para productos, con un
+    argumento más fuerte todavía: acá los números no son propios (SQL sobre
+    el propio catálogo), son cifras oficiales de un tercero. Dejar que el
+    modelo las "redacte" es una oportunidad de que las redondee, las
+    reordene o las mezcle entre empresas — el template ya ES la redacción,
+    no hay nada para el LLM que agregue valor y sí hay algo que arriesgar.
+
+    No se mete la fecha de filing (`hecho.filed`) en el texto: `numeros.py`
+    no matchea guiones, así que una fecha ISO cruda se parte en tres tokens
+    sueltos y el validador los trataría como magnitudes sin respaldo.
+    """
+    afirmaciones: list[Afirmacion] = []
+    for h in hechos:
+        fuente_id = _id_fuente_empresa(h)
+        millones = en_millones(h)
+
+        if h.concepto == "revenue":
+            texto = (
+                f"{h.empresa} ({h.ticker}) reportó un revenue de USD "
+                f"{_miles(millones)} millones en el año fiscal {h.fiscal_year}, "
+                "según su reporte anual más reciente en SEC EDGAR"
+            )
+        elif h.concepto == "ganancia neta":
+            verbo = "tuvo una pérdida neta" if millones < 0 else "tuvo una ganancia neta"
+            texto = (
+                f"{h.empresa} ({h.ticker}) {verbo} de USD {_miles(abs(millones))} "
+                f"millones en el año fiscal {h.fiscal_year}"
+            )
+        else:  # "activos totales"
+            texto = (
+                f"{h.empresa} ({h.ticker}) reportó activos totales por USD "
+                f"{_miles(millones)} millones al cierre del año fiscal {h.fiscal_year}"
+            )
+
+        afirmaciones.append(Afirmacion(texto=texto, tipo="hecho", fuentes=[fuente_id]))
+
+    return afirmaciones
 
 
 def _alertas_de_devolucion(metricas: list[MetricaProducto]) -> list[str]:

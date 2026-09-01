@@ -8,9 +8,10 @@ por consulta en esta máquina, podría equivocarse, y no aportaría nada que el
 software no resuelva mejor. Es la misma lección que dejó el diagnóstico del
 router: cuando hay un LLM a mano, todo empieza a parecer clavo.
 
-El catálogo activo tiene tres herramientas: métricas, evidencia documental y
-forecast. El planificador solo referencia esos nombres tipados; una capacidad
-futura no entra al plan hasta tener implementación y contrato ejecutable.
+El catálogo activo tiene cuatro herramientas: métricas, evidencia documental,
+forecast e investigación de empresas externas (SEC EDGAR). El planificador
+solo referencia esos nombres tipados; una capacidad futura no entra al plan
+hasta tener implementación y contrato ejecutable.
 """
 
 from __future__ import annotations
@@ -112,15 +113,31 @@ def planificar(
         estado.registrar_paso("planner", int((time.perf_counter() - inicio) * 1000))
         return estado
 
-    if estado.intencion == Intencion.COMPANY_RESEARCH:
-        # Sin acceso a fuentes públicas todavía. Inventar un plan que no se puede
-        # cumplir solo gasta tiempo para llegar al mismo lugar.
-        estado._advertir(
-            "La investigación de empresas externas no está disponible en esta "
-            "versión: requiere las fuentes públicas de la fase 3."
-        )
-        estado.registrar_paso("planner", int((time.perf_counter() - inicio) * 1000))
-        return estado
+    # Empresas externas — conectado a SEC EDGAR (core/edgar.py). `estado.empresas`
+    # sale del router (lenguaje natural, no hay regex posible para nombres de
+    # empresa) — acá solo se decide SI se llama a la tool, nunca cómo resolver
+    # el nombre. Se evalúa para COMPANY_RESEARCH y HYBRID por igual: un híbrido
+    # pide productos internos Y contexto externo, las dos ramas conviven.
+    if estado.intencion in (Intencion.COMPANY_RESEARCH, Intencion.HYBRID):
+        if estado.empresas:
+            objetivo = estado.empresas[:2]
+            estado.plan.append(PasoPlan(
+                tool=ToolName.RESEARCH_COMPANY,
+                argumentos={"nombres": objetivo},
+                razon=(
+                    f"Investigar la situación financiera de {', '.join(objetivo)} "
+                    "según sus filings públicos en SEC EDGAR."
+                ),
+            ))
+        elif estado.intencion == Intencion.COMPANY_RESEARCH:
+            # La intención es clara pero el router no logró identificar a
+            # quién investigar — cortar sigue siendo correcto (no hay nada que
+            # planificar), el mensaje ya no dice "no implementado".
+            estado._advertir(
+                "No se pudo identificar qué empresa investigar en la consulta."
+            )
+            estado.registrar_paso("planner", int((time.perf_counter() - inicio) * 1000))
+            return estado
 
     if estado.entidades:
         periodo = _asegurar_periodo(estado)

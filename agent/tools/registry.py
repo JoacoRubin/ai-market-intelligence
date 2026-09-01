@@ -29,6 +29,7 @@ class ToolName(StrEnum):
     PRODUCT_METRICS = "product_metrics"
     SEARCH_DOCUMENTS = "search_documents"
     FORECAST_SALES = "forecast_sales"
+    RESEARCH_COMPANY = "research_company"
 
 
 ToolHandler = Callable[[BaseModel, "AnalysisState", Any], Any]
@@ -82,6 +83,10 @@ def catalogo_tools() -> Mapping[ToolName, DefinicionTool]:
         EntradaProductMetrics,
         ejecutar_product_metrics,
     )
+    from agent.tools.research_company import (
+        EntradaResearchCompany,
+        ejecutar_research_company,
+    )
     from agent.tools.search_documents import (
         EntradaSearchDocuments,
         ejecutar_search_documents,
@@ -108,6 +113,13 @@ def catalogo_tools() -> Mapping[ToolName, DefinicionTool]:
     ) -> Any:
         return ejecutar_forecast_sales(cast(EntradaForecastSales, entrada), estado)
 
+    def ejecutar_research(
+        entrada: BaseModel,
+        estado: AnalysisState,
+        _contexto: Any,
+    ) -> Any:
+        return ejecutar_research_company(cast(EntradaResearchCompany, entrada), estado)
+
     definiciones = {
         ToolName.PRODUCT_METRICS: DefinicionTool(
             name=ToolName.PRODUCT_METRICS,
@@ -124,6 +136,11 @@ def catalogo_tools() -> Mapping[ToolName, DefinicionTool]:
             name=ToolName.FORECAST_SALES,
             input_model=EntradaForecastSales,
             handler=ejecutar_forecast,
+        ),
+        ToolName.RESEARCH_COMPANY: DefinicionTool(
+            name=ToolName.RESEARCH_COMPANY,
+            input_model=EntradaResearchCompany,
+            handler=ejecutar_research,
         ),
     }
 

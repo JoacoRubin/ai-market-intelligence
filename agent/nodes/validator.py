@@ -33,6 +33,7 @@ from agent.nodes.numeros import (
     TOLERANCIA_RELATIVA,
     extraer_numeros_de_negocio,
 )
+from core.edgar import HechoFinanciero, en_millones
 from core.report import Afirmacion, MetricaProducto, Report
 
 # Fórmulas con las que se pide una acción. El modelo suele redactar
@@ -57,18 +58,32 @@ def parece_recomendacion(texto: str) -> bool:
 
 
 def _numeros_disponibles(resultados_tools: dict[str, Any]) -> set[float]:
-    """Todas las magnitudes que las herramientas realmente produjeron."""
+    """Todas las magnitudes que las herramientas realmente produjeron.
+
+    `HechoFinanciero` (SEC EDGAR) se registra en MILLONES vía `en_millones`,
+    no en el valor crudo de XBRL — es la misma escala en la que
+    `core/conclusiones.py::afirmaciones_de_empresas` redacta el texto. Sin
+    esto, "USD 383.285 millones" en la prosa nunca matchea contra
+    383285000000.0 sin escalar: son 6 órdenes de magnitud de diferencia, muy
+    por fuera de cualquier tolerancia. `fiscal_year` también se registra: la
+    plantilla lo menciona como número suelto ("año fiscal 2025") y sin esto
+    quedaría marcado como cifra sin respaldo.
+    """
     disponibles: set[float] = set()
     for resultado in resultados_tools.values():
         valores = resultado.values() if isinstance(resultado, dict) else resultado
         for m in valores or []:
-            if not isinstance(m, MetricaProducto):
-                continue
-            for campo in (m.unidades, m.revenue, m.margen_pct,
-                          m.crecimiento_pct, m.tasa_devolucion_pct):
-                if campo is not None:
-                    disponibles.add(float(campo))
-                    disponibles.add(abs(float(campo)))
+            if isinstance(m, MetricaProducto):
+                for campo in (m.unidades, m.revenue, m.margen_pct,
+                              m.crecimiento_pct, m.tasa_devolucion_pct):
+                    if campo is not None:
+                        disponibles.add(float(campo))
+                        disponibles.add(abs(float(campo)))
+            elif isinstance(m, HechoFinanciero):
+                valor = en_millones(m)
+                disponibles.add(valor)
+                disponibles.add(abs(valor))
+                disponibles.add(float(m.fiscal_year))
     return disponibles
 
 
