@@ -171,13 +171,12 @@ Lo que corre hoy:
 | Integración continua | GitHub Actions ([ADR-011](docs/adr/ADR-011-ci-github-actions.md)) — linter + mypy strict + tests con cobertura; Redis en el job principal y guardrails read-only contra SQL Server real en un job separado |
 | Jobs y almacén de análisis | RQ + Redis, worker en proceso aparte ([ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md)). Elegible con `JOBS_BACKEND`; sin Redis el sistema corre igual |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
-| Dashboard en vivo | React + TypeScript + Vite, `apps/web/` ([ADR-013](docs/adr/ADR-013-dashboard-vite-sin-tocar-la-api.md)). Lanza un análisis contra la API real, pollea su estado y muestra el informe completo — proxy de dev, sin CORS en la API |
+| Dashboard en vivo | React + TypeScript + Vite, `apps/web/` ([ADR-013](docs/adr/ADR-013-dashboard-vite-sin-tocar-la-api.md)). Lanza un análisis contra la API real, pollea su estado, muestra el informe completo y navega el historial de análisis pasados — proxy de dev, sin CORS en la API, tipografía real (IBM Plex, self-hosted), patrón de pestañas y encabezados con teclado completo |
 
 Y lo que **todavía no está construido**, para que no haya confusión:
 
 | Responsabilidad | Tecnología prevista | Fase |
 |---|---|---|
-| Historial de análisis pasados en el dashboard | `GET /analyses` ya existe; falta la pantalla | 7 |
 | Research público | Sin proveedor elegido — hoy `company_research` corta sin plan para no simular una capacidad ausente | pendiente |
 | Caching de análisis | Redis — **postergado a propósito**, ver [ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md): sin una regla de invalidación, un informe calculado sobre datos viejos no es una optimización, es un informe incorrecto servido rápido | 6 |
 

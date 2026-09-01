@@ -1,4 +1,4 @@
-import type { Analisis, ListaProductos, SolicitudAnalisis } from "./types";
+import type { Analisis, ListaAnalisis, ListaProductos, SolicitudAnalisis } from "./types";
 
 /** Cuánto se espera cada request antes de darla por caída. Un GET de estado o
  * el POST inicial (que responde en milisegundos: el análisis se despacha en
@@ -67,4 +67,8 @@ export function listarProductos(): Promise<ListaProductos> {
   // limite=200: cubre el catálogo completo (40 productos sembrados hoy) sin
   // paginar — el tope real lo impone la API (`main.py`, máx. 200).
   return pedir<ListaProductos>("/products?limite=200");
+}
+
+export function listarAnalisis(limite = 50, offset = 0): Promise<ListaAnalisis> {
+  return pedir<ListaAnalisis>(`/analyses?limite=${limite}&offset=${offset}`);
 }

@@ -43,6 +43,11 @@ node_modules/
 dist/
 .vite/
 *.tsbuildinfo
+# tsconfig.node.json usa emitDeclarationOnly (lo exige allowImportingTsExtensions
+# sin noEmit) para poder ser referenciado por project references — efecto
+# colateral: cada "tsc -b" (y por lo tanto cada "npm run build") deja este
+# .d.ts suelto en la raíz de apps/web. Es un artefacto de build, no fuente.
+apps/web/vite.config.d.ts
 
 # --- SO / editor ------------------------------------------------------------
 .DS_Store

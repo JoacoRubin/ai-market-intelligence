@@ -28,7 +28,12 @@ export function AnalisisDetalle({ analisis }: Props) {
   return (
     <article className="detalle">
       <header className="ejecucion__encabezado">
-        <p className="consulta">{analisis.consulta}</p>
+        {/* h2, no <p>: es el título de ESTE análisis dentro de la jerarquía
+            de la página (h1 "Dashboard" → h2 acá / "Historial de análisis"
+            en el rail → h3 en cada bloque de abajo). Antes era un párrafo
+            sin jerarquía y los bloques saltaban directo a h3 sin nada
+            arriba — WCAG 2.4.6 roto. */}
+        <h2 className="consulta">{analisis.consulta}</h2>
         <div className="fichas">
           {campos.map(([clave, valor]) => (
             <span key={clave} className="ficha">

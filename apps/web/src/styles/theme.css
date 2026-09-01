@@ -2,7 +2,17 @@
  * copia y no un import cruzado. Si los tokens de color cambian en el
  * original (la paleta está validada contra daltonismo, ΔE 24.7/26.8 contra
  * objetivo 8), hay que sincronizar este archivo a mano: no hay test hoy que
- * lo detecte. NO editar los tokens acá sin editar también el original.
+ * lo detecte. NO editar los tokens de COLOR acá sin editar también el
+ * original.
+ *
+ * PRIMERA DIVERGENCIA DELIBERADA con el original, en --sans/--mono más
+ * abajo: el dashboard carga IBM Plex vía @fontsource (self-hosted) porque es
+ * una herramienta viva con su propio backend de red — el replay se mantiene
+ * sin ninguna dependencia externa, a propósito, porque es un artefacto
+ * estático de portfolio (`replay.js` lo declara explícito: "un sitio que se
+ * cae porque una CDN cambió una URL contradiría lo único que este demo
+ * intenta demostrar"). Dos objetos distintos, dos reglas distintas. Ver
+ * ADR-013.
  *
  * Replay del agente — hoja de estilos única.
  *
@@ -43,8 +53,8 @@
   --grave:        #d03b3b;
   --texto-bien:   #006300;
 
-  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 
   --radio: 3px;
   --ancho: 1180px;
@@ -113,7 +123,7 @@ code, .mono { font-family: var(--mono); font-size: 0.86em; }
   max-width: 20ch;
   margin: 0 0 1.25rem;
   font-size: clamp(2rem, 5.5vw, 3.4rem);
-  font-weight: 680;
+  font-weight: 700;
   line-height: 1.04;
   letter-spacing: -0.03em;
 }
@@ -238,7 +248,7 @@ code, .mono { font-family: var(--mono); font-size: 0.86em; }
   gap: 0.7rem;
   margin: 0 0 1.25rem;
   font-size: 1.02rem;
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 .bloque__orden {

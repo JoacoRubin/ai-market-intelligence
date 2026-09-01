@@ -1,24 +1,33 @@
 import { duracion, nf, nf1 } from "../lib/formato";
 import { esEtapaLlm } from "../lib/etapas";
+import { useReproducirTraza } from "../hooks/useReproducirTraza";
 import type { PasoTrace } from "../api/types";
 
 interface Props {
   trace: PasoTrace[];
 }
 
-/** La cinta de traza — puerto directo de `construirTraza`/`construirTablaTraza`
- * en `docs/replay/replay.js`. Sin la animación de "reproducir": ahí tiene
- * sentido porque el replay es un artefacto de portfolio pensado para
- * mostrarse; acá el usuario está viendo la corrida real en vivo, no una
- * grabación — la cinta estática con proporciones reales ya comunica todo. */
+/** La cinta de traza — puerto de `construirTraza`/`construirTablaTraza` en
+ * `docs/replay/replay.js`, esta vez CON la animación de "reproducir": es el
+ * elemento de firma de esta iteración — duraciones reales aceleradas, factor
+ * declarado, opt-in por botón (nunca autoplay: abrir varios análisis del
+ * historial seguidos con autoplay sería ruido). Ver
+ * `hooks/useReproducirTraza.ts` para por qué corre por refs y no por
+ * `setState` a 60fps. */
 export function Traza({ trace }: Props) {
+  const total = trace.reduce((a, p) => a + p.duracion_ms, 0);
+  const { animando, etiquetaBoton, reproducir, rellenosRef, relojRef } = useReproducirTraza(
+    trace,
+    total,
+  );
+
   if (!trace.length) {
     return <p className="nota">Esta ejecución no registró etapas.</p>;
   }
 
-  const total = trace.reduce((a, p) => a + p.duracion_ms, 0);
   const conLlm = trace.filter((p) => esEtapaLlm(p.nodo));
   const msLlm = conLlm.reduce((a, p) => a + p.duracion_ms, 0);
+  const factorVelocidad = Math.max(1, Math.round(total / 3200));
 
   const etiquetaCinta =
     `Traza de ${trace.length} etapas, ${duracion(total)} en total: ` +
@@ -26,6 +35,48 @@ export function Traza({ trace }: Props) {
 
   return (
     <div>
+      <div className="traza__controles">
+        <button type="button" className="boton" onClick={reproducir}>
+          {etiquetaBoton}
+        </button>
+        <p className="traza__reloj mono">
+          <span ref={relojRef}>{nf1(total / 1000)}</span> s
+        </p>
+        <p className="traza__aviso">
+          Reproducción acelerada ×{nf(factorVelocidad)}. Los tiempos mostrados son los reales.
+        </p>
+      </div>
+
+      {/* role="img": la cinta es un solo objeto visual para quien usa lector
+          de pantalla, no una lista de divs decorativos para recorrer uno por
+          uno — el resumen completo va en aria-label, y la tabla de abajo es
+          la fuente de verdad accesible, no un duplicado decorativo. */}
+      <div className="cinta" role="img" aria-label={etiquetaCinta} data-animando={animando}>
+        {trace.map((paso, i) => {
+          const esLlm = esEtapaLlm(paso.nodo);
+          const proporcion = total ? paso.duracion_ms / total : 0;
+          const angosto = proporcion < 0.08;
+          const detalleTramo = `${paso.nodo} · ${duracion(paso.duracion_ms)}${paso.tool ? ` · ${paso.tool}` : ""}`;
+          return (
+            <div
+              key={i}
+              className={`tramo ${esLlm ? "tramo--llm" : ""} ${angosto ? "tramo--angosto" : ""}`}
+              style={{ flexGrow: Math.max(proporcion, 0.004), flexBasis: 0 }}
+              title={detalleTramo}
+              aria-label={detalleTramo}
+            >
+              <div
+                className="tramo__relleno"
+                ref={(el) => {
+                  rellenosRef.current[i] = el;
+                }}
+              />
+              <span className="tramo__rotulo">{paso.nodo}</span>
+            </div>
+          );
+        })}
+      </div>
+
       <ul className="leyenda">
         <li>
           <span className="leyenda__marca leyenda__marca--det" /> Determinística
@@ -34,27 +85,6 @@ export function Traza({ trace }: Props) {
           <span className="leyenda__marca leyenda__marca--llm" /> Modelo (LLM)
         </li>
       </ul>
-
-      <div className="cinta" aria-label={etiquetaCinta}>
-        {trace.map((paso, i) => {
-          const esLlm = esEtapaLlm(paso.nodo);
-          const proporcion = total ? paso.duracion_ms / total : 0;
-          const angosto = proporcion < 0.08;
-          return (
-            <div
-              key={i}
-              className={`tramo ${esLlm ? "tramo--llm" : ""} ${angosto ? "tramo--angosto" : ""}`}
-              style={{ flexGrow: Math.max(proporcion, 0.004), flexBasis: 0 }}
-              title={`${paso.nodo} · ${duracion(paso.duracion_ms)}${paso.tool ? ` · ${paso.tool}` : ""}`}
-            >
-              <div className="tramo__relleno" />
-              <span className="tramo__rotulo">{paso.nodo}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="traza__reloj mono">{nf1(total / 1000)}s</p>
 
       <p className="tesis">
         <strong>
@@ -73,6 +103,7 @@ export function Traza({ trace }: Props) {
 
       <div className="envoltorio-tabla">
         <table className="tabla">
+          <caption>Duración exacta de cada etapa</caption>
           <thead>
             <tr>
               <th scope="col">Etapa</th>

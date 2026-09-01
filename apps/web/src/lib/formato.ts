@@ -38,3 +38,20 @@ export function fechaLegible(iso: string): string {
 export function segundosDesde(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
 }
+
+/** Fecha relativa para el historial ("hace 3 min", "ayer") — más legible que
+ * un timestamp ISO en una lista que se escanea rápido. Más allá de una
+ * semana cae a `fechaLegible`: "hace 19 días" deja de ser más útil que la
+ * fecha concreta. */
+export function relativoDesde(iso: string): string {
+  const segundos = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (segundos < 60) return "recién";
+  const minutos = Math.floor(segundos / 60);
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return "ayer";
+  if (dias < 7) return `hace ${dias} días`;
+  return fechaLegible(iso);
+}

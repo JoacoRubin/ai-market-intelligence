@@ -1,5 +1,21 @@
 /* Estrictamente aditivo: nunca redefine --det/--llm/--bien/--aviso/--grave ni
- * ningún otro token de theme.css. Ver ADR-013. */
+ * ningún otro token de theme.css. Agrega propiedades a clases existentes
+ * (ej. .consulta) sin redefinir sus reglas de theme.css — mismo mecanismo
+ * que ya usa este archivo, no una excepción nueva. Ver ADR-013. */
+
+/* Oculta visualmente sin ocultar de lectores de pantalla — para la región
+ * aria-live que anuncia transiciones de estado sin ocupar layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .app-header {
   padding: 2.5rem 0 2rem;
@@ -8,7 +24,7 @@
 .app-header__titulo {
   margin: 0.3rem 0 0.75rem;
   font-size: clamp(1.6rem, 4vw, 2.4rem);
-  font-weight: 680;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 .app-header__bajada {
@@ -18,7 +34,11 @@
   color: var(--tinta-2);
 }
 
-main { padding-top: 2rem; }
+main { min-width: 0; } /* en grid, sin esto una tabla ancha empuja la columna */
+
+/* El cambio de <p> a <h2> (accesibilidad) heredaba negrita de la hoja de
+ * estilos del navegador — se fija el peso a propósito, no se deja al azar. */
+.consulta { font-weight: 600; }
 
 /* --- formulario -------------------------------------------------------- */
 
@@ -102,33 +122,91 @@ input:focus-visible {
 .boton--primario:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* --- panel de espera ----------------------------------------------------- */
+/* Sin spinner: era movimiento puramente decorativo. El marcador de
+ * .rango-contexto ya comunica "está corriendo" con movimiento que además
+ * informa — dos movimientos en el mismo panel (uno decorativo, uno
+ * informativo) compiten en vez de sumar. */
 
 .panel-estado {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  display: grid;
+  gap: 0.75rem;
   padding: 1.25rem 1.4rem;
   margin: 1.5rem 0;
   background: var(--superficie);
   border: 1px solid var(--borde);
   border-radius: var(--radio);
 }
-.panel-estado__titulo { margin: 0 0 0.2rem; font-size: 0.95rem; }
+.panel-estado__titulo { margin: 0; font-size: 0.95rem; font-weight: 600; }
 
-.panel-estado__spinner {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+/* Track SIN relleno — a propósito. Ver el comentario en PanelEstado.tsx:
+ * reusar .barra/.barra__relleno (semántica ya establecida como "proporción
+ * conocida" en MetricasTabla) mentiría por la forma aunque el texto dijera
+ * lo contrario. Esto es un timeline con marcas, no una barra de progreso. */
+.rango-contexto__track {
+  position: relative;
+  height: 2.5rem;
+  border-bottom: 1px solid var(--regla);
+}
+.rango-contexto__marca {
+  position: absolute;
+  top: 0;
+  bottom: 0.6rem;
+  width: 1px;
+  background: var(--base);
+}
+.rango-contexto__marca-etiqueta {
+  position: absolute;
+  bottom: 0.9rem;
+  left: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--tinta-apagada);
+}
+.rango-contexto__marca:first-child .rango-contexto__marca-etiqueta { transform: none; }
+/* El marcador: un punto, nunca --det/--llm (esos tokens son identidad de
+ * series determinística/modelo, no "tiempo transcurrido"). */
+.rango-contexto__marcador {
+  position: absolute;
+  bottom: -0.3rem;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 3px solid var(--regla);
-  border-top-color: var(--det);
-  animation: girar 0.8s linear infinite;
+  background: var(--tinta-apagada);
+  transform: translateX(-50%);
+  transition: left 0.3s linear;
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel-estado__spinner { animation: none; }
-}
-@keyframes girar {
-  to { transform: rotate(360deg); }
+  .rango-contexto__marcador { transition: none; }
 }
 
 .resultado { display: grid; gap: 1rem; }
+
+/* --- historial ------------------------------------------------------------ */
+
+.caso__pie { align-items: center; }
+/* El color semántico vive SOLO en el punto, no en el texto: medido con
+ * contraste real (no a ojo), --grave sobre --superficie oscura da 3.62:1 —
+ * bajo el mínimo AA de 4.5:1 para texto normal. --grave/--bien están
+ * pensados para indicadores (ya se usan así en .alerta__icono desde v1), no
+ * están vetados como color de texto a este tamaño. --tinta-2 sí lo está
+ * (7.73:1 claro / 9.72:1 oscuro) y ya es el gris de texto secundario de todo
+ * el sistema — se reusa acá en vez de inventar un color de texto nuevo. La
+ * palabra siempre acompaña al color, así que el punto sigue siendo
+ * refuerzo, no el único portador del significado. */
+.caso__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--tinta-2);
+}
+.caso__estado::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.caso__estado--completado::before { background: var(--texto-bien); }
+.caso__estado--fallido::before { background: var(--grave); }
+.caso__estado--en-curso::before { background: var(--tinta-apagada); }

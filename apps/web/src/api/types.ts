@@ -127,3 +127,11 @@ export interface ListaProductos {
   total: number;
   items: Producto[];
 }
+
+/** `GET /analyses`. Devuelve `AnalisisResumen` (sin `informe`, liviano) para
+ * el historial — más nuevo primero, paginado. `CANCELADO` nunca aparece acá:
+ * `apps/api/store.py::listar()` lo excluye. */
+export interface ListaAnalisis {
+  total: number;
+  items: AnalisisResumen[];
+}

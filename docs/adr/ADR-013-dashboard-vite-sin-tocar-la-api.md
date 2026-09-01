@@ -160,3 +160,85 @@ qué."
   de verificación end-to-end del PR), no automatizada como el resto del
   repo.
 - Sin historial de análisis pasados en v1 — declarado, no escondido.
+
+## Revisión (2026-09-01) — historial, accesibilidad y tipografía real
+
+El no-objetivo "historial de análisis pasados" de la versión original se
+cierra: `HistorialAnalisis.tsx` activa `.tablero`/`.indice`/`.caso`, ya
+copiados de `docs/replay/estilos.css` desde el día uno y nunca usados. La
+API no necesitó ningún cambio — `GET /analyses` ya existía con el shape
+correcto.
+
+**Auditar el propio v1 con la pregunta de accesibilidad en mano** (no en
+abstracto) encontró dos bugs reales, no hipotéticos:
+
+1. `SolicitudForm` declaraba `role="tab"`/`role="tablist"` sin implementar
+   el teclado que ese rol promete (flechas, roving `tabIndex`, `Home`/`End`)
+   — peor que no declarar el rol, porque un lector de pantalla que sigue la
+   convención WAI-ARIA prueba las flechas y no pasa nada. Se implementó el
+   patrón completo.
+2. `AnalisisDetalle` saltaba `<h1>` → `<h3>` sin `<h2>` (WCAG 2.4.6). La
+   consulta del análisis pasó de `<p>` a `<h2>` — es el título real de lo
+   que se está mirando, no debería haber sido un párrafo sin jerarquía en
+   primer lugar — y `.bloque__titulo` bajó a `<h3>`.
+
+También se agregó lo que no era un bug pero faltaba: una región
+`aria-live="polite"` (`assertive` si termina en `fallido`) que anuncia la
+transición de un análisis a estado terminal — antes esa transición era
+invisible para un lector de pantalla, React solo re-renderizaba en
+silencio. Anuncia SOLO la transición, nunca el reloj de segundos (sería un
+anuncio por segundo).
+
+**Primera dependencia de runtime nueva del proyecto además de React**:
+`@fontsource/ibm-plex-sans` + `@fontsource/ibm-plex-mono`, self-hosted vía
+npm — no Google Fonts CDN. `docs/replay/replay.js` declara el principio "sin
+dependencias externas"; el dashboard ya depende de red por su propio
+backend, así que el principio no aplica con el mismo rigor, pero un origen
+nuevo evitable seguía sin justificarse habiendo una alternativa self-hosted
+igual de simple. `theme.css` cambia `--sans`/`--mono` (única excepción a "no
+tocar tokens" de la decisión original) — es la primera divergencia
+deliberada entre esa hoja y la del replay, declarada en el propio comentario
+de cabecera del archivo: el dashboard es herramienta viva, el replay sigue
+siendo artefacto estático sin dependencias, por diseño.
+
+**Se reinstaló la animación de "reproducir la traza"** que la versión
+original de este ADR había cortado a propósito ("acá el usuario ve la
+corrida real en vivo, no una grabación"). El pedido de "más interactiva" la
+justifica, y es honesta: son duraciones reales aceleradas, con el factor
+declarado (`×N`, igual criterio que `DURACION_PANTALLA_MS` en
+`replay.js`), opt-in por botón — nunca autoplay, porque abrir varios
+análisis del historial seguidos con autoplay sería ruido. El puerto exigió
+un cuidado que un port ingenuo se pierde: el original muta el DOM directo
+dentro de un loop de `requestAnimationFrame` (hasta 60 escrituras por
+segundo); `hooks/useReproducirTraza.ts` lo replica con refs imperativos, no
+con `setState` por frame, que habría re-renderizado React a 60fps sin
+necesidad.
+
+**El panel de espera perdió el spinner y ganó un track de rango — sin ser
+una barra de progreso disfrazada.** `PanelEstado.tsx` ya tenía el principio
+correcto en su propio comentario desde v1 ("una barra que no sabe cuánto
+falta miente más de lo que informa"). La tentación de dibujar un progreso
+falso durante `procesando` está bloqueada en la raíz: `application/analisis.py`
+hace UNA escritura a `PROCESANDO` y UNA escritura final — no hay ninguna
+actualización intermedia que consultar, así que cualquier indicador de
+avance etapa-por-etapa sería inventado. El reemplazo es un track SIN
+relleno con marcas en las cifras reales medidas (6s/90s/280s) y un
+marcador puntual en `--tinta-apagada` —nunca `--det`/`--llm`, esos tokens
+son identidad de series, no "tiempo transcurrido"— que se desliza con el
+reloj. Pasado el máximo observado se clava en el borde y el texto lo dice,
+en vez de quedar mintiendo que "está cerca".
+
+**Hallazgo de contraste real, medido, no asumido**: el badge de estado del
+historial midió 3.62:1 para `--grave` sobre `--superficie` oscura — bajo el
+mínimo AA de 4.5:1 para texto normal (el mismo patrón preexistente de
+`.alerta__icono` desde v1 tiene el mismo problema, no auditado hasta ahora).
+Arreglo sin tocar el token: el color semántico vive en el punto del badge,
+el texto usa `--tinta-2` (7.73:1 claro / 9.72:1 oscuro, ya el gris de texto
+secundario de todo el sistema).
+
+**Hallazgo de la API que acotó el diseño del historial**:
+`apps/api/store.py::listar()` excluye `CANCELADO` de la lista, y
+`obtener()` también lo trata como inexistente — un análisis cancelado nunca
+aparece en el rail. Y `AnalisisResumen` no trae duración ni fin, solo
+`creado_en`: `.caso__pie` muestra fecha relativa + estado, nunca "tardó
+Xs" — pedirlo por ítem hubiera sido N+1.

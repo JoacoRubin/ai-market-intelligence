@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { listarProductos } from "../api/client";
 import type { Producto, SolicitudAnalisis } from "../api/types";
 
@@ -9,6 +9,11 @@ interface Props {
 }
 
 type Forma = "natural" | "estructurada";
+
+const FORMAS: { id: Forma; etiqueta: string }[] = [
+  { id: "natural", etiqueta: "Lenguaje natural" },
+  { id: "estructurada", etiqueta: "Estructurada" },
+];
 
 const HOY = new Date().toISOString().slice(0, 10);
 const HACE_30_DIAS = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
@@ -29,6 +34,7 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
   const [desde, setDesde] = useState(HACE_30_DIAS);
   const [hasta, setHasta] = useState(HOY);
   const [erroresLocales, setErroresLocales] = useState<string[]>([]);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     let vivo = true;
@@ -77,33 +83,58 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
     setSeleccionados((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }
 
+  /** Patrón WAI-ARIA APG de pestañas completo, no a medias: `role="tab"`
+   * promete flechas + Home/End, y hasta esta iteración el componente
+   * declaraba el rol sin implementar el teclado — peor que no declararlo.
+   * Roving tabIndex: solo la pestaña activa tiene tabIndex 0, así Tab entra
+   * al grupo una sola vez y las flechas mueven el foco DENTRO. */
+  function manejarTeclaPestaña(e: KeyboardEvent<HTMLButtonElement>, indice: number) {
+    let siguiente: number;
+    if (e.key === "ArrowRight") siguiente = (indice + 1) % FORMAS.length;
+    else if (e.key === "ArrowLeft") siguiente = (indice - 1 + FORMAS.length) % FORMAS.length;
+    else if (e.key === "Home") siguiente = 0;
+    else if (e.key === "End") siguiente = FORMAS.length - 1;
+    else return;
+
+    e.preventDefault();
+    setForma(FORMAS[siguiente].id);
+    tabRefs.current[siguiente]?.focus();
+  }
+
   const todosLosErrores = [...erroresLocales, ...(errores ?? [])];
 
   return (
     <form className="solicitud" onSubmit={manejarEnvio}>
       <div className="solicitud__pestañas" role="tablist" aria-label="Forma de la consulta">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={forma === "natural"}
-          className={`pestaña ${forma === "natural" ? "pestaña--activa" : ""}`}
-          onClick={() => setForma("natural")}
-        >
-          Lenguaje natural
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={forma === "estructurada"}
-          className={`pestaña ${forma === "estructurada" ? "pestaña--activa" : ""}`}
-          onClick={() => setForma("estructurada")}
-        >
-          Estructurada
-        </button>
+        {FORMAS.map((f, i) => (
+          <button
+            key={f.id}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
+            type="button"
+            id={`tab-${f.id}`}
+            role="tab"
+            aria-selected={forma === f.id}
+            aria-controls={`panel-${f.id}`}
+            tabIndex={forma === f.id ? 0 : -1}
+            className={`pestaña ${forma === f.id ? "pestaña--activa" : ""}`}
+            onClick={() => setForma(f.id)}
+            onKeyDown={(e) => manejarTeclaPestaña(e, i)}
+          >
+            {f.etiqueta}
+          </button>
+        ))}
       </div>
 
       {forma === "natural" ? (
-        <div className="solicitud__campo">
+        <div
+          className="solicitud__campo"
+          role="tabpanel"
+          id="panel-natural"
+          aria-labelledby="tab-natural"
+          tabIndex={0}
+        >
           <label htmlFor="consulta" className="etiqueta">
             Consulta
           </label>
@@ -122,7 +153,13 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
           </p>
         </div>
       ) : (
-        <div className="solicitud__campo">
+        <div
+          className="solicitud__campo"
+          role="tabpanel"
+          id="panel-estructurada"
+          aria-labelledby="tab-estructurada"
+          tabIndex={0}
+        >
           <label className="etiqueta">Productos ({seleccionados.length}/{MAX_PRODUCTOS})</label>
           <div className="solicitud__productos">
             {productos.length === 0 && <p className="nota">Cargando catálogo…</p>}
