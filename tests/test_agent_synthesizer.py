@@ -20,6 +20,8 @@ import pytest
 from agent.llm import ClienteOllama, ClientePredecible, ClienteQueFalla
 from agent.nodes.synthesizer import ESQUEMA, MAX_CONCLUSIONES, sintetizar
 from agent.state import AnalysisState
+from agent.tools.registry import ToolName
+from core.edgar import HechoFinanciero
 from core.report import MetricaProducto
 
 
@@ -174,6 +176,55 @@ def test_sigue_cortando_en_python_aunque_el_modelo_devuelva_de_mas() -> None:
 
 
 # --- El respaldo tiene que decir POR QUE ---------------------------------------
+
+
+# --- El alcance de SEC EDGAR se declara, no se descubre por sorpresa ----------
+#
+# CASO REAL: el usuario preguntó "¿quién vendió más celulares, Amazon o
+# Apple?" y el informe contestó con revenue TOTAL de cada compañía, sin avisar
+# que ese número no desglosa por producto. La pregunta parecía contestada y no
+# lo estaba — Apple vende iPhone, pero también Mac, servicios, Apple Watch;
+# ninguno de los tres conceptos que trae `core/edgar.py` (revenue, ganancia
+# neta, activos) es específico de un producto o segmento, así que la
+# comparación real que el usuario pidió no es algo que estos datos puedan
+# responder, sea cual sea la consulta.
+#
+# La limitación es INCONDICIONAL a la consulta y CONDICIONAL solo a que haya
+# `contexto_mercado`: es un límite estructural del v1 (un solo filing, 3
+# conceptos fijos, ADR-014 "Alcance: qué NO hace"), no algo que dependa de si
+# esta consulta puntual pidió o no un desglose por producto — detectar eso por
+# consulta sería el mismo tipo de clasificación de lenguaje natural sin
+# formato fijo que el proyecto ya delega al LLM para "empresas", con el riesgo
+# de un falso negativo que es peor que declarar el límite siempre.
+
+def _hecho(concepto: str, concepto_xbrl: str, valor: float, fy: int = 2025) -> HechoFinanciero:
+    return HechoFinanciero(
+        empresa="Apple Inc.", ticker="AAPL", cik=320193,
+        concepto=concepto, concepto_xbrl=concepto_xbrl, valor=valor,
+        fiscal_year=fy, fiscal_period="FY", filed=f"{fy + 1}-01-15",
+        form="10-K", accn="0000320193-25-000001",
+    )
+
+
+def _estado_company_research() -> AnalysisState:
+    return AnalysisState(
+        request_id="test-synth-empresas",
+        consulta="Quién vendió más celulares, Amazon o Apple",
+        resultados_tools={ToolName.RESEARCH_COMPANY: [
+            _hecho("revenue", "RevenueFromContractWithCustomerExcludingAssessedTax",
+                   416_161_000_000.0),
+        ]},
+    )
+
+
+def test_declara_que_los_datos_de_sec_edgar_no_desglosan_por_producto() -> None:
+    resultado = sintetizar(_estado_company_research(), ClientePredecible(conclusiones=[]))
+
+    assert resultado.informe is not None
+    assert any(
+        "no" in lim and ("producto" in lim or "segmento" in lim)
+        for lim in resultado.informe.limitaciones
+    )
 
 
 def test_el_respaldo_por_una_excepcion_nombra_la_causa() -> None:

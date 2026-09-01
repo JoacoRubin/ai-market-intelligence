@@ -416,6 +416,20 @@ def sintetizar(
             *(["Los datos de mercado provienen de los filings públicos más recientes "
                "en SEC EDGAR (data.sec.gov) y solo cubren empresas que cotizan en "
                "EE. UU."] if hechos_empresas else []),
+            # INCONDICIONAL a lo que pida la consulta, condicional solo a que
+            # haya contexto_mercado: es un límite estructural del v1 (ADR-014,
+            # "Alcance: qué NO hace"), no algo que dependa de si esta consulta
+            # puntual pidió un desglose por producto. Caso real: "¿quién
+            # vendió más celulares, Amazon o Apple?" se contestó con revenue
+            # TOTAL de cada compañía sin avisar que no es lo mismo — la
+            # pregunta parecía contestada y no lo estaba. Ninguno de los tres
+            # conceptos XBRL fijos (revenue, ganancia neta, activos) desglosa
+            # por producto ni por segmento de negocio.
+            *(["Las cifras de SEC EDGAR son totales de TODA la compañía (revenue, "
+               "ganancia neta, activos) — no desglosan por producto ni por "
+               "segmento de negocio, así que no permiten comparar una línea "
+               "específica (por ejemplo, unidades de un producto) entre "
+               "empresas."] if hechos_empresas else []),
         ],
     )
 
