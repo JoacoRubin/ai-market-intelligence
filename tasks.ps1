@@ -158,6 +158,8 @@ switch ($Tarea.ToLower()) {
         Write-Host ""
         Write-Host "  dataset    Muestra un resumen del dataset generado (sin base)"
         Write-Host "  api        Levanta la API local con recarga"
+        Write-Host "  web-setup  Instala las dependencias del dashboard (npm install)"
+        Write-Host "  web        Levanta el dashboard con recarga en localhost:5173"
         Write-Host "  agente     Ejecuta una consulta contra el agente real"
         Write-Host "  api-demo   Recorre el flujo REST completo"
         Write-Host "  pdf        Genera un informe PDF de ejemplo y lo abre"
@@ -373,6 +375,21 @@ print(f'  terminados    {c.finished_job_registry.count}')
         Write-Host "  Ctrl+C para detener"
         Write-Host ""
         Invoke-Uv run uvicorn apps.api.main:app --reload --port 8000
+    }
+
+    "web-setup" {
+        Titulo "Instalando dependencias del dashboard"
+        Push-Location (Join-Path $RAIZ "apps\web")
+        try { npm install } finally { Pop-Location }
+    }
+
+    "web" {
+        Titulo "Dashboard en http://localhost:5173"
+        Write-Host "  Requiere la API corriendo en :8000 (.\tasks.ps1 api en otra consola)" -ForegroundColor Yellow
+        Write-Host "  Ctrl+C para detener"
+        Write-Host ""
+        Push-Location (Join-Path $RAIZ "apps\web")
+        try { npm run dev } finally { Pop-Location }
     }
 
     "agente" {

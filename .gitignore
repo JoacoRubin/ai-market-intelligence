@@ -42,6 +42,7 @@ data/indice/chunks.json
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 
 # --- SO / editor ------------------------------------------------------------
 .DS_Store

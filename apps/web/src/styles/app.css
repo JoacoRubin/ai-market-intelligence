@@ -1,0 +1,134 @@
+/* Estrictamente aditivo: nunca redefine --det/--llm/--bien/--aviso/--grave ni
+ * ningún otro token de theme.css. Ver ADR-013. */
+
+.app-header {
+  padding: 2.5rem 0 2rem;
+  border-bottom: 1px solid var(--regla);
+}
+.app-header__titulo {
+  margin: 0.3rem 0 0.75rem;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+.app-header__bajada {
+  max-width: 62ch;
+  margin: 0;
+  font-size: 1rem;
+  color: var(--tinta-2);
+}
+
+main { padding-top: 2rem; }
+
+/* --- formulario -------------------------------------------------------- */
+
+.solicitud {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 640px;
+}
+
+.solicitud__pestañas {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--regla);
+}
+.pestaña {
+  padding: 0.6rem 0.9rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--tinta-2);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.pestaña--activa {
+  color: var(--tinta);
+  border-bottom-color: var(--det);
+  font-weight: 600;
+}
+
+.solicitud__campo { display: grid; gap: 0.5rem; }
+
+.solicitud__textarea,
+input[type="date"],
+input[type="text"] {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.92rem;
+  resize: vertical;
+}
+.solicitud__textarea:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--det);
+  outline-offset: 1px;
+}
+
+.solicitud__productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.4rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+.solicitud__producto {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.solicitud__rango { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+.solicitud__rango label { display: grid; gap: 0.3rem; }
+
+.boton--primario {
+  justify-self: start;
+  background: var(--tinta);
+  color: var(--plano);
+  border-color: var(--tinta);
+  font-weight: 600;
+}
+.boton--primario:hover { border-color: var(--tinta); opacity: 0.88; }
+.boton--primario:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- panel de espera ----------------------------------------------------- */
+
+.panel-estado {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.4rem;
+  margin: 1.5rem 0;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+.panel-estado__titulo { margin: 0 0 0.2rem; font-size: 0.95rem; }
+
+.panel-estado__spinner {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid var(--regla);
+  border-top-color: var(--det);
+  animation: girar 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-estado__spinner { animation: none; }
+}
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+
+.resultado { display: grid; gap: 1rem; }

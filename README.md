@@ -171,12 +171,13 @@ Lo que corre hoy:
 | Integración continua | GitHub Actions ([ADR-011](docs/adr/ADR-011-ci-github-actions.md)) — linter + mypy strict + tests con cobertura; Redis en el job principal y guardrails read-only contra SQL Server real en un job separado |
 | Jobs y almacén de análisis | RQ + Redis, worker en proceso aparte ([ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md)). Elegible con `JOBS_BACKEND`; sin Redis el sistema corre igual |
 | Sitio del replay | HTML, CSS y JavaScript sin build ni dependencias |
+| Dashboard en vivo | React + TypeScript + Vite, `apps/web/` ([ADR-013](docs/adr/ADR-013-dashboard-vite-sin-tocar-la-api.md)). Lanza un análisis contra la API real, pollea su estado y muestra el informe completo — proxy de dev, sin CORS en la API |
 
 Y lo que **todavía no está construido**, para que no haya confusión:
 
 | Responsabilidad | Tecnología prevista | Fase |
 |---|---|---|
-| UI y visualización | React + TypeScript + Vite | 7 |
+| Historial de análisis pasados en el dashboard | `GET /analyses` ya existe; falta la pantalla | 7 |
 | Research público | Sin proveedor elegido — hoy `company_research` corta sin plan para no simular una capacidad ausente | pendiente |
 | Caching de análisis | Redis — **postergado a propósito**, ver [ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md): sin una regla de invalidación, un informe calculado sobre datos viejos no es una optimización, es un informe incorrecto servido rápido | 6 |
 
@@ -292,6 +293,8 @@ la herramienta nativa de la plataforma.
 .\tasks.ps1 api-demo    # recorrido del flujo REST con sus códigos de estado
 .\tasks.ps1 pdf         # genera un informe PDF y lo abre
 .\tasks.ps1 api         # levanta la API en http://localhost:8000/docs
+.\tasks.ps1 web-setup   # instala las dependencias del dashboard (una vez)
+.\tasks.ps1 web         # dashboard en http://localhost:5173 (requiere la API arriba)
 .\tasks.ps1 db-shell    # consola sqlcmd contra la base
 .\tasks.ps1 ml-train    # forecast real de P001 con backtest + MLflow
 .\tasks.ps1 replay-servir  # el sitio de replay en http://localhost:8080
@@ -452,6 +455,7 @@ guardrails `db` tienen un job separado con SQL Server real
 | [ADR-010](docs/adr/ADR-010-dockerfile-de-la-api.md) | Dockerfile de la API, y qué NO se optimiza acá |
 | [ADR-011](docs/adr/ADR-011-ci-github-actions.md) | CI con GitHub Actions, y lo que todavía no cubre |
 | [ADR-012](docs/adr/ADR-012-jobs-worker-y-redis.md) | El análisis corre en un worker aparte, con Redis |
+| [ADR-013](docs/adr/ADR-013-dashboard-vite-sin-tocar-la-api.md) | El dashboard corre en Vite con proxy de dev, sin tocar la API |
 
 > Los ADR documentan decisiones **ya aplicadas en el código**, no intenciones.
 > Cada uno incluye las alternativas descartadas y, cuando corresponde, en qué
