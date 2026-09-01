@@ -73,8 +73,12 @@ SUFIJOS_SOCIETARIOS = (
 
 # Desde ASC 606 (~2018), muchos filers de EE. UU. —Apple incluida— no
 # taguean `Revenues` sino `RevenueFromContractWithCustomerExcludingAssessedTax`.
-# Se prueba en orden y se queda con el primero presente, mismo espíritu que
-# `faltantes` en product_metrics.py: no romper por un tag ausente.
+# NO alcanza con quedarse con el primer tag que tenga ALGÚN dato: una
+# empresa que migró de tag sigue teniendo años viejos bajo el abandonado.
+# `hechos_clave` compara el candidato de cada uno y se queda con el más
+# reciente de todos — verificado en una corrida real ("Apple y Tesla") que
+# sin esto mezclaba un revenue de 2018 con una ganancia neta de 2025 en el
+# mismo informe.
 CONCEPTOS_REVENUE = (
     "Revenues",
     "RevenueFromContractWithCustomerExcludingAssessedTax",
@@ -237,11 +241,22 @@ def hechos_clave(empresa: EmpresaResuelta) -> list[HechoFinanciero]:
 
     hechos: list[HechoFinanciero] = []
 
+    # NO alcanza con "el primer tag que tenga algún dato": una empresa que
+    # migró de tag (Apple dejó de reportar `Revenues` en 2018 al adoptar
+    # ASC 606) sigue teniendo AÑOS de historial viejo bajo el tag
+    # abandonado. Tomar el primero con datos daba un revenue de 2018 al
+    # lado de una ganancia neta de 2025 — mismo informe, dos años fiscales
+    # distintos, verificado en una corrida real contra "Apple y Tesla".
+    # Hay que comparar el candidato de CADA tag y quedarse con el más
+    # reciente de todos, no con el primero que aparece.
+    mejor_revenue: dict[str, Any] | None = None
+    concepto_revenue: str | None = None
     for concepto_xbrl in CONCEPTOS_REVENUE:
         item = _valor_anual_mas_reciente(us_gaap.get(concepto_xbrl, {}))
-        if item:
-            hechos.append(_a_hecho(empresa, "revenue", concepto_xbrl, item))
-            break
+        if item and (mejor_revenue is None or item["end"] > mejor_revenue["end"]):
+            mejor_revenue, concepto_revenue = item, concepto_xbrl
+    if mejor_revenue and concepto_revenue:
+        hechos.append(_a_hecho(empresa, "revenue", concepto_revenue, mejor_revenue))
 
     item = _valor_anual_mas_reciente(us_gaap.get(CONCEPTO_GANANCIA, {}))
     if item:

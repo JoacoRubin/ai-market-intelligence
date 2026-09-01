@@ -88,7 +88,7 @@ estado.consulta` ya usa con texto libre en `search_documents`. La
 resolución y el armado de la URL final ocurren enteramente DENTRO de la
 tool, con el CIK ya numérico — el LLM nunca toca ni el ticker ni la URL.
 
-## La trampa que costó una corrida real completa
+## Las dos trampas que solo la verificación en vivo mostró
 
 **Dos hosts distintos, no uno.** `data.sec.gov` sirve
 `/api/xbrl/companyfacts/...`; el listado de tickers
@@ -111,6 +111,26 @@ la red de verdad lo mostró. Ahí quedó la lección escrita en el propio
 código (`core/edgar.py`, comentario junto a `BASE_WWW`/`BASE_DATOS`): un
 mock que no valida la URL contra la que se llama es un mock que no prueba
 la mitad del contrato.
+
+**Segunda trampa, encontrada pidiéndole al usuario que probara con "Apple y
+Tesla" después de arreglar la primera.** El fallback de conceptos de
+revenue (`CONCEPTOS_REVENUE`) se quedaba con el **primer tag que tuviera
+ALGÚN dato**, no con el dato más reciente. Apple dejó de taguear `Revenues`
+en 2018 al adoptar ASC 606 y migró a
+`RevenueFromContractWithCustomerExcludingAssessedTax` — pero el tag viejo
+sigue existiendo en su XBRL, con años históricos hasta 2018. El resultado
+real: un informe que decía "Apple reportó un revenue de USD 265.595
+millones en el año fiscal **2018**" al lado de "tuvo una ganancia neta...
+en el año fiscal **2025**" — dos años fiscales distintos, mismo informe,
+sin que nada lo marcara como inconsistente (cada `Afirmacion` es correcta
+por separado; la que faltaba era comparar entre tags, no dentro de uno
+solo). El fix: `hechos_clave` compara el candidato de CADA concepto de la
+lista de fallback y se queda con el que tenga el `end` más reciente de
+todos, no con el primero que aparece. De nuevo, ni el test original
+(`test_hechos_clave_usa_el_primer_concepto...`) ni el eval del golden set
+lo hubieran atrapado — ninguno de los dos ejercita una empresa real con
+tags migrados en su historial completo. Solo una corrida real, con una
+empresa real, lo mostró.
 
 ## Alcance: qué NO hace
 

@@ -162,9 +162,12 @@ def test_hechos_clave_usa_el_primer_concepto_de_revenue_presente(
     assert edgar.en_millones(revenue) == pytest.approx(383_285.0)
 
 
-def test_hechos_clave_prueba_conceptos_en_orden_y_para_en_el_primero(
+def test_hechos_clave_con_datos_del_mismo_ano_prefiere_el_primer_concepto(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Con dos tags reportando el MISMO año fiscal (empate real), gana el
+    orden de la lista — no importa cuál, es el mismo período contado dos
+    veces con etiquetas distintas."""
     payload = _companyfacts({
         "Revenues": {"units": {"USD": [_item_anual(100)]}},
         "RevenueFromContractWithCustomerExcludingAssessedTax": {
@@ -177,7 +180,33 @@ def test_hechos_clave_prueba_conceptos_en_orden_y_para_en_el_primero(
     hechos = edgar.hechos_clave(empresa)
 
     revenue = next(h for h in hechos if h.concepto == "revenue")
-    assert revenue.concepto_xbrl == "Revenues"  # el primero de la lista, no el segundo
+    assert revenue.concepto_xbrl == "Revenues"
+
+
+def test_hechos_clave_no_mezcla_anos_fiscales_entre_tags_de_revenue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El bug real, encontrado en una corrida en vivo contra "Apple y
+    Tesla": Apple dejó de taguear 'Revenues' en 2018 al adoptar ASC 606,
+    pero el tag sigue teniendo AÑOS viejos con datos. Quedarse con "el
+    primer tag que tenga algo" mezclaba un revenue de 2018 con ganancia
+    neta y activos de 2025 en el mismo informe. El fallback tiene que
+    comparar el candidato de CADA tag y quedarse con el año fiscal más
+    reciente de cualquiera de ellos, no con el primero que aparece."""
+    payload = _companyfacts({
+        "Revenues": {"units": {"USD": [_item_anual(265_595_000_000, fy=2018)]}},
+        "RevenueFromContractWithCustomerExcludingAssessedTax": {
+            "units": {"USD": [_item_anual(400_000_000_000, fy=2025)]}
+        },
+    })
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _RespuestaFalsa(payload))
+    empresa = edgar.EmpresaResuelta(nombre="Apple Inc.", ticker="AAPL", cik=320193)
+
+    hechos = edgar.hechos_clave(empresa)
+
+    revenue = next(h for h in hechos if h.concepto == "revenue")
+    assert revenue.fiscal_year == 2025
+    assert revenue.concepto_xbrl == "RevenueFromContractWithCustomerExcludingAssessedTax"
 
 
 def test_hechos_clave_ignora_filings_no_anuales(monkeypatch: pytest.MonkeyPatch) -> None:
