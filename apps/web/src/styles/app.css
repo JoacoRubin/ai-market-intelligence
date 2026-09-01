@@ -89,24 +89,40 @@ input:focus-visible {
   outline-offset: 1px;
 }
 
+/* Agrupado por marca (8 marcas reales para 40 productos — una lista plana
+ * repetía la marca cuarenta veces, ver el comentario en SolicitudForm.tsx).
+ * Cada .solicitud__marca es un <fieldset>: se resetea el borde/padding por
+ * defecto del navegador porque ya se define el propio acá. */
 .solicitud__productos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.4rem;
-  max-height: 220px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.6rem;
+  max-height: 260px;
   overflow-y: auto;
   padding: 0.75rem;
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   background: var(--superficie);
 }
+.solicitud__marca {
+  min-width: 148px;
+  margin: 0;
+  padding: 0.3rem 0.65rem 0.5rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--plano);
+}
+.solicitud__marca legend { padding: 0 0.2rem; margin: 0 0 0.15rem -0.2rem; }
 .solicitud__producto {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.4rem;
+  padding: 0.15rem 0;
   font-size: 0.85rem;
   cursor: pointer;
 }
+.solicitud__producto-categoria { color: var(--tinta-apagada); font-size: 0.78rem; }
 
 .solicitud__rango { display: flex; gap: 1.2rem; flex-wrap: wrap; }
 .solicitud__rango label { display: grid; gap: 0.3rem; }

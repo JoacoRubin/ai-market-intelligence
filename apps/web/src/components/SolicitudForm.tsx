@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { listarProductos } from "../api/client";
 import type { Producto, SolicitudAnalisis } from "../api/types";
 
@@ -83,6 +83,24 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
     setSeleccionados((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }
 
+  /** El catálogo real tiene 40 productos en solo 8 marcas — una lista plana
+   * repite la marca cuarenta veces y no distingue nada. Agrupar por marca
+   * convierte esa repetición en estructura (un `<fieldset>` por marca, la
+   * marca aparece UNA vez como `<legend>`) y deja lugar en cada fila para
+   * un dato que sí varía: la categoría. `<fieldset>`/`<legend>` es además la
+   * forma semánticamente correcta de agrupar checkboxes — un lector de
+   * pantalla anuncia el contexto del grupo, cosa que la lista plana anterior
+   * no daba. */
+  const gruposPorMarca = useMemo(() => {
+    const mapa = new Map<string, Producto[]>();
+    for (const p of productos) {
+      const lista = mapa.get(p.brand);
+      if (lista) lista.push(p);
+      else mapa.set(p.brand, [p]);
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
+  }, [productos]);
+
   /** Patrón WAI-ARIA APG de pestañas completo, no a medias: `role="tab"`
    * promete flechas + Home/End, y hasta esta iteración el componente
    * declaraba el rol sin implementar el teclado — peor que no declararlo.
@@ -163,15 +181,21 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
           <label className="etiqueta">Productos ({seleccionados.length}/{MAX_PRODUCTOS})</label>
           <div className="solicitud__productos">
             {productos.length === 0 && <p className="nota">Cargando catálogo…</p>}
-            {productos.map((p) => (
-              <label key={p.id} className="solicitud__producto">
-                <input
-                  type="checkbox"
-                  checked={seleccionados.includes(p.id)}
-                  onChange={() => alternarProducto(p.id)}
-                />
-                <span className="mono">{p.id}</span> {p.brand}
-              </label>
+            {gruposPorMarca.map(([marca, items]) => (
+              <fieldset key={marca} className="solicitud__marca">
+                <legend className="etiqueta">{marca}</legend>
+                {items.map((p) => (
+                  <label key={p.id} className="solicitud__producto">
+                    <input
+                      type="checkbox"
+                      checked={seleccionados.includes(p.id)}
+                      onChange={() => alternarProducto(p.id)}
+                    />
+                    <span className="mono">{p.id}</span>
+                    <span className="solicitud__producto-categoria">{p.category}</span>
+                  </label>
+                ))}
+              </fieldset>
             ))}
           </div>
           <div className="solicitud__rango">
