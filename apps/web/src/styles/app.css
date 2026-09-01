@@ -89,10 +89,11 @@ input:focus-visible {
   outline-offset: 1px;
 }
 
-/* Agrupado por marca (8 marcas reales para 40 productos — una lista plana
- * repetía la marca cuarenta veces, ver el comentario en SolicitudForm.tsx).
- * Cada .solicitud__marca es un <fieldset>: se resetea el borde/padding por
- * defecto del navegador porque ya se define el propio acá. */
+/* Agrupado por empresa (8 empresas reales para 40 productos — una lista
+ * plana repetía el nombre cuarenta veces, ver el comentario en
+ * SolicitudForm.tsx). Cada .solicitud__empresa es un <fieldset>: se
+ * resetea el borde/padding por defecto del navegador porque ya se define
+ * el propio acá. */
 .solicitud__productos {
   display: flex;
   flex-wrap: wrap;
@@ -105,7 +106,7 @@ input:focus-visible {
   border-radius: var(--radio);
   background: var(--superficie);
 }
-.solicitud__marca {
+.solicitud__empresa {
   min-width: 148px;
   margin: 0;
   padding: 0.3rem 0.65rem 0.5rem;
@@ -113,7 +114,7 @@ input:focus-visible {
   border-radius: var(--radio);
   background: var(--plano);
 }
-.solicitud__marca legend { padding: 0 0.2rem; margin: 0 0 0.15rem -0.2rem; }
+.solicitud__empresa legend { padding: 0 0.2rem; margin: 0 0 0.15rem -0.2rem; }
 .solicitud__producto {
   display: flex;
   align-items: baseline;

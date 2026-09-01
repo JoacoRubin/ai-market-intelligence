@@ -83,15 +83,22 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
     setSeleccionados((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }
 
-  /** El catálogo real tiene 40 productos en solo 8 marcas — una lista plana
-   * repite la marca cuarenta veces y no distingue nada. Agrupar por marca
-   * convierte esa repetición en estructura (un `<fieldset>` por marca, la
-   * marca aparece UNA vez como `<legend>`) y deja lugar en cada fila para
+  /** El catálogo real tiene 40 productos en solo 8 empresas — una lista
+   * plana repite el nombre cuarenta veces y no distingue nada. Agrupar
+   * convierte esa repetición en estructura (un `<fieldset>` por empresa, el
+   * nombre aparece UNA vez como `<legend>`) y deja lugar en cada fila para
    * un dato que sí varía: la categoría. `<fieldset>`/`<legend>` es además la
    * forma semánticamente correcta de agrupar checkboxes — un lector de
    * pantalla anuncia el contexto del grupo, cosa que la lista plana anterior
-   * no daba. */
-  const gruposPorMarca = useMemo(() => {
+   * no daba.
+   *
+   * El campo de la API sigue llamándose `brand` (`apps/api/schemas.py`,
+   * `seeds/generate.py::MARCAS`) — quien mire la respuesta cruda de
+   * `/products` lo va a ver así. Acá se llama "empresa" porque es como el
+   * negocio lo piensa: son las compañías que venden en la plataforma, no
+   * sub-marcas de un solo dueño. Es una decisión de producto, no un error
+   * de nomenclatura del backend. */
+  const gruposPorEmpresa = useMemo(() => {
     const mapa = new Map<string, Producto[]>();
     for (const p of productos) {
       const lista = mapa.get(p.brand);
@@ -178,12 +185,14 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
           aria-labelledby="tab-estructurada"
           tabIndex={0}
         >
-          <label className="etiqueta">Productos ({seleccionados.length}/{MAX_PRODUCTOS})</label>
+          <label className="etiqueta">
+            Productos por empresa ({seleccionados.length}/{MAX_PRODUCTOS})
+          </label>
           <div className="solicitud__productos">
             {productos.length === 0 && <p className="nota">Cargando catálogo…</p>}
-            {gruposPorMarca.map(([marca, items]) => (
-              <fieldset key={marca} className="solicitud__marca">
-                <legend className="etiqueta">{marca}</legend>
+            {gruposPorEmpresa.map(([empresa, items]) => (
+              <fieldset key={empresa} className="solicitud__empresa">
+                <legend className="etiqueta">{empresa}</legend>
                 {items.map((p) => (
                   <label key={p.id} className="solicitud__producto">
                     <input
