@@ -98,14 +98,29 @@ function Require-Docker {
         exit 1
     }
 
+    # Con $ErrorActionPreference = "Stop" (fijado arriba de este archivo),
+    # CUALQUIER línea que un ejecutable nativo escriba a stderr se convierte en
+    # excepción terminante — el redirect `*> $null` no lo evita, porque
+    # PowerShell decide "terminar" en el momento en que el proceso escribe a
+    # stderr, antes de que el redirect tenga chance de descartar el contenido.
+    # Docker Desktop con el backend WSL2 imprime un WARNING benigno
+    # (DOCKER_INSECURE_NO_IPTABLES_RAW) en cada `docker info`, así que esta
+    # función fallaba siempre, con Docker sano y $LASTEXITCODE en 0. Se baja
+    # la preferencia solo durante estas dos llamadas puntuales.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     docker compose version *> $null
-    if ($LASTEXITCODE -ne 0) {
+    $composeExit = $LASTEXITCODE
+    docker info *> $null
+    $infoExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEAP
+
+    if ($composeExit -ne 0) {
         Write-Host "  Docker Compose no está disponible." -ForegroundColor Red
         exit 1
     }
 
-    docker info *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if ($infoExit -ne 0) {
         Write-Host "  Docker no responde. Levantá Docker Desktop y reintentá." `
             -ForegroundColor Red
         exit 1
