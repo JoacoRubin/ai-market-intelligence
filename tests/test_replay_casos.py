@@ -46,17 +46,19 @@ def test_la_seleccion_cubre_toda_intencion_que_el_agente_sabe_servir() -> None:
     assert intenciones == set(Intencion) - EXCLUIDAS
 
 
-def test_la_unica_intencion_excluida_es_la_que_el_planner_no_atiende() -> None:
+def test_ya_no_hay_intenciones_excluidas() -> None:
     """La exclusión tiene que seguir al código, no a una lista escrita a mano.
 
-    `planner.py` rechaza COMPANY_RESEARCH porque la tool `public_research` está
-    declarada en TOOLS_PERMITIDAS pero nunca se implementó. El día que exista,
-    este test falla y obliga a volver a mirar la selección del replay — que si
-    no, se quedaría vieja en silencio.
+    Hasta ADR-014 esto exigía `COMPANY_RESEARCH in EXCLUIDAS`: el planner la
+    rechazaba porque no había tool que ejecutar. Ahora `research_company.py`
+    existe y el planner arma un paso `RESEARCH_COMPANY` en cuanto el router
+    identifica una empresa (`agent/nodes/planner.py`) — la exclusión ya no
+    corresponde. Se deja `EXCLUIDAS` vacío en vez de borrado: si el día de
+    mañana se retira una tool y una intención vuelve a quedar sin camino, hay
+    un lugar único donde declararlo, y este test es el que lo va a notar.
     """
-    assert Intencion.COMPANY_RESEARCH in EXCLUIDAS
-    assert len(EXCLUIDAS) == 1
-    assert "public_research" not in [t.stem for t in TOOLS_IMPLEMENTADAS]
+    assert EXCLUIDAS == set()
+    assert "research_company" in [t.stem for t in TOOLS_IMPLEMENTADAS]
 
 
 def test_la_seleccion_respeta_el_orden_declarado() -> None:

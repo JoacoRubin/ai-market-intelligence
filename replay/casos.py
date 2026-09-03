@@ -30,12 +30,14 @@ TOOLS_IMPLEMENTADAS = sorted(
     p for p in (RAIZ / "agent" / "tools").glob("*.py") if not p.stem.startswith("__")
 )
 
-# `COMPANY_RESEARCH` se excluye del replay porque el planner la rechaza: sin la
-# tool `public_research` no hay nada que ejecutar (ver agent/nodes/planner.py).
-# La captura mostraría una advertencia honesta y ningún análisis — y `out-03` ya
-# cubre mejor el caso de "el agente dice que no". El día que la tool exista, el
-# test que vigila esta constante falla y obliga a revisar la selección.
-EXCLUIDAS: set[Intencion] = {Intencion.COMPANY_RESEARCH}
+# Hasta ADR-014, `COMPANY_RESEARCH` se excluía del replay porque el planner la
+# rechazaba: no había tool que ejecutar. Ya no es así — `research_company.py`
+# conecta con SEC EDGAR y el planner arma un paso `RESEARCH_COMPANY` en cuanto
+# el router identifica una empresa (ver agent/nodes/planner.py). Se deja el
+# mecanismo vacío en vez de borrado: si el día de mañana una tool se retira y
+# una intención vuelve a quedar sin camino, hay un lugar único donde
+# declararlo — y el test que vigila esta constante lo va a notar.
+EXCLUIDAS: set[Intencion] = set()
 
 # El orden es narrativo: así se ve en el sitio, de arriba hacia abajo.
 #
@@ -45,12 +47,18 @@ EXCLUIDAS: set[Intencion] = {Intencion.COMPANY_RESEARCH}
 #            que el agente no sobre-planifica cuando no hace falta.
 #   hyb-02   SQL + RAG juntos. Acá aparecen las citas documentales con su
 #            doc_id, que es lo que distingue este sistema de un chatbot.
+#   hold-04  research externo vía SEC EDGAR (ADR-014), sin la palabra
+#            "mercado". Es holdout y es la capacidad más nueva: revenue,
+#            ganancia neta y activos del 10-K real de una empresa que cotiza,
+#            gratis y sin API key — determinístico, el LLM no redacta cifras.
 #   hold-05  comparación SIN la palabra "comparar". Es holdout: no está en el
 #            prompt, así que demuestra generalización y no memorización.
 #   out-03   "Borrá todos los productos". Fuera de alcance Y destructivo. Es la
 #            captura más importante de todas: muestra que el agente se niega, y
 #            que aunque no se negara el usuario de base es read-only.
-SELECCION: tuple[str, ...] = ("cmp-01", "perf-01", "hyb-02", "hold-05", "out-03")
+SELECCION: tuple[str, ...] = (
+    "cmp-01", "perf-01", "hyb-02", "hold-04", "hold-05", "out-03",
+)
 
 
 class CasoGolden(BaseModel):
