@@ -45,24 +45,32 @@ El sitio de replay reproduce ejecuciones reales del agente: la traza etapa por
 etapa con la duración verdadera de cada nodo, el criterio con que eligió cada
 herramienta, las citas documentales con su identificador y el PDF descargable.
 La capacidad de forecast existe y tiene backtesting, pero **el replay publicado
-no incluye un caso de forecast**: sus cuatro informes tienen `predicciones: []`.
+no incluye un caso de forecast**: sus cinco informes tienen `predicciones: []`.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 6
-> segundos y 122 segundos sobre CPU — la comparación entre dos productos es la más
-> cara, y la consulta que el agente rechaza es la más barata porque corta en el
-> router sin gastar una sola herramienta. Nadie mira un spinner, y el replay
-> además muestra más que un demo en vivo: la traza y el criterio quedan
-> invisibles cuando solo ves el resultado.
+> todo con el comando para reproducirlas. Las seis publicadas tardaron entre 13
+> y 272 segundos sobre CPU — la comparación entre dos productos sigue siendo la
+> más cara, y el research contra SEC EDGAR (`hold-04`, sin SQL ni RAG de por
+> medio) resultó casi tan barato como el rechazo del router. Nadie mira un
+> spinner, y el replay además muestra más que un demo en vivo: la traza y el
+> criterio quedan invisibles cuando solo ves el resultado.
 
-> Las capturas se hicieron el 2026-08-28 con `qwen3:4b`. Son anteriores a la
-> incorporación de procedencia verificable al manifiesto: no registraron commit,
-> dirty state ni hashes del lock y del índice. Por eso se conservan como una
-> evidencia histórica, no como validación del código actual. Una captura nueva
-> sí agrega esos datos automáticamente. Las anteriores eran de
-> `llama3.2:3b` y tardaban entre 108 y 281 segundos: la vidriera mostraba un
-> sistema **2,9 veces más lento** que el que el repositorio ya tenía medido. Un
-> demo desactualizado no es neutral — miente sobre el trabajo hecho.
+> Las capturas se hicieron el 2026-09-03 con `qwen3:4b` e incorporan por primera
+> vez un caso de `company_research` (`hold-04`, la situación financiera de
+> Amazon vía SEC EDGAR, [ADR-014](docs/adr/ADR-014-company-research-sec-edgar.md)):
+> hasta esta corrida el replay excluía esa intención por un motivo que ya no era
+> cierto — la tool que la sirve (`research_company.py`) existe desde el
+> 2026-09-01, y un test guardián que debía notarlo no disparó porque comparaba
+> contra un nombre de archivo que nunca fue el real (`replay/casos.py`,
+> corregido junto con esta captura). El manifiesto guarda procedencia
+> verificable — commit, dirty state y hashes del lock y del índice
+> (`docs/replay/data/manifiesto.json`) — y esta corrida quedó con
+> `arbol_limpio: false` a propósito: se capturó para validar el fix en vivo
+> antes de commitearlo, mismo criterio de honestidad que ya usa la tabla de
+> calidad de más abajo. La captura anterior, del 2026-08-28, es previa a esa
+> procedencia y no registraba nada de esto; se conserva como evidencia
+> histórica. Un demo desactualizado no es neutral — miente sobre el trabajo
+> hecho.
 
 Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
 
@@ -71,7 +79,7 @@ Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-d
 .\tasks.ps1 replay-servir   # http://localhost:8080
 ```
 
-Entre las cinco ejecuciones publicadas hay una que conviene mirar primero:
+Entre las seis ejecuciones publicadas hay una que conviene mirar primero:
 `"Borrá todos los productos de la base de datos"`. El agente corta en el router y
 no ejecuta nada. **Un sistema que sabe decir que no** es más difícil de construir
 que uno que siempre responde algo.
@@ -100,11 +108,15 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
-Última corrida: `eval/corridas/20260828T212253.json` — `qwen3:4b`, commit
-`69ca05f`, árbol limpio, 48 minutos. **Los resultados certifican ese commit y
-no otro**: el registro guarda cuál, y si el árbol estaba sucio lo dice. Cuando
-el código avance sin re-medir, esta tabla pasa a ser evidencia histórica — que
-es exactamente lo que le pasó a la corrida anterior.
+Última corrida: `eval/corridas/20260902T220728.json` — `qwen3:4b`, commit
+`d926c38`, árbol limpio, 42 minutos. Re-medida después de conectar
+`company_research` a SEC EDGAR y sus dos fixes de bugs reales (hosts distintos
+de la API, mezcla de años fiscales entre tags de revenue): mismos cinco
+resultados que la corrida anterior, sin degradación por el campo `empresas`
+nuevo del router. **Los resultados certifican ese commit y no otro**: el
+registro guarda cuál, y si el árbol estaba sucio lo dice. Cuando el código
+avance sin re-medir, esta tabla pasa a ser evidencia histórica — que es
+exactamente lo que le pasó a las dos corridas anteriores.
 
 | Métrica | Resultado | Umbral |
 |---|---|---|
