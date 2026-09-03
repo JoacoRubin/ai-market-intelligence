@@ -57,7 +57,7 @@ def test_ya_no_hay_intenciones_excluidas() -> None:
     mañana se retira una tool y una intención vuelve a quedar sin camino, hay
     un lugar único donde declararlo, y este test es el que lo va a notar.
     """
-    assert EXCLUIDAS == set()
+    assert not EXCLUIDAS
     assert "research_company" in [t.stem for t in TOOLS_IMPLEMENTADAS]
 
 
