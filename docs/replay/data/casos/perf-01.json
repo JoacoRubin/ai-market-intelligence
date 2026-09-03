@@ -1,7 +1,7 @@
 {
   "id": "perf-01",
   "consulta": "¿Cuál fue el margen del P012 durante enero?",
-  "capturada_en": "2026-08-28T22:15:36.204127",
+  "capturada_en": "2026-09-03T15:18:18.868132",
   "modelo_llm": "qwen3:4b",
   "intencion": "product_performance",
   "entidades": [
@@ -36,7 +36,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 12614,
+      "duracion_ms": 12212,
       "tool": null
     },
     {
@@ -46,17 +46,17 @@
     },
     {
       "nodo": "sql_tool",
-      "duracion_ms": 376,
+      "duracion_ms": 384,
       "tool": "product_metrics"
     },
     {
       "nodo": "rag_tool",
-      "duracion_ms": 128,
+      "duracion_ms": 112,
       "tool": "search_documents"
     },
     {
       "nodo": "synthesizer",
-      "duracion_ms": 137131,
+      "duracion_ms": 91632,
       "tool": null
     }
   ],
@@ -65,7 +65,7 @@
   "informe": {
     "request_id": "replay-perf-01",
     "consulta": "¿Cuál fue el margen del P012 durante enero?",
-    "generado_en": "2026-08-28T22:13:19.059398",
+    "generado_en": "2026-09-03T15:16:47.231072",
     "modelo_llm": "qwen3:4b",
     "resumen_ejecutivo": [
       {
@@ -118,7 +118,7 @@
         "id": "sql:product_metrics",
         "tipo": "sql",
         "referencia": "dbo.order_items JOIN dbo.orders JOIN dbo.products",
-        "consultada_en": "2026-08-28T22:13:19.059398",
+        "consultada_en": "2026-09-03T15:16:47.231072",
         "seccion": null,
         "url": null
       },
@@ -126,7 +126,7 @@
         "id": "doc_prov_010",
         "tipo": "documento",
         "referencia": "Reporte de calidad de lote — P012",
-        "consultada_en": "2026-08-28T22:13:19.059398",
+        "consultada_en": "2026-09-03T15:16:47.231072",
         "seccion": "§1.1",
         "url": null
       },
@@ -134,7 +134,7 @@
         "id": "doc_ficha_P012",
         "tipo": "documento",
         "referencia": "Ficha técnica — Lumen accesorios (P012)",
-        "consultada_en": "2026-08-28T22:13:19.059398",
+        "consultada_en": "2026-09-03T15:16:47.231072",
         "seccion": "§1.1",
         "url": null
       }
@@ -142,7 +142,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 12614,
+        "duracion_ms": 12212,
         "tool": null
       },
       {
@@ -152,17 +152,17 @@
       },
       {
         "nodo": "sql_tool",
-        "duracion_ms": 376,
+        "duracion_ms": 384,
         "tool": "product_metrics"
       },
       {
         "nodo": "rag_tool",
-        "duracion_ms": 128,
+        "duracion_ms": 112,
         "tool": "search_documents"
       },
       {
         "nodo": "synthesizer",
-        "duracion_ms": 137131,
+        "duracion_ms": 91632,
         "tool": null
       }
     ],
@@ -173,5 +173,5 @@
   },
   "advertencias": [],
   "error": null,
-  "duracion_total_ms": 150249
+  "duracion_total_ms": 104340
 }

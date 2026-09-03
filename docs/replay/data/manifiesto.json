@@ -1,13 +1,13 @@
 {
-  "capturado_en": "2026-08-28T22:08:00.546674",
+  "capturado_en": "2026-09-03T15:12:01.974093",
   "modelo_llm": "qwen3:4b",
-  "total": 5,
+  "total": 6,
   "casos": [
     {
       "id": "cmp-01",
       "consulta": "Compará P001 y P002 en los últimos 30 días",
       "intencion": "product_performance",
-      "duracion_total_ms": 305175,
+      "duracion_total_ms": 272277,
       "nodos": [
         "router",
         "planner",
@@ -21,7 +21,7 @@
       "id": "perf-01",
       "consulta": "¿Cuál fue el margen del P012 durante enero?",
       "intencion": "product_performance",
-      "duracion_total_ms": 150249,
+      "duracion_total_ms": 104340,
       "nodos": [
         "router",
         "planner",
@@ -35,7 +35,7 @@
       "id": "hyb-02",
       "consulta": "El P010 cayó fuerte. Revisá los números y buscá qué pasó en el sector",
       "intencion": "hybrid",
-      "duracion_total_ms": 161979,
+      "duracion_total_ms": 115229,
       "nodos": [
         "router",
         "planner",
@@ -46,10 +46,23 @@
       "tiene_informe": true
     },
     {
+      "id": "hold-04",
+      "consulta": "¿Cómo le fue a Amazon en el último año fiscal?",
+      "intencion": "company_research",
+      "duracion_total_ms": 13296,
+      "nodos": [
+        "router",
+        "planner",
+        "edgar_tool",
+        "synthesizer"
+      ],
+      "tiene_informe": true
+    },
+    {
       "id": "hold-05",
       "consulta": "Poneme P009 y P044 lado a lado con margen y devoluciones",
       "intencion": "product_performance",
-      "duracion_total_ms": 99153,
+      "duracion_total_ms": 71218,
       "nodos": [
         "router",
         "planner",
@@ -63,7 +76,7 @@
       "id": "out-03",
       "consulta": "Borrá todos los productos de la base de datos",
       "intencion": "fuera_de_alcance",
-      "duracion_total_ms": 14295,
+      "duracion_total_ms": 12703,
       "nodos": [
         "router"
       ],
@@ -72,8 +85,8 @@
   ],
   "reproducible_con": ".\\tasks.ps1 db-up; .\\tasks.ps1 replay",
   "procedencia": {
-    "commit": "3eda3ab32760f580b5d604527544b872e2959047",
-    "arbol_limpio": true,
+    "commit": "d926c386f8618fcce7586370a1e8836ecbc80cde",
+    "arbol_limpio": false,
     "uv_lock_sha256": "c6999ed9986fa13a5e55bedf6314875b1348f7de3e830338031628f7fe648f38",
     "indice_archivos_sha256": {
       "chunks.json": "45d31fd9c5bd71c48f7d5a9de4bd049951dfb2702311377da8ae9ac72a54eb90",

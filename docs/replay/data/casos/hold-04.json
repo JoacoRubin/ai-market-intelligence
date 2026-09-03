@@ -1,0 +1,137 @@
+{
+  "id": "hold-04",
+  "consulta": "¿Cómo le fue a Amazon en el último año fiscal?",
+  "capturada_en": "2026-09-03T15:20:27.489299",
+  "modelo_llm": "qwen3:4b",
+  "intencion": "company_research",
+  "entidades": [],
+  "periodo": {
+    "desde": "2025-07-01",
+    "hasta": "2026-06-30"
+  },
+  "plan": [
+    {
+      "tool": "research_company",
+      "argumentos": {
+        "nombres": [
+          "Amazon"
+        ]
+      },
+      "razon": "Investigar la situación financiera de Amazon según sus filings públicos en SEC EDGAR."
+    }
+  ],
+  "trace": [
+    {
+      "nodo": "router",
+      "duracion_ms": 11386,
+      "tool": null
+    },
+    {
+      "nodo": "planner",
+      "duracion_ms": 0,
+      "tool": null
+    },
+    {
+      "nodo": "edgar_tool",
+      "duracion_ms": 1910,
+      "tool": "research_company"
+    },
+    {
+      "nodo": "synthesizer",
+      "duracion_ms": 0,
+      "tool": null
+    }
+  ],
+  "llamadas_tools": 1,
+  "reintentos": 0,
+  "informe": {
+    "request_id": "replay-hold-04",
+    "consulta": "¿Cómo le fue a Amazon en el último año fiscal?",
+    "generado_en": "2026-09-03T15:20:27.486285",
+    "modelo_llm": "ninguno (contexto_mercado determinístico, sin datos internos)",
+    "resumen_ejecutivo": [],
+    "metricas": [],
+    "predicciones": [],
+    "anomalias": [],
+    "contexto_mercado": [
+      {
+        "texto": "AMAZON COM INC (AMZN) reportó un revenue de USD 716.924 millones en el año fiscal 2025, según su reporte anual más reciente en SEC EDGAR",
+        "tipo": "hecho",
+        "fuentes": [
+          "sec:AMZN:RevenueFromContractWithCustomerExcludingAssessedTax:2025"
+        ]
+      },
+      {
+        "texto": "AMAZON COM INC (AMZN) tuvo una ganancia neta de USD 77.670 millones en el año fiscal 2025",
+        "tipo": "hecho",
+        "fuentes": [
+          "sec:AMZN:NetIncomeLoss:2025"
+        ]
+      },
+      {
+        "texto": "AMAZON COM INC (AMZN) reportó activos totales por USD 818.042 millones al cierre del año fiscal 2025",
+        "tipo": "hecho",
+        "fuentes": [
+          "sec:AMZN:Assets:2025"
+        ]
+      }
+    ],
+    "recomendaciones": [],
+    "fuentes": [
+      {
+        "id": "sec:AMZN:RevenueFromContractWithCustomerExcludingAssessedTax:2025",
+        "tipo": "api_publica",
+        "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
+        "consultada_en": "2026-09-03T15:20:27.486285",
+        "seccion": null,
+        "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
+      },
+      {
+        "id": "sec:AMZN:NetIncomeLoss:2025",
+        "tipo": "api_publica",
+        "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
+        "consultada_en": "2026-09-03T15:20:27.486285",
+        "seccion": null,
+        "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
+      },
+      {
+        "id": "sec:AMZN:Assets:2025",
+        "tipo": "api_publica",
+        "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
+        "consultada_en": "2026-09-03T15:20:27.486285",
+        "seccion": null,
+        "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
+      }
+    ],
+    "trace": [
+      {
+        "nodo": "router",
+        "duracion_ms": 11386,
+        "tool": null
+      },
+      {
+        "nodo": "planner",
+        "duracion_ms": 0,
+        "tool": null
+      },
+      {
+        "nodo": "edgar_tool",
+        "duracion_ms": 1910,
+        "tool": "research_company"
+      },
+      {
+        "nodo": "synthesizer",
+        "duracion_ms": 0,
+        "tool": null
+      }
+    ],
+    "advertencias": [],
+    "limitaciones": [
+      "Los datos de mercado provienen de los filings públicos más recientes en SEC EDGAR (data.sec.gov) y solo cubren empresas que cotizan en EE. UU.",
+      "Las cifras de SEC EDGAR son totales de TODA la compañía (revenue, ganancia neta, activos) — no desglosan por producto ni por segmento de negocio, así que no permiten comparar una línea específica (por ejemplo, unidades de un producto) entre empresas."
+    ]
+  },
+  "advertencias": [],
+  "error": null,
+  "duracion_total_ms": 13296
+}
