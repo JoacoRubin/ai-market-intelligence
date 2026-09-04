@@ -63,6 +63,41 @@ class ResultadoForecast:
         )
 
 
+# Cuánto se le permite crecer a la proyección por encima del máximo histórico
+# antes de descartarla. Medido, no elegido a ojo: el caso real que motivó
+# esto (P001, 94% de días en cero) explotó 12,8x su máximo histórico — este
+# techo es generoso a propósito para no cortar un crecimiento legítimo, y
+# sigue siendo finito para atajar la recursión que sí diverge.
+FACTOR_TECHO_PROYECCION = 8.0
+
+
+def _proyeccion_es_estable(proyeccion: np.ndarray, historia: np.ndarray) -> bool:
+    """Detecta si `_predecir_recursivo` divergió.
+
+    La predicción recursiva realimenta sus propias salidas como lag_1/lag_7
+    del paso siguiente. Si Ridge ajusta coeficientes de lag cuya suma supera
+    1 —posible sobre series ralas de bajo volumen, donde hay poca señal real
+    y el regularizador no alcanza a evitarlo—, cada paso amplifica al
+    anterior en vez de decaer: un proceso autorregresivo inestable. Pasó de
+    verdad con P001 (`docs/adr` no lo documenta todavía, ver el diagnóstico
+    de la sesión): lag_1=0.863, lag_7=1.59, suma 2.45, y la proyección pasó
+    de 18 a 128 en 12 pasos sobre una historia que nunca superó 10.
+
+    No se detecta mirando los coeficientes — depende de la combinación exacta
+    de features y es frágil ante cualquier cambio de `construir_features`. Se
+    detecta mirando el RESULTADO, contra una cota derivada de la propia
+    historia: si algo se escapa muy por encima de lo que la historia real
+    permite, no importa por qué, no se sirve.
+
+    El backtest de `ml/backtest.py` NO pasa por este guard a propósito: sigue
+    midiendo el modelo crudo, con sus fallas — es la medición honesta que
+    permitió encontrar este bug. El guard protege solo el camino que
+    `pronosticar()` de verdad entrega.
+    """
+    techo = max(float(np.max(historia)), 1.0) * FACTOR_TECHO_PROYECCION
+    return bool(np.all(proyeccion <= techo))
+
+
 def _registrar_en_mlflow(resultado: ResultadoForecast, desde: date,
                          hasta: date, puntos: int) -> str | None:
     """Deja constancia del pronóstico. Si MLflow falla, el forecast sigue.
@@ -143,7 +178,13 @@ def pronosticar(
         # "1.470 unidades en los próximos 30 días".
         valor = float(np.sum(np.maximum(proyeccion, 0)))
 
-        usa_baseline = (
+        # El backtest mide modelos entrenados por VENTANA (menos datos, en el
+        # pasado); acá se acaba de entrenar uno nuevo con TODA la serie. Que
+        # el primero haya sido estable no garantiza que este lo sea — por eso
+        # el guard de divergencia se evalúa aparte, no se infiere del
+        # backtest. Ver `_proyeccion_es_estable`.
+        diverge = not _proyeccion_es_estable(proyeccion, serie)
+        usa_baseline = diverge or (
             resultado_bt.mape_modelo is not None
             and resultado_bt.mape_baseline is not None
             and not resultado_bt.supera_al_baseline
