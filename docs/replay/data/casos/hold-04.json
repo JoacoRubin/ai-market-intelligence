@@ -1,7 +1,7 @@
 {
   "id": "hold-04",
   "consulta": "¿Cómo le fue a Amazon en el último año fiscal?",
-  "capturada_en": "2026-09-03T15:20:27.489299",
+  "capturada_en": "2026-09-04T00:14:56.737973",
   "modelo_llm": "qwen3:4b",
   "intencion": "company_research",
   "entidades": [],
@@ -23,7 +23,7 @@
   "trace": [
     {
       "nodo": "router",
-      "duracion_ms": 11386,
+      "duracion_ms": 23790,
       "tool": null
     },
     {
@@ -33,7 +33,7 @@
     },
     {
       "nodo": "edgar_tool",
-      "duracion_ms": 1910,
+      "duracion_ms": 6511,
       "tool": "research_company"
     },
     {
@@ -47,7 +47,7 @@
   "informe": {
     "request_id": "replay-hold-04",
     "consulta": "¿Cómo le fue a Amazon en el último año fiscal?",
-    "generado_en": "2026-09-03T15:20:27.486285",
+    "generado_en": "2026-09-04T00:14:56.723553",
     "modelo_llm": "ninguno (contexto_mercado determinístico, sin datos internos)",
     "resumen_ejecutivo": [],
     "metricas": [],
@@ -82,7 +82,7 @@
         "id": "sec:AMZN:RevenueFromContractWithCustomerExcludingAssessedTax:2025",
         "tipo": "api_publica",
         "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
-        "consultada_en": "2026-09-03T15:20:27.486285",
+        "consultada_en": "2026-09-04T00:14:56.723553",
         "seccion": null,
         "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
       },
@@ -90,7 +90,7 @@
         "id": "sec:AMZN:NetIncomeLoss:2025",
         "tipo": "api_publica",
         "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
-        "consultada_en": "2026-09-03T15:20:27.486285",
+        "consultada_en": "2026-09-04T00:14:56.723553",
         "seccion": null,
         "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
       },
@@ -98,7 +98,7 @@
         "id": "sec:AMZN:Assets:2025",
         "tipo": "api_publica",
         "referencia": "SEC EDGAR 10-K — AMAZON COM INC (AMZN)",
-        "consultada_en": "2026-09-03T15:20:27.486285",
+        "consultada_en": "2026-09-04T00:14:56.723553",
         "seccion": null,
         "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001018724&type=10-K"
       }
@@ -106,7 +106,7 @@
     "trace": [
       {
         "nodo": "router",
-        "duracion_ms": 11386,
+        "duracion_ms": 23790,
         "tool": null
       },
       {
@@ -116,7 +116,7 @@
       },
       {
         "nodo": "edgar_tool",
-        "duracion_ms": 1910,
+        "duracion_ms": 6511,
         "tool": "research_company"
       },
       {
@@ -133,5 +133,5 @@
   },
   "advertencias": [],
   "error": null,
-  "duracion_total_ms": 13296
+  "duracion_total_ms": 30301
 }
