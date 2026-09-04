@@ -5,59 +5,79 @@ interface Props {
   metricas: MetricaProducto[];
 }
 
+/** Signo de una variación: `positivo` no significa "número positivo", significa
+ * "la flecha va en el sentido bueno" — por eso `invertido` existe. Una tasa de
+ * devolución que BAJA es una mejora aunque el número tenga signo negativo. */
+function signo(valor: number | null, invertido = false): "positivo" | "negativo" | "neutro" {
+  if (valor === null || valor === 0) return "neutro";
+  const sube = valor > 0;
+  return sube !== invertido ? "positivo" : "negativo";
+}
+
+interface FilaDeltaProps {
+  etiqueta: string;
+  valor: number | null;
+  invertido?: boolean;
+}
+
+/** Fila "nombre + valor con flecha ↑/↓ coloreada" — el pedido explícito del
+ * brief ("cada KPI debe mostrar variación con indicador ↑ ↓"). `crecimiento_pct`
+ * y `tasa_devolucion_pct` YA SON la comparación contra el período anterior
+ * (`application/analisis.py`/las tools de SQL las calculan así) — no hace
+ * falta pedir un segundo número al backend para "vs período anterior". */
+function FilaDelta({ etiqueta, valor, invertido = false }: FilaDeltaProps) {
+  const s = signo(valor, invertido);
+  return (
+    <div className="kpi-card__fila">
+      <span className="kpi-card__fila-etiqueta">{etiqueta}</span>
+      <span className={`kpi-card__fila-valor delta delta--${s}`}>
+        {valor === null ? (
+          "—"
+        ) : (
+          <>
+            {valor > 0 ? "↑" : valor < 0 ? "↓" : "→"} {nf1(Math.abs(valor))} %
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function MetricasTabla({ metricas }: Props) {
   if (!metricas.length) return null;
-
-  const maxUnidades = Math.max(...metricas.map((m) => m.unidades), 1);
 
   return (
     <div className="subbloque">
       <p className="etiqueta">KPIs calculados por SQL</p>
-      <div className="envoltorio-tabla">
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th scope="col">Producto</th>
-              <th scope="col" className="num">
-                Unidades
-              </th>
-              <th scope="col"></th>
-              <th scope="col" className="num">
-                Revenue
-              </th>
-              <th scope="col" className="num">
-                Margen
-              </th>
-              <th scope="col" className="num">
-                Crecimiento
-              </th>
-              <th scope="col" className="num">
-                Devoluciones
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {metricas.map((m) => (
-              <tr key={m.product_id}>
-                <td>
-                  <span className="mono">{m.product_id}</span> {m.nombre}
-                </td>
-                <td className="num">{nf(m.unidades)}</td>
-                <td>
-                  {/* Barra de una sola serie: la identidad la lleva el rótulo
-                      de la fila, no hace falta leyenda ni un segundo color. */}
-                  <div className="barra">
-                    <div className="barra__relleno" style={{ width: `${(m.unidades / maxUnidades) * 100}%` }} />
-                  </div>
-                </td>
-                <td className="num">USD {nf2(m.revenue)}</td>
-                <td className="num">{oGuion(m.margen_pct, (v) => `${nf1(v)} %`)}</td>
-                <td className="num">{oGuion(m.crecimiento_pct, (v) => `${nf1(v)} %`)}</td>
-                <td className="num">{oGuion(m.tasa_devolucion_pct, (v) => `${nf1(v)} %`)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="kpi-grid">
+        {metricas.map((m) => (
+          <article key={m.product_id} className="kpi-card" aria-label={`KPIs de ${m.nombre}`}>
+            <header className="kpi-card__encabezado">
+              <span className="mono kpi-card__id">{m.product_id}</span>
+              <span className="kpi-card__nombre">{m.nombre}</span>
+            </header>
+
+            {/* El "hero" de la card: revenue, el número que más importa,
+                grande — el resto son filas secundarias más chicas. */}
+            <p className="kpi-card__hero">
+              <span className="kpi-card__hero-cifra">USD {nf2(m.revenue)}</span>
+              <span className="kpi-card__hero-etiqueta">Revenue</span>
+            </p>
+
+            <p className="kpi-card__unidades">{nf(m.unidades)} unidades vendidas</p>
+
+            <div className="kpi-card__filas">
+              <div className="kpi-card__fila">
+                <span className="kpi-card__fila-etiqueta">Margen</span>
+                <span className="kpi-card__fila-valor mono">
+                  {oGuion(m.margen_pct, (v) => `${nf1(v)} %`)}
+                </span>
+              </div>
+              <FilaDelta etiqueta="Crecimiento" valor={m.crecimiento_pct} />
+              <FilaDelta etiqueta="Devoluciones" valor={m.tasa_devolucion_pct} invertido />
+            </div>
+          </article>
+        ))}
       </div>
     </div>
   );

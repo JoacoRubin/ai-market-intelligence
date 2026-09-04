@@ -22,11 +22,21 @@ const RANGO_MEDIDO = [
 ];
 const MAXIMO_OBSERVADO_S = 280;
 
+/** Universo de etapas POSIBLES, no la que está corriendo ahora — el backend
+ * no manda esa granularidad mientras el análisis está en curso (`estado:
+ * "procesando"` es todo lo que da `GET /analyses/{id}`, ver
+ * `useAnalysisPoll.ts`). Mostrar las cuatro con un pulso ambiguo es honesto;
+ * fingir cuál de ellas está "activa" no lo sería — mismo criterio que ya usa
+ * este componente para el track sin relleno de acá abajo. Herramientas
+ * agrupa sql_tool/rag_tool/edgar_tool: cuál de las tres se usó tampoco se
+ * sabe hasta que termina. */
+const ETAPAS_POSIBLES = ["Router", "Planner", "Herramientas", "Síntesis"];
+
 /** Tiempo transcurrido contra el rango real ya medido — NO una barra de
- * progreso. `MetricasTabla` usa `.barra`/`.barra__relleno` para una
- * proporción CONOCIDA (unidades vendidas); acá no hay ETA confiable, así que
- * reusar ese mismo relleno mentiría por la forma aunque el texto dijera lo
- * contrario — la gente lee la forma antes que la etiqueta. Por eso esto es
+ * progreso. `.barra`/`.barra__relleno` (hoy solo en `docs/replay/replay.js`
+ * — `MetricasTabla.tsx` pasó a cards) es la proporción CONOCIDA (unidades
+ * vendidas); acá no hay ETA confiable, así que reusar ese mismo relleno
+ * mentiría por la forma aunque el texto dijera lo contrario — la gente lee la forma antes que la etiqueta. Por eso esto es
  * un track SIN relleno con un solo marcador puntual: comunica "no sé cuánto
  * falta, pero sé más o menos cuánto tarda esto normalmente", que es lo único
  * cierto que hay. Pasado el máximo observado el marcador se clava en el
@@ -47,6 +57,18 @@ export function PanelEstado({ estado, creadoEn }: Props) {
   return (
     <div className="panel-estado">
       <p className="panel-estado__titulo">{ROTULO[estado]}</p>
+
+      <div className="pipeline-pendiente" aria-hidden="true">
+        {ETAPAS_POSIBLES.map((etapa, i) => (
+          <div className="pipeline-pendiente__paso" key={etapa}>
+            <div className="pipeline-pendiente__nodo">
+              <span className="pipeline-pendiente__punto" />
+              <span className="pipeline-pendiente__nombre">{etapa}</span>
+            </div>
+            {i < ETAPAS_POSIBLES.length - 1 && <span className="pipeline-pendiente__conector" />}
+          </div>
+        ))}
+      </div>
 
       <p className="nota">
         Rango real medido en esta sesión — no hay forma de saber cuánto falta, esto no es una
