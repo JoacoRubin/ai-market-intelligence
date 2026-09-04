@@ -3,6 +3,23 @@
  * (ej. .consulta) sin redefinir sus reglas de theme.css — mismo mecanismo
  * que ya usa este archivo, no una excepción nueva. Ver ADR-013. */
 
+/* Identidad de empresa — 8 slots completos de la paleta categórica (mismos
+ * hex que --det/--llm/--ext en los slots 1-3, ver lib/empresas.ts para la
+ * asignación y la validación). Dashboard-only: el replay no tiene selector
+ * de productos por empresa, así que esto no va en theme.css/estilos.css. */
+:root {
+  --empresa-1: #2a78d6; --empresa-2: #eb6834; --empresa-3: #1baf7a;
+  --empresa-4: #eda100; --empresa-5: #e87ba4; --empresa-6: #008300;
+  --empresa-7: #4a3aa7; --empresa-8: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --empresa-1: #3987e5; --empresa-2: #d95926; --empresa-3: #199e70;
+    --empresa-4: #c98500; --empresa-5: #d55181; --empresa-6: #008300;
+    --empresa-7: #9085e9; --empresa-8: #e66767;
+  }
+}
+
 /* Oculta visualmente sin ocultar de lectores de pantalla — para la región
  * aria-live que anuncia transiciones de estado sin ocupar layout. */
 .sr-only {
@@ -54,6 +71,7 @@ main { min-width: 0; } /* en grid, sin esto una tabla ancha empuja la columna */
   border-bottom: 1px solid var(--regla);
 }
 .pestaña {
+  position: relative;
   padding: 0.6rem 0.9rem;
   border: none;
   border-bottom: 2px solid transparent;
@@ -62,11 +80,33 @@ main { min-width: 0; } /* en grid, sin esto una tabla ancha empuja la columna */
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
+  transition: color 200ms ease;
 }
 .pestaña--activa {
   color: var(--tinta);
-  border-bottom-color: var(--det);
+  /* El borde real queda transparente: el indicador es el pseudo-elemento de
+   * abajo, que sí puede llevar gradiente (border-color no acepta gradientes
+   * sin recurrir a border-image, que rompe border-radius). */
+  border-bottom-color: transparent;
   font-weight: 600;
+}
+/* El indicador se ANIMA en scaleX desde el centro al cambiar de pestaña —
+ * más vivo que un salto instantáneo, sin ser una transición de layout
+ * (width) que dispara reflow. */
+.pestaña--activa::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--gradiente-primario);
+  transform-origin: center;
+  animation: indicador-entra 220ms ease;
+}
+@keyframes indicador-entra {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
 }
 
 .solicitud__campo { display: grid; gap: 0.5rem; }
@@ -74,69 +114,274 @@ main { min-width: 0; } /* en grid, sin esto una tabla ancha empuja la columna */
 .solicitud__textarea,
 input[type="date"],
 input[type="text"] {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  background: var(--superficie);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--borde-card);
+  border-radius: calc(var(--radio-card) - 4px);
+  background: var(--card);
   color: var(--tinta);
   font: inherit;
   font-size: 0.92rem;
   resize: vertical;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
+/* Foco: el outline sigue estando (accesibilidad, funciona en todo navegador
+ * y no depende de que el elemento soporte box-shadow), el glow es puramente
+ * decorativo encima. Sin el outline, un usuario con outline de sistema
+ * forzado (Windows High Contrast) se queda sin ninguna señal. */
 .solicitud__textarea:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--det);
   outline-offset: 1px;
+  border-color: var(--acento-azul);
+  box-shadow: 0 0 0 4px var(--glow-azul);
 }
+
+/* --- selector de productos (SelectorProductos.tsx) ---------------------- */
+
+.selector-productos { display: grid; gap: 0.9rem; }
+
+/* "Tu comparación": el resumen que se arma solo a medida que se marcan
+ * productos. Sin `position: sticky` — el panel vive en el flujo normal de
+ * una columna que scrollea con toda la página, no dentro de un contenedor
+ * propio con su scroll, así que sticky no tendría dónde "pegarse" sin
+ * reestructurar el layout entero. Queda arriba de todo el selector en su
+ * lugar, que es lo que realmente hace falta: visible antes de elegir nada. */
+.comparacion {
+  padding: 1rem 1.2rem;
+  background: var(--card);
+  border: 1px solid var(--borde-card);
+  border-radius: var(--radio-card);
+  box-shadow: var(--sombra-card);
+}
+.comparacion__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+.comparacion__contador {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--superficie);
+  border: 1px solid var(--borde-card);
+  animation: contador-entra 260ms ease;
+}
+/* El aviso de límite vive en el borde, no en el texto: --aviso bajo 3:1 en
+ * claro es el mismo problema que ya documenta .alerta--aviso más abajo. */
+.comparacion__contador--limite { border-color: var(--aviso); }
+@keyframes contador-entra {
+  from { transform: scale(0.82); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.comparacion__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+.comparacion__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: chip-entra 200ms ease;
+}
+@keyframes chip-entra {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.comparacion__vs {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--tinta-apagada);
+}
+
+/* El color de empresa entra por --color-empresa (custom property inline,
+ * ver estiloEmpresa() en SelectorProductos.tsx) — nunca se declara acá un
+ * hex por empresa, la regla es genérica para las 8. */
+.comparacion__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--superficie);
+  border: 1px solid var(--color-empresa);
+  font-size: 0.8rem;
+}
+.comparacion__chip-empresa { font-weight: 600; }
+.comparacion__chip-detalle { color: var(--tinta-2); }
+.comparacion__quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--tinta-apagada);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.comparacion__quitar:hover { background: var(--card-alta); color: var(--texto-grave); }
+
+.comparacion__resumen { margin: 0; font-size: 0.82rem; color: var(--tinta-2); }
+.comparacion__limite-aviso { margin: 0.5rem 0 0; }
+
+/* --- filtros -------------------------------------------------------------- */
+
+.filtros-productos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.filtros-productos__select,
+.filtros-productos__buscar {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--borde-card);
+  border-radius: calc(var(--radio-card) - 6px);
+  background: var(--card);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.82rem;
+}
+.filtros-productos__buscar { flex: 1 1 160px; }
+.filtros-productos__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--tinta-2);
+  cursor: pointer;
+}
+
+/* --- grid de productos ----------------------------------------------------- */
 
 /* Agrupado por empresa (8 empresas reales para 40 productos — una lista
  * plana repetía el nombre cuarenta veces, ver el comentario en
- * SolicitudForm.tsx). Cada .solicitud__empresa es un <fieldset>: se
+ * SelectorProductos.tsx). Cada .solicitud__empresa es un <fieldset>: se
  * resetea el borde/padding por defecto del navegador porque ya se define
- * el propio acá. */
+ * el propio acá. Apila las empresas en columna — con cards más grandes que
+ * la lista vieja, ponerlas lado a lado quedaba apretado. */
 .solicitud__productos {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 0.6rem;
-  max-height: 260px;
+  display: grid;
+  gap: 0.7rem;
+  max-height: 340px;
   overflow-y: auto;
-  padding: 0.75rem;
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  background: var(--superficie);
+  padding: 0.9rem;
+  border: 1px solid var(--borde-card);
+  border-radius: var(--radio-card);
+  background: var(--card);
 }
 .solicitud__empresa {
-  min-width: 148px;
   margin: 0;
-  padding: 0.3rem 0.65rem 0.5rem;
+  padding: 0.7rem 0.8rem 0.8rem;
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  background: var(--plano);
+  border-radius: var(--radio-acento);
+  background: var(--superficie);
 }
-.solicitud__empresa legend { padding: 0 0.2rem; margin: 0 0 0.15rem -0.2rem; }
-.solicitud__producto {
+.solicitud__empresa legend { padding: 0 0.3rem; margin: 0 0 0.5rem -0.3rem; }
+
+.producto-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.producto-card {
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  padding: 0.15rem 0;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--borde-card);
+  border-left: 3px solid transparent;
+  border-radius: calc(var(--radio-card) - 6px);
+  background: var(--card);
   font-size: 0.85rem;
   cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
-.solicitud__producto-categoria { color: var(--tinta-apagada); font-size: 0.78rem; }
+.producto-card:hover { border-color: var(--color-empresa); background: var(--card-alta); }
+.producto-card--seleccionado {
+  border-color: var(--color-empresa);
+  border-left-color: var(--color-empresa);
+  background: var(--card-alta);
+  box-shadow: 0 0 0 1px var(--color-empresa);
+}
+.producto-card--deshabilitado { opacity: 0.4; }
+.producto-card--deshabilitado input { cursor: not-allowed; }
+/* accent-color: el checkbox nativo toma el color de la empresa — sin esto
+ * los 8 colores solo vivirían en el borde de la card, y el checkbox se
+ * vería desconectado del resto. Soporte amplio (Chrome/Edge/Firefox 93+,
+ * Safari 15.4+); donde no existe, el checkbox degrada al color del sistema
+ * — no rompe nada, solo pierde el matiz. */
+.producto-card input[type="checkbox"] { accent-color: var(--color-empresa); flex-shrink: 0; }
+.producto-card__id { font-weight: 600; }
+.producto-card__categoria { color: var(--tinta-apagada); font-size: 0.76rem; }
 
 .solicitud__rango { display: flex; gap: 1.2rem; flex-wrap: wrap; }
 .solicitud__rango label { display: grid; gap: 0.3rem; }
 
+/* --- CTA contextual --------------------------------------------------- */
+
+.cta-envio { display: grid; gap: 0.4rem; justify-items: start; }
+.cta-envio__subtitulo { margin: 0; font-size: 0.76rem; color: var(--tinta-apagada); }
+
+/* El CTA principal de la pantalla — único lugar del dashboard con el
+ * gradiente a pleno color (no tenue como en las cards). En claro cae a
+ * --tinta sólido: --gradiente-primario es no-op ahí (ver el token en
+ * theme.css), así que degrada solo en vez de mostrar dos azules
+ * compitiendo. */
 .boton--primario {
   justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.3rem;
   background: var(--tinta);
+  background-image: var(--gradiente-primario);
   color: var(--plano);
-  border-color: var(--tinta);
+  border-color: transparent;
+  border-radius: calc(var(--radio-card) - 4px);
   font-weight: 600;
+  font-size: 0.92rem;
+  transition: transform 150ms ease, box-shadow 200ms ease, opacity 200ms ease;
 }
-.boton--primario:hover { border-color: var(--tinta); opacity: 0.88; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .boton--primario { color: #ffffff; }
+}
+.boton--primario:hover:not(:disabled) {
+  border-color: transparent;
+  opacity: 0.94;
+  box-shadow: 0 6px 20px -6px var(--glow-azul), 0 6px 20px -8px var(--glow-violeta);
+}
+.boton--primario:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
 .boton--primario:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.boton__icono { flex-shrink: 0; }
+
+/* Spinner: un anillo con un cuarto más claro que gira. `border-top-color`
+ * en vez de un segundo elemento — más liviano, y hereda `currentColor`
+ * (blanco sobre el gradiente) sin declarar un color aparte. */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: girar 700ms linear infinite;
+  flex-shrink: 0;
+}
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+/* El guard `prefers-reduced-motion` de theme.css (`* { animation: none
+ * !important }`) ya apaga el giro — el anillo incompleto sigue leyéndose
+ * como "cargando" sin el movimiento. */
 
 /* --- panel de espera ----------------------------------------------------- */
 /* Sin spinner: era movimiento puramente decorativo. El marcador de
@@ -149,16 +394,18 @@ input:focus-visible {
   gap: 0.75rem;
   padding: 1.25rem 1.4rem;
   margin: 1.5rem 0;
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  background: var(--card);
+  border: 1px solid var(--borde-card);
+  border-radius: var(--radio-card);
+  box-shadow: var(--sombra-card);
 }
 .panel-estado__titulo { margin: 0; font-size: 0.95rem; font-weight: 600; }
 
 /* Track SIN relleno — a propósito. Ver el comentario en PanelEstado.tsx:
  * reusar .barra/.barra__relleno (semántica ya establecida como "proporción
- * conocida" en MetricasTabla) mentiría por la forma aunque el texto dijera
- * lo contrario. Esto es un timeline con marcas, no una barra de progreso. */
+ * conocida", hoy en el .barra que `docs/replay/replay.js` sigue usando para
+ * su tabla de métricas) mentiría por la forma aunque el texto dijera lo
+ * contrario. Esto es un timeline con marcas, no una barra de progreso. */
 .rango-contexto__track {
   position: relative;
   height: 2.5rem;
@@ -226,4 +473,71 @@ input:focus-visible {
 }
 .caso__estado--completado::before { background: var(--texto-bien); }
 .caso__estado--fallido::before { background: var(--grave); }
-.caso__estado--en-curso::before { background: var(--tinta-apagada); }
+/* "Procesando"/"En cola" comparten esta clase (ver el comentario de
+ * HistorialAnalisis.tsx: `AnalisisResumen` no distingue las dos a este
+ * nivel). El pulso usa --acento-azul, no --det: es un estado de INTERFAZ
+ * ("el agente está corriendo"), no una etapa determinística del grafo — el
+ * mismo criterio que separa --det de --acento-azul en todo el rediseño. */
+.caso__estado--en-curso::before {
+  background: var(--acento-azul);
+  animation: pulso 1.6s ease-in-out infinite;
+}
+@keyframes pulso {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(1.25); }
+}
+/* El guard `prefers-reduced-motion` de theme.css ya apaga esto — el punto
+ * queda fijo en --acento-azul, que sigue leyéndose como "distinto de
+ * completado/error" sin el pulso. */
+
+/* --ext, .kpi-*, .fuente-card*, .pipeline (nodos) y .delta* viven en
+ * theme.css/estilos.css: replay.js las usa igual que este dashboard desde
+ * el sync del 2026-09-03, así que ya no son exclusivas de acá. Lo que sigue
+ * siendo dashboard-only está más abajo: .pipeline-pendiente (el replay
+ * nunca está "procesando", solo muestra capturas ya completas) y el pulso
+ * de .caso__estado--en-curso. */
+
+/* --- pipeline pendiente (mientras corre, sin saber en qué nodo va) ----- */
+
+.pipeline-pendiente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0.9rem 0;
+}
+.pipeline-pendiente__paso { display: flex; align-items: center; }
+.pipeline-pendiente__nodo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  background: var(--card);
+  border: 1px solid var(--borde-card);
+  border-radius: var(--radio-acento);
+}
+/* Los cuatro laten IGUAL — ninguno "más adelantado": es a propósito, ver el
+ * comentario de ETAPAS_POSIBLES en PanelEstado.tsx. El delay negativo
+ * escalonado le da textura sin insinuar orden real (cada uno arranca en un
+ * punto distinto de su propio ciclo, no en secuencia). */
+.pipeline-pendiente__punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--acento-cyan);
+  animation: pulso 1.8s ease-in-out infinite;
+}
+.pipeline-pendiente__paso:nth-child(2) .pipeline-pendiente__punto { animation-delay: -0.45s; }
+.pipeline-pendiente__paso:nth-child(3) .pipeline-pendiente__punto { animation-delay: -0.9s; }
+.pipeline-pendiente__paso:nth-child(4) .pipeline-pendiente__punto { animation-delay: -1.35s; }
+.pipeline-pendiente__nombre { font-size: 0.72rem; color: var(--tinta-2); }
+.pipeline-pendiente__conector {
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1px;
+  margin: 0 0.15rem;
+  background: var(--borde-card);
+}
+@media (max-width: 640px) {
+  .pipeline-pendiente { flex-direction: column; align-items: stretch; }
+  .pipeline-pendiente__conector { display: none; }
+}
