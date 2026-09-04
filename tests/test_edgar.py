@@ -7,6 +7,7 @@ falta saltearlos por defecto.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -41,7 +42,7 @@ def _limpiar_cache() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _sin_cache() -> None:
+def _sin_cache() -> Iterator[None]:
     _limpiar_cache()
     yield
     _limpiar_cache()
@@ -80,8 +81,9 @@ def test_resolver_empresa_pela_sufijos_societarios_en_loop(
 ) -> None:
     """'Tesla, Inc.' tiene coma+sufijo — pelar en una sola pasada no alcanza."""
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _RespuestaFalsa(TICKERS_GOLDEN_SET))
-    assert edgar.resolver_empresa("Tesla, Inc.") is not None
-    assert edgar.resolver_empresa("Tesla, Inc.").ticker == "TSLA"
+    resuelta = edgar.resolver_empresa("Tesla, Inc.")
+    assert resuelta is not None
+    assert resuelta.ticker == "TSLA"
 
 
 def test_resolver_empresa_por_ticker_directo(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,8 +107,9 @@ def test_resolver_empresa_nombre_en_minuscula_no_se_confunde_con_ticker(
     """El guardrail de 'parece ticker' exige mayúsculas Y longitud 1-5 — un
     nombre común no debería colarse por ese camino ni por casualidad."""
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _RespuestaFalsa(TICKERS_GOLDEN_SET))
-    assert edgar.resolver_empresa("apple") is not None  # cae al camino de nombre
-    assert edgar.resolver_empresa("apple").ticker == "AAPL"
+    resuelta = edgar.resolver_empresa("apple")  # cae al camino de nombre
+    assert resuelta is not None
+    assert resuelta.ticker == "AAPL"
 
 
 def test_resolver_empresa_no_adivina_entre_candidatos_similares(
