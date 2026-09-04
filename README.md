@@ -44,33 +44,34 @@ informe cacheado es un informe incorrecto servido rápido
 El sitio de replay reproduce ejecuciones reales del agente: la traza etapa por
 etapa con la duración verdadera de cada nodo, el criterio con que eligió cada
 herramienta, las citas documentales con su identificador y el PDF descargable.
-La capacidad de forecast existe y tiene backtesting, pero **el replay publicado
-no incluye un caso de forecast**: sus cinco informes tienen `predicciones: []`.
+La capacidad de forecast existe, tiene backtesting, y **desde esta corrida el
+replay publicado por fin incluye un caso** (`fore-01`): predice P040 a 30 días,
+con su MAPE de backtest (50,8%) contra el del baseline (124,1%) al lado —
+nunca una cifra de predicción sola.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Las seis publicadas tardaron entre 13
-> y 272 segundos sobre CPU — la comparación entre dos productos sigue siendo la
-> más cara, y el research contra SEC EDGAR (`hold-04`, sin SQL ni RAG de por
-> medio) resultó casi tan barato como el rechazo del router. Nadie mira un
+> todo con el comando para reproducirlas. Las siete publicadas tardaron entre 21
+> y 448 segundos sobre CPU — la comparación entre dos productos sigue siendo la
+> más cara, y el rechazo del router (`out-03`) el más barato. Nadie mira un
 > spinner, y el replay además muestra más que un demo en vivo: la traza y el
 > criterio quedan invisibles cuando solo ves el resultado.
 
-> Las capturas se hicieron el 2026-09-03 con `qwen3:4b` e incorporan por primera
-> vez un caso de `company_research` (`hold-04`, la situación financiera de
-> Amazon vía SEC EDGAR, [ADR-014](docs/adr/ADR-014-company-research-sec-edgar.md)):
-> hasta esta corrida el replay excluía esa intención por un motivo que ya no era
-> cierto — la tool que la sirve (`research_company.py`) existe desde el
-> 2026-09-01, y un test guardián que debía notarlo no disparó porque comparaba
-> contra un nombre de archivo que nunca fue el real (`replay/casos.py`,
-> corregido junto con esta captura). El manifiesto guarda procedencia
-> verificable — commit, dirty state y hashes del lock y del índice
-> (`docs/replay/data/manifiesto.json`) — y esta corrida quedó con
-> `arbol_limpio: false` a propósito: se capturó para validar el fix en vivo
-> antes de commitearlo, mismo criterio de honestidad que ya usa la tabla de
-> calidad de más abajo. La captura anterior, del 2026-08-28, es previa a esa
-> procedencia y no registraba nada de esto; se conserva como evidencia
-> histórica. Un demo desactualizado no es neutral — miente sobre el trabajo
-> hecho.
+> Las capturas se hicieron el 2026-09-03 con `qwen3:4b`. Dos novedades sobre la
+> corrida anterior: el caso de `company_research` (`hold-04`, situación
+> financiera de Amazon vía SEC EDGAR, [ADR-014](docs/adr/ADR-014-company-research-sec-edgar.md))
+> y ahora `fore-01`, el primer caso de forecast — hasta esta sesión, **ningún**
+> caso publicado ni del golden set ejercitaba `pronosticar()`, algo que se
+> verificó antes de suponerlo. Sumarlo destapó un bug real y no cosmético: el
+> modelo entrena de nuevo sobre productos de bajo volumen y la predicción
+> recursiva podía divergir (un producto real llegó a 739% de error) — arreglado
+> con un guard de estabilidad, medido contra las 40 series del catálogo, con dos
+> ideas descartadas en el camino ([ADR-015](docs/adr/ADR-015-forecast-medido-contra-el-catalogo-real.md)).
+> El manifiesto guarda procedencia verificable — commit, dirty state y hashes
+> del lock y del índice (`docs/replay/data/manifiesto.json`) — y esta corrida
+> quedó con `arbol_limpio: false` a propósito: se capturó para validar todo lo
+> de arriba en vivo antes de terminar de commitear, mismo criterio de
+> honestidad que ya usa la tabla de calidad de más abajo. Un demo desactualizado
+> no es neutral — miente sobre el trabajo hecho.
 
 Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
 
@@ -79,7 +80,7 @@ Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-d
 .\tasks.ps1 replay-servir   # http://localhost:8080
 ```
 
-Entre las seis ejecuciones publicadas hay una que conviene mirar primero:
+Entre las siete ejecuciones publicadas hay una que conviene mirar primero:
 `"Borrá todos los productos de la base de datos"`. El agente corta en el router y
 no ejecuta nada. **Un sistema que sabe decir que no** es más difícil de construir
 que uno que siempre responde algo.
