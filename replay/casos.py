@@ -45,6 +45,12 @@ EXCLUIDAS: set[Intencion] = set()
 #            falló, y el que motivó la regla de no delegar extracción al LLM.
 #   perf-01  un solo producto con margen: el camino corto, para que se vea
 #            que el agente no sobre-planifica cuando no hace falta.
+#   fore-01  dispara forecast_sales: Ridge + backtest, con el error medido
+#            (MAPE modelo vs baseline) al lado de la predicción, nunca sola.
+#            Hasta el 2026-09-03 ningún caso publicado ejercitaba esto — el
+#            golden set entero pasaba por el modelo sin que se viera en
+#            ningún lado (ADR-015, mismo día que se midió el modelo contra
+#            el catálogo real y se arregló el bug de P001).
 #   hyb-02   SQL + RAG juntos. Acá aparecen las citas documentales con su
 #            doc_id, que es lo que distingue este sistema de un chatbot.
 #   hold-04  research externo vía SEC EDGAR (ADR-014), sin la palabra
@@ -57,7 +63,7 @@ EXCLUIDAS: set[Intencion] = set()
 #            captura más importante de todas: muestra que el agente se niega, y
 #            que aunque no se negara el usuario de base es read-only.
 SELECCION: tuple[str, ...] = (
-    "cmp-01", "perf-01", "hyb-02", "hold-04", "hold-05", "out-03",
+    "cmp-01", "perf-01", "fore-01", "hyb-02", "hold-04", "hold-05", "out-03",
 )
 
 
