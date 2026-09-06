@@ -109,15 +109,18 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
-Última corrida: `eval/corridas/20260902T220728.json` — `qwen3:4b`, commit
-`d926c38`, árbol limpio, 42 minutos. Re-medida después de conectar
-`company_research` a SEC EDGAR y sus dos fixes de bugs reales (hosts distintos
-de la API, mezcla de años fiscales entre tags de revenue): mismos cinco
-resultados que la corrida anterior, sin degradación por el campo `empresas`
-nuevo del router. **Los resultados certifican ese commit y no otro**: el
-registro guarda cuál, y si el árbol estaba sucio lo dice. Cuando el código
-avance sin re-medir, esta tabla pasa a ser evidencia histórica — que es
-exactamente lo que le pasó a las dos corridas anteriores.
+Última corrida: `eval/corridas/20260906T193442.json` — `qwen3:4b`, commit
+`241a221`, árbol limpio, 44 minutos. Re-medida después del fix de recursión
+autorregresiva inestable en el forecast (`f928846`) y de sumar `fore-01` al
+golden set del router — P040, el primer caso publicado que dispara
+`forecast_sales` ([ADR-015](docs/adr/ADR-015-forecast-medido-contra-el-catalogo-real.md)):
+mismos cinco resultados que las corridas anteriores, pero ahora certifican el
+forecast ya arreglado, no el que podía divergir. El router quedó re-medido en
+el mismo movimiento: 100% de accuracy en intención, entidades y holdout
+(23/23, con `fore-01` clasificado bien). **Los resultados certifican ese
+commit y no otro**: el registro guarda cuál, y si el árbol estaba sucio lo
+dice. Cuando el código avance sin re-medir, esta tabla pasa a ser evidencia
+histórica — que es exactamente lo que le pasó a las tres corridas anteriores.
 
 | Métrica | Resultado | Umbral |
 |---|---|---|
