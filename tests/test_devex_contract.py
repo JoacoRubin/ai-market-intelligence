@@ -111,11 +111,24 @@ def test_el_wheel_incluye_todos_los_paquetes_runtime() -> None:
 
 
 def test_readme_declara_los_limites_verificables_del_producto() -> None:
-    readme = _leer("README.md").lower()
+    # Espacios normalizados (no solo lower()): el README es prosa que se
+    # re-wrappea a mano cada vez que un parrafo cambia de largo. Sin esto,
+    # una frase de varias palabras que cae justo en el corte de linea (le
+    # paso a "certifican ese commit" al editar el parrafo de arriba) rompe
+    # el test por un salto de linea, no porque la idea haya dejado de estar.
+    readme = " ".join(_leer("README.md").lower().split())
 
     assert "conectado a sec edgar" in readme
-    assert "no incluye un caso de forecast" in readme
+    assert "fore-01" in readme
     assert "c:\\users\\" not in readme
+
+    # Esta linea reemplazo a "no incluye un caso de forecast": esa frase era
+    # cierta hasta que fore-01 se sumo al golden set y al replay (241a221) y
+    # dejo de serlo. Es el mismo error que describe el comentario de abajo:
+    # un hecho transitorio fijado como si fuera un contrato permanente. La
+    # version nueva ("fore-01" esta documentado) sobrevive a que el forecast
+    # este cubierto -que es lo que el README debe declarar mientras siga
+    # siendo cierto, sin exigirle que se declare eternamente incompleto.
 
     # Antes esta linea exigia el texto "stale respecto de head", que era cierto
     # cuando se escribio y dejo de serlo al re-medir sobre HEAD el 2026-08-28.
