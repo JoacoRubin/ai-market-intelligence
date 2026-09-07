@@ -40,6 +40,15 @@ function crearNodo(tag) {
     hijos: [],
     classList: { add() {}, remove() {} },
     appendChild(h) { this.hijos.push(h); return h; },
+    // Agregado junto con la pipeline de nodos del rediseño (2026-09-03): el
+    // molde HTML necesitaba insertar un elemento ANTES de otro, no solo al
+    // final — el primer código real que lo necesita en este proyecto.
+    insertBefore(nuevo, referencia) {
+      const i = this.hijos.indexOf(referencia);
+      if (i === -1) this.hijos.push(nuevo);
+      else this.hijos.splice(i, 0, nuevo);
+      return nuevo;
+    },
     setAttribute(k, v) { this.attrs[k] = v; },
     getAttribute(k) { return this.attrs[k]; },
     addEventListener(evento, fn) { (this.oyentes[evento] ||= []).push(fn); },

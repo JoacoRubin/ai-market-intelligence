@@ -63,6 +63,12 @@ def construir_features(serie: np.ndarray, indices: Sequence[int]) -> np.ndarray:
     Cada fila usa exclusivamente valores anteriores al punto que describe. Si
     una feature mirara el presente o el futuro, el leakage volvería por la
     ventana de atrás aunque el split temporal fuera correcto.
+
+    **`lag_14` se probó y se descartó** (sesión 2026-09-03): medido contra los
+    40 productos reales del catálogo, ganaba en un producto más (27/40 vs
+    26/40) pero el MAPE promedio empeoraba (79.2% vs 78.8%) — dentro del
+    ruido, no una mejora real. No se agrega complejidad sin evidencia de que
+    la pague.
     """
     filas = []
     for i in indices:
@@ -122,6 +128,16 @@ def entrenar_modelo(serie: np.ndarray, indices: Sequence[int]) -> Any:
     Ridge y no algo más sofisticado: con series cortas y features simples, un
     modelo lineal regularizado es difícil de superar y mucho más fácil de
     explicar. La complejidad se agrega cuando el baseline la exige, no antes.
+
+    **`log1p(y)` se probó y se descartó** (sesión 2026-09-03, sin ADR propio
+    todavía): parecía el fix correcto para conteos sesgados con muchos ceros,
+    pero revertir con `expm1` convierte una tendencia ADITIVA en el target en
+    una EXPONENCIAL en unidades reales — bajo la recursión de
+    `_predecir_recursivo` eso no solo empeoró el MAPE, **crasheó** de verdad
+    contra un producto real del catálogo (`expm1` desbordó a `inf`, ese `inf`
+    realimentado como lag rompió el siguiente `.predict()` con una excepción
+    de sklearn). Se prueba en escala lineal directa; ver `_proyeccion_es_estable`
+    en `ml/forecast.py` para la protección real contra la divergencia.
     """
     from sklearn.linear_model import Ridge
 

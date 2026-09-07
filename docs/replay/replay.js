@@ -19,6 +19,25 @@ const DATOS = 'data';
  * son software clásico. Si el grafo cambia, esta lista cambia con él. */
 const ETAPAS_LLM = new Set(['router', 'synthesizer']);
 
+/* Qué etapas pegan contra una fuente PÚBLICA en vez de los datos propios.
+ * Mismo criterio que `apps/web/src/lib/etapas.ts` (corregido 2026-09-03,
+ * ver ADR-014): hasta acá esta lista no existía y `edgar_tool` se mostraba
+ * igual que `sql_tool`/`rag_tool` — indistinguible de una consulta a la base
+ * propia, cuando en realidad es una llamada a SEC EDGAR. */
+const ETAPAS_EXTERNAS = new Set(['edgar_tool']);
+
+function origenEtapa(nodo) {
+  if (ETAPAS_LLM.has(nodo)) return 'llm';
+  if (ETAPAS_EXTERNAS.has(nodo)) return 'externo';
+  return 'interno';
+}
+const SUFIJO_ORIGEN = { llm: 'llm', interno: 'det', externo: 'ext' };
+const ETIQUETA_TIPO_ORIGEN = {
+  llm: 'Modelo',
+  interno: 'Determinística',
+  externo: 'Determinística (SEC EDGAR)',
+};
+
 /* Cuánto dura la reproducción en pantalla. Una corrida real ronda el minuto;
  * hacer esperar eso al visitante sería reproducir el problema que este sitio
  * existe para resolver. Los tiempos que se MUESTRAN son los reales. */
@@ -235,12 +254,44 @@ function construirTraza(raiz, captura) {
     `Traza de ${trace.length} etapas, ${duracion(total)} en total: ` +
     trace.map((p) => `${p.nodo} ${duracion(p.duracion_ms)}`).join(', '));
 
+  /* Pipeline de nodos — mismo criterio que Traza.tsx del dashboard: sale de
+   * la traza REAL, no de una lista fija inventada. `aria-hidden` porque es
+   * un resumen visual de lo que la cinta de abajo ya anuncia por
+   * `aria-label`. */
+  const pipeline = el('div', 'pipeline');
+  pipeline.setAttribute('aria-hidden', 'true');
+  trace.forEach((paso, i) => {
+    const origen = origenEtapa(paso.nodo);
+    const envoltorioPaso = el('div', 'pipeline__paso');
+
+    const nodoEl = el('div', 'pipeline__nodo');
+    const punto = el('span', `pipeline__punto pipeline__punto--${SUFIJO_ORIGEN[origen]}`);
+    punto.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="3"><path d="m5 13 4 4L19 7"/></svg>';
+    nodoEl.appendChild(punto);
+    nodoEl.appendChild(el('span', 'pipeline__nombre mono', paso.nodo));
+    nodoEl.appendChild(el('span', 'pipeline__duracion mono', duracion(paso.duracion_ms)));
+    envoltorioPaso.appendChild(nodoEl);
+
+    if (i < trace.length - 1) envoltorioPaso.appendChild(el('span', 'pipeline__conector'));
+    pipeline.appendChild(envoltorioPaso);
+  });
+  // `raiz.querySelector(...)` y no `cinta.parentNode`: el segundo asume que
+  // `cinta` ya está insertada en un árbol con padre — cierto en un navegador
+  // real, falso en `harness_dom.js` (DOM mínimo, sin parentNode) mientras el
+  // molde todavía es un fragmento suelto. Pedirle el contenedor a `raiz`
+  // directamente no depende de esa asunción.
+  raiz.querySelector('[data-seccion="traza"]').insertBefore(pipeline, cinta);
+
   const rellenos = [];
   for (const paso of trace) {
-    const esLlm = ETAPAS_LLM.has(paso.nodo);
+    const origen = origenEtapa(paso.nodo);
     const proporcion = total ? paso.duracion_ms / total : 0;
 
-    const tramo = el('div', `tramo${esLlm ? ' tramo--llm' : ''}`);
+    // "interno" no lleva modificador — la regla base .tramo ya es la
+    // apariencia determinística, mismo criterio que Traza.tsx.
+    const claseOrigen = origen === 'interno' ? '' : ` tramo--${SUFIJO_ORIGEN[origen]}`;
+    const tramo = el('div', `tramo${claseOrigen}`);
     tramo.style.flexGrow = String(Math.max(proporcion, 0.004));
     tramo.style.flexBasis = '0';
     if (proporcion < 0.08) tramo.classList.add('tramo--angosto');
@@ -252,6 +303,17 @@ function construirTraza(raiz, captura) {
 
     cinta.appendChild(tramo);
     rellenos.push(relleno);
+  }
+
+  /* La leyenda del molde HTML solo trae dos ítems (det/llm, de antes de
+   * ADR-014) — se suma el tercero acá en vez de tocar `index.html`, mismo
+   * lugar donde ya se arma el resto del DOM dinámico. */
+  const leyenda = raiz.querySelector('.leyenda');
+  if (leyenda && !leyenda.querySelector('.leyenda__marca--ext')) {
+    const item = document.createElement('li');
+    item.appendChild(el('span', 'leyenda__marca leyenda__marca--ext'));
+    item.appendChild(document.createTextNode(' Determinística (SEC EDGAR)'));
+    leyenda.insertBefore(item, leyenda.lastElementChild);
   }
 
   reloj.textContent = nf1(total / 1000);
@@ -318,11 +380,11 @@ function animar(cinta, rellenos, trace, total, reloj, botonTexto) {
 
 function construirTablaTraza(cuerpo, trace, total) {
   for (const paso of trace) {
-    const esLlm = ETAPAS_LLM.has(paso.nodo);
+    const origen = origenEtapa(paso.nodo);
     const fila = document.createElement('tr');
 
     const celdaNodo = document.createElement('td');
-    celdaNodo.appendChild(el('span', `punto ${esLlm ? 'punto--llm' : 'punto--det'}`));
+    celdaNodo.appendChild(el('span', `punto punto--${SUFIJO_ORIGEN[origen]}`));
     celdaNodo.appendChild(el('span', 'mono', paso.nodo));
     if (paso.tool) {
       celdaNodo.appendChild(el('span', null, ' '));
@@ -330,7 +392,7 @@ function construirTablaTraza(cuerpo, trace, total) {
     }
     fila.appendChild(celdaNodo);
 
-    fila.appendChild(el('td', null, esLlm ? 'Modelo' : 'Determinística'));
+    fila.appendChild(el('td', null, ETIQUETA_TIPO_ORIGEN[origen]));
 
     const celdaMs = el('td', 'num', duracion(paso.duracion_ms));
     fila.appendChild(celdaMs);
@@ -404,60 +466,67 @@ function seccionAfirmaciones(destino, titulo, afirmaciones, porFuente) {
   destino.appendChild(bloque);
 }
 
+/* Signo de una variación: no es "el número es positivo", es "la flecha va en
+ * el sentido bueno" — por eso `invertido` existe (una tasa de devolución que
+ * BAJA es una mejora, aunque el número tenga signo negativo). Mismo criterio
+ * que `MetricasTabla.tsx` del dashboard. */
+function signoDelta(valor, invertido) {
+  if (valor === null || valor === undefined || valor === 0) return 'neutro';
+  const sube = valor > 0;
+  return sube !== invertido ? 'positivo' : 'negativo';
+}
+
+function filaDelta(etiqueta, valor, invertido) {
+  const fila = el('div', 'kpi-card__fila');
+  fila.appendChild(el('span', 'kpi-card__fila-etiqueta', etiqueta));
+  const s = signoDelta(valor, invertido);
+  const span = el('span', `kpi-card__fila-valor delta delta--${s}`);
+  if (valor === null || valor === undefined) {
+    span.textContent = '—';
+  } else {
+    const flecha = valor > 0 ? '↑' : valor < 0 ? '↓' : '→';
+    span.textContent = `${flecha} ${nf1(Math.abs(valor))} %`;
+  }
+  fila.appendChild(span);
+  return fila;
+}
+
 function seccionMetricas(destino, metricas) {
   if (!metricas || !metricas.length) return;
-
-  const maxUnidades = Math.max(...metricas.map((m) => m.unidades), 1);
 
   const bloque = el('div', 'subbloque');
   bloque.appendChild(el('p', 'etiqueta', 'KPIs calculados por SQL'));
 
-  const envoltorio = el('div', 'envoltorio-tabla');
-  const tabla = el('table', 'tabla');
-
-  const thead = document.createElement('thead');
-  const filaCab = document.createElement('tr');
-  for (const [texto, clase] of [['Producto', ''], ['Unidades', 'num'], ['', ''],
-                                ['Revenue', 'num'], ['Margen', 'num'],
-                                ['Crecimiento', 'num'], ['Devoluciones', 'num']]) {
-    const th = el('th', clase, texto);
-    th.scope = 'col';
-    filaCab.appendChild(th);
-  }
-  thead.appendChild(filaCab);
-  tabla.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
+  const grilla = el('div', 'kpi-grid');
   for (const m of metricas) {
-    const fila = document.createElement('tr');
+    const card = el('article', 'kpi-card');
+    card.setAttribute('aria-label', `KPIs de ${m.nombre}`);
 
-    const celdaNombre = document.createElement('td');
-    celdaNombre.appendChild(el('span', 'mono', m.product_id));
-    celdaNombre.appendChild(document.createTextNode(` ${m.nombre}`));
-    fila.appendChild(celdaNombre);
+    const cabecera = el('header', 'kpi-card__encabezado');
+    cabecera.appendChild(el('span', 'mono kpi-card__id', m.product_id));
+    cabecera.appendChild(el('span', 'kpi-card__nombre', m.nombre));
+    card.appendChild(cabecera);
 
-    fila.appendChild(el('td', 'num', nf(m.unidades)));
+    const hero = el('p', 'kpi-card__hero');
+    hero.appendChild(el('span', 'kpi-card__hero-cifra', `USD ${nf2(m.revenue)}`));
+    hero.appendChild(el('span', 'kpi-card__hero-etiqueta', 'Revenue'));
+    card.appendChild(hero);
 
-    /* Barra de una sola serie: la identidad la lleva el rótulo de la fila, así
-     * que no hace falta ni leyenda ni un segundo color. */
-    const celdaBarra = document.createElement('td');
-    const barra = el('div', 'barra');
-    const relleno = el('div', 'barra__relleno');
-    relleno.style.width = `${(m.unidades / maxUnidades) * 100}%`;
-    barra.appendChild(relleno);
-    celdaBarra.appendChild(barra);
-    fila.appendChild(celdaBarra);
+    card.appendChild(el('p', 'kpi-card__unidades', `${nf(m.unidades)} unidades vendidas`));
 
-    fila.appendChild(el('td', 'num', `USD ${nf2(m.revenue)}`));
-    fila.appendChild(el('td', 'num', oGuion(m.margen_pct, (v) => `${nf1(v)} %`)));
-    fila.appendChild(el('td', 'num', oGuion(m.crecimiento_pct, (v) => `${nf1(v)} %`)));
-    fila.appendChild(el('td', 'num', oGuion(m.tasa_devolucion_pct, (v) => `${nf1(v)} %`)));
+    const filas = el('div', 'kpi-card__filas');
+    const margen = el('div', 'kpi-card__fila');
+    margen.appendChild(el('span', 'kpi-card__fila-etiqueta', 'Margen'));
+    margen.appendChild(el('span', 'kpi-card__fila-valor mono',
+      oGuion(m.margen_pct, (v) => `${nf1(v)} %`)));
+    filas.appendChild(margen);
+    filas.appendChild(filaDelta('Crecimiento', m.crecimiento_pct, false));
+    filas.appendChild(filaDelta('Devoluciones', m.tasa_devolucion_pct, true));
+    card.appendChild(filas);
 
-    tbody.appendChild(fila);
+    grilla.appendChild(card);
   }
-  tabla.appendChild(tbody);
-  envoltorio.appendChild(tabla);
-  bloque.appendChild(envoltorio);
+  bloque.appendChild(grilla);
   destino.appendChild(bloque);
 }
 
@@ -506,48 +575,94 @@ function seccionPredicciones(destino, predicciones) {
   destino.appendChild(bloque);
 }
 
+/* Rótulo legible por tipo — mismo vocabulario que `FuentesTabla.tsx`. */
+const ETIQUETA_TIPO_FUENTE = {
+  sql: 'Base de datos',
+  documento: 'Documento interno',
+  api_publica: 'API pública',
+  modelo_ml: 'Modelo predictivo',
+};
+
+let contadorFuente = 0;
+
+/* Una fuente, expandible. Colapsada muestra lo que alguien necesita para
+ * decidir si confía en la afirmación (tipo, cuál, cuándo); expandida suma el
+ * identificador técnico y la sección — detalle real, no un "fragmento
+ * relevante" ni un score inventados: `Fuente` no trae esos campos. Mismo
+ * componente que `FuentesTabla.tsx`, portado a DOM plano. */
+function tarjetaFuente(f) {
+  const id = `fuente-detalle-${contadorFuente++}`;
+  const li = el('li', 'fuente-card');
+
+  const cabecera = el('button', 'fuente-card__cabecera');
+  cabecera.type = 'button';
+  cabecera.setAttribute('aria-expanded', 'false');
+  cabecera.setAttribute('aria-controls', id);
+
+  cabecera.appendChild(el('span',
+    `fuente-card__tipo fuente-card__tipo--${f.tipo}`,
+    ETIQUETA_TIPO_FUENTE[f.tipo] || f.tipo));
+  cabecera.appendChild(el('span', 'fuente-card__referencia', f.referencia));
+  cabecera.appendChild(el('span', 'fuente-card__fecha mono', fecha(f.consultada_en)));
+
+  const flecha = el('span', 'fuente-card__flecha');
+  flecha.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>';
+  cabecera.appendChild(flecha);
+
+  li.appendChild(cabecera);
+
+  const detalle = el('div', 'fuente-card__detalle');
+  detalle.id = id;
+  detalle.hidden = true;
+  const campos = el('dl', 'fuente-card__campos');
+
+  const campoId = document.createElement('div');
+  campoId.appendChild(el('dt', null, 'Identificador'));
+  campoId.appendChild(el('dd', 'mono', f.id));
+  campos.appendChild(campoId);
+
+  if (f.seccion) {
+    const campoSeccion = document.createElement('div');
+    campoSeccion.appendChild(el('dt', null, 'Sección'));
+    campoSeccion.appendChild(el('dd', null, f.seccion));
+    campos.appendChild(campoSeccion);
+  }
+
+  if (f.url) {
+    const campoUrl = document.createElement('div');
+    campoUrl.appendChild(el('dt', null, 'Enlace'));
+    const dd = document.createElement('dd');
+    const a = el('a', null, f.url);
+    a.href = f.url;
+    a.rel = 'noopener noreferrer';
+    dd.appendChild(a);
+    campoUrl.appendChild(dd);
+    campos.appendChild(campoUrl);
+  }
+
+  detalle.appendChild(campos);
+  li.appendChild(detalle);
+
+  cabecera.addEventListener('click', () => {
+    const abierta = cabecera.getAttribute('aria-expanded') === 'true';
+    cabecera.setAttribute('aria-expanded', String(!abierta));
+    flecha.classList.toggle('fuente-card__flecha--abierta', !abierta);
+    detalle.hidden = abierta;
+  });
+
+  return li;
+}
+
 function seccionFuentes(destino, fuentes) {
   if (!fuentes || !fuentes.length) return;
 
   const bloque = el('div', 'subbloque');
   bloque.appendChild(el('p', 'etiqueta', 'Fuentes declaradas'));
 
-  const envoltorio = el('div', 'envoltorio-tabla');
-  const tabla = el('table', 'tabla');
-
-  const thead = document.createElement('thead');
-  const filaCab = document.createElement('tr');
-  for (const texto of ['Identificador', 'Tipo', 'Referencia', 'Consultada']) {
-    const th = el('th', null, texto);
-    th.scope = 'col';
-    filaCab.appendChild(th);
-  }
-  thead.appendChild(filaCab);
-  tabla.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  for (const f of fuentes) {
-    const fila = document.createElement('tr');
-    fila.appendChild(el('td', 'mono', f.id));
-    fila.appendChild(el('td', null, f.tipo));
-
-    const celdaRef = document.createElement('td');
-    if (f.url) {
-      const a = el('a', null, f.referencia);
-      a.href = f.url;
-      a.rel = 'noopener noreferrer';
-      celdaRef.appendChild(a);
-    } else {
-      celdaRef.appendChild(el('span', 'mono', f.referencia));
-    }
-    fila.appendChild(celdaRef);
-
-    fila.appendChild(el('td', null, fecha(f.consultada_en)));
-    tbody.appendChild(fila);
-  }
-  tabla.appendChild(tbody);
-  envoltorio.appendChild(tabla);
-  bloque.appendChild(envoltorio);
+  const lista = el('ul', 'fuentes-lista');
+  for (const f of fuentes) lista.appendChild(tarjetaFuente(f));
+  bloque.appendChild(lista);
   destino.appendChild(bloque);
 }
 

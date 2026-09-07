@@ -44,25 +44,34 @@ informe cacheado es un informe incorrecto servido rápido
 El sitio de replay reproduce ejecuciones reales del agente: la traza etapa por
 etapa con la duración verdadera de cada nodo, el criterio con que eligió cada
 herramienta, las citas documentales con su identificador y el PDF descargable.
-La capacidad de forecast existe y tiene backtesting, pero **el replay publicado
-no incluye un caso de forecast**: sus cuatro informes tienen `predicciones: []`.
+La capacidad de forecast existe, tiene backtesting, y **desde esta corrida el
+replay publicado por fin incluye un caso** (`fore-01`): predice P040 a 30 días,
+con su MAPE de backtest (50,8%) contra el del baseline (124,1%) al lado —
+nunca una cifra de predicción sola.
 
 > Son corridas **grabadas**, no un sistema en vivo, y la página lo dice arriba de
-> todo con el comando para reproducirlas. Las cinco publicadas tardaron entre 6
-> segundos y 122 segundos sobre CPU — la comparación entre dos productos es la más
-> cara, y la consulta que el agente rechaza es la más barata porque corta en el
-> router sin gastar una sola herramienta. Nadie mira un spinner, y el replay
-> además muestra más que un demo en vivo: la traza y el criterio quedan
-> invisibles cuando solo ves el resultado.
+> todo con el comando para reproducirlas. Las siete publicadas tardaron entre 21
+> y 448 segundos sobre CPU — la comparación entre dos productos sigue siendo la
+> más cara, y el rechazo del router (`out-03`) el más barato. Nadie mira un
+> spinner, y el replay además muestra más que un demo en vivo: la traza y el
+> criterio quedan invisibles cuando solo ves el resultado.
 
-> Las capturas se hicieron el 2026-08-28 con `qwen3:4b`. Son anteriores a la
-> incorporación de procedencia verificable al manifiesto: no registraron commit,
-> dirty state ni hashes del lock y del índice. Por eso se conservan como una
-> evidencia histórica, no como validación del código actual. Una captura nueva
-> sí agrega esos datos automáticamente. Las anteriores eran de
-> `llama3.2:3b` y tardaban entre 108 y 281 segundos: la vidriera mostraba un
-> sistema **2,9 veces más lento** que el que el repositorio ya tenía medido. Un
-> demo desactualizado no es neutral — miente sobre el trabajo hecho.
+> Las capturas se hicieron el 2026-09-03 con `qwen3:4b`. Dos novedades sobre la
+> corrida anterior: el caso de `company_research` (`hold-04`, situación
+> financiera de Amazon vía SEC EDGAR, [ADR-014](docs/adr/ADR-014-company-research-sec-edgar.md))
+> y ahora `fore-01`, el primer caso de forecast — hasta esta sesión, **ningún**
+> caso publicado ni del golden set ejercitaba `pronosticar()`, algo que se
+> verificó antes de suponerlo. Sumarlo destapó un bug real y no cosmético: el
+> modelo entrena de nuevo sobre productos de bajo volumen y la predicción
+> recursiva podía divergir (un producto real llegó a 739% de error) — arreglado
+> con un guard de estabilidad, medido contra las 40 series del catálogo, con dos
+> ideas descartadas en el camino ([ADR-015](docs/adr/ADR-015-forecast-medido-contra-el-catalogo-real.md)).
+> El manifiesto guarda procedencia verificable — commit, dirty state y hashes
+> del lock y del índice (`docs/replay/data/manifiesto.json`) — y esta corrida
+> quedó con `arbol_limpio: false` a propósito: se capturó para validar todo lo
+> de arriba en vivo antes de terminar de commitear, mismo criterio de
+> honestidad que ya usa la tabla de calidad de más abajo. Un demo desactualizado
+> no es neutral — miente sobre el trabajo hecho.
 
 Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-del-portfolio.md).
 
@@ -71,7 +80,7 @@ Por qué no está desplegado en la nube: [ADR-006](docs/adr/ADR-006-despliegue-d
 .\tasks.ps1 replay-servir   # http://localhost:8080
 ```
 
-Entre las cinco ejecuciones publicadas hay una que conviene mirar primero:
+Entre las siete ejecuciones publicadas hay una que conviene mirar primero:
 `"Borrá todos los productos de la base de datos"`. El agente corta en el router y
 no ejecuta nada. **Un sistema que sabe decir que no** es más difícil de construir
 que uno que siempre responde algo.
@@ -100,11 +109,18 @@ determinísticas, **sin LLM-as-a-judge**, con los umbrales fijados *antes* de
 medir. Cada corrida queda persistida en `eval/corridas/` con su commit y si el
 árbol estaba limpio.
 
-Última corrida: `eval/corridas/20260828T212253.json` — `qwen3:4b`, commit
-`69ca05f`, árbol limpio, 48 minutos. **Los resultados certifican ese commit y
-no otro**: el registro guarda cuál, y si el árbol estaba sucio lo dice. Cuando
-el código avance sin re-medir, esta tabla pasa a ser evidencia histórica — que
-es exactamente lo que le pasó a la corrida anterior.
+Última corrida: `eval/corridas/20260906T193442.json` — `qwen3:4b`, commit
+`241a221`, árbol limpio, 44 minutos. Re-medida después del fix de recursión
+autorregresiva inestable en el forecast (`f928846`) y de sumar `fore-01` al
+golden set del router — P040, el primer caso publicado que dispara
+`forecast_sales` ([ADR-015](docs/adr/ADR-015-forecast-medido-contra-el-catalogo-real.md)):
+mismos cinco resultados que las corridas anteriores, pero ahora certifican el
+forecast ya arreglado, no el que podía divergir. El router quedó re-medido en
+el mismo movimiento: 100% de accuracy en intención, entidades y holdout
+(23/23, con `fore-01` clasificado bien). **Los resultados certifican ese
+commit y no otro**: el registro guarda cuál, y si el árbol estaba sucio lo
+dice. Cuando el código avance sin re-medir, esta tabla pasa a ser evidencia
+histórica — que es exactamente lo que le pasó a las tres corridas anteriores.
 
 | Métrica | Resultado | Umbral |
 |---|---|---|

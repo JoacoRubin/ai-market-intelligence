@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { listarProductos } from "../api/client";
+import { SelectorProductos } from "./SelectorProductos";
 import type { Producto, SolicitudAnalisis } from "../api/types";
 
 interface Props {
@@ -83,31 +84,6 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
     setSeleccionados((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   }
 
-  /** El catálogo real tiene 40 productos en solo 8 empresas — una lista
-   * plana repite el nombre cuarenta veces y no distingue nada. Agrupar
-   * convierte esa repetición en estructura (un `<fieldset>` por empresa, el
-   * nombre aparece UNA vez como `<legend>`) y deja lugar en cada fila para
-   * un dato que sí varía: la categoría. `<fieldset>`/`<legend>` es además la
-   * forma semánticamente correcta de agrupar checkboxes — un lector de
-   * pantalla anuncia el contexto del grupo, cosa que la lista plana anterior
-   * no daba.
-   *
-   * El campo de la API sigue llamándose `brand` (`apps/api/schemas.py`,
-   * `seeds/generate.py::MARCAS`) — quien mire la respuesta cruda de
-   * `/products` lo va a ver así. Acá se llama "empresa" porque es como el
-   * negocio lo piensa: son las compañías que venden en la plataforma, no
-   * sub-marcas de un solo dueño. Es una decisión de producto, no un error
-   * de nomenclatura del backend. */
-  const gruposPorEmpresa = useMemo(() => {
-    const mapa = new Map<string, Producto[]>();
-    for (const p of productos) {
-      const lista = mapa.get(p.brand);
-      if (lista) lista.push(p);
-      else mapa.set(p.brand, [p]);
-    }
-    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b, "es"));
-  }, [productos]);
-
   /** Patrón WAI-ARIA APG de pestañas completo, no a medias: `role="tab"`
    * promete flechas + Home/End, y hasta esta iteración el componente
    * declaraba el rol sin implementar el teclado — peor que no declararlo.
@@ -127,6 +103,26 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
   }
 
   const todosLosErrores = [...erroresLocales, ...(errores ?? [])];
+
+  /** El CTA contextualizado solo aplica a "estructurada": en lenguaje
+   * natural la consulta ya es lo que se va a ejecutar, no hay nada que
+   * resumir aparte. Sin selección, deshabilitado — visual, no solo en el
+   * submit: `validar()` ya lo bloquea al enviar, pero un botón habilitado
+   * que rebota con un error es peor experiencia que uno que nunca invita a
+   * apretarlo sin nada elegido. */
+  const sinSeleccion = forma === "estructurada" && seleccionados.length === 0;
+  const etiquetaCTA =
+    forma === "estructurada" && seleccionados.length > 0
+      ? `Comparar ${seleccionados.length} producto${seleccionados.length !== 1 ? "s" : ""}`
+      : "Lanzar análisis";
+  const subtituloCTA =
+    forma === "estructurada" && seleccionados.length > 0
+      ? seleccionados
+          .map((id) => productos.find((p) => p.id === id))
+          .filter((p): p is Producto => p !== undefined)
+          .map((p) => `${p.brand} ${p.id}`)
+          .join(" vs ")
+      : null;
 
   return (
     <form className="solicitud" onSubmit={manejarEnvio}>
@@ -185,28 +181,12 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
           aria-labelledby="tab-estructurada"
           tabIndex={0}
         >
-          <label className="etiqueta">
-            Productos por empresa ({seleccionados.length}/{MAX_PRODUCTOS})
-          </label>
-          <div className="solicitud__productos">
-            {productos.length === 0 && <p className="nota">Cargando catálogo…</p>}
-            {gruposPorEmpresa.map(([empresa, items]) => (
-              <fieldset key={empresa} className="solicitud__empresa">
-                <legend className="etiqueta">{empresa}</legend>
-                {items.map((p) => (
-                  <label key={p.id} className="solicitud__producto">
-                    <input
-                      type="checkbox"
-                      checked={seleccionados.includes(p.id)}
-                      onChange={() => alternarProducto(p.id)}
-                    />
-                    <span className="mono">{p.id}</span>
-                    <span className="solicitud__producto-categoria">{p.category}</span>
-                  </label>
-                ))}
-              </fieldset>
-            ))}
-          </div>
+          <SelectorProductos
+            productos={productos}
+            seleccionados={seleccionados}
+            onAlternar={alternarProducto}
+            max={MAX_PRODUCTOS}
+          />
           <div className="solicitud__rango">
             <label>
               <span className="etiqueta">Desde</span>
@@ -232,9 +212,40 @@ export function SolicitudForm({ enviando, errores, onEnviar }: Props) {
         </ul>
       )}
 
-      <button type="submit" className="boton boton--primario" disabled={enviando}>
-        {enviando ? "Enviando…" : "Lanzar análisis"}
-      </button>
+      <div className="cta-envio">
+        <button
+          type="submit"
+          className="boton boton--primario"
+          disabled={enviando || sinSeleccion}
+        >
+          {enviando ? (
+            <>
+              {/* Spinner por CSS, no una lib de íconos — un div con
+                  border-top distinto ya alcanza y no agrega dependencia. */}
+              <span className="spinner" aria-hidden="true" />
+              Enviando…
+            </>
+          ) : (
+            <>
+              {/* Rayo, no un ícono genérico de "play": comunica "dispara al
+                  agente" sin depender de una librería de íconos por un solo
+                  glyph. */}
+              <svg
+                className="boton__icono"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M13 2 3 14h7l-1 8 11-14h-7z" />
+              </svg>
+              {etiquetaCTA}
+            </>
+          )}
+        </button>
+        {subtituloCTA && !enviando && <p className="cta-envio__subtitulo mono">{subtituloCTA}</p>}
+      </div>
     </form>
   );
 }
