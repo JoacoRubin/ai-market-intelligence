@@ -9,6 +9,18 @@ on:
   pull_request:
     branches: [master]
 
+# Principio de menor privilegio para el GITHUB_TOKEN. Sin este bloque el token
+# hereda lo que esté configurado en Settings -> Actions -> Workflow permissions,
+# que en repos creados antes del cambio de default de GitHub es read-and-write
+# sobre TODOS los scopes.
+#
+# Este workflow solo lee el código y corre tests: no pushea, no publica
+# releases, no comenta PRs. Declarar `contents: read` acá deja el resto de los
+# scopes en `none`, así que una dependencia comprometida o un paso que ejecute
+# código de la rama no tendría con qué escribir en el repositorio.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -99,12 +111,27 @@ jobs:
 
   guardrails-db:
     runs-on: ubuntu-latest
+
+    # Las contraseñas ya NO están escritas acá. Se toman de los secretos del
+    # repositorio y, si no existen, se derivan de la corrida: `run_id` y
+    # `run_attempt` son únicos por ejecución, así que cada corrida usa una
+    # contraseña distinta que no vale en ninguna otra parte.
+    #
+    # Por qué el fallback y no exigir el secreto: `services:` arranca ANTES
+    # que cualquier step, así que un secreto faltante no se puede detectar y
+    # avisar — el container simplemente no levanta y el job muere con un error
+    # de conexión que no dice cuál es el problema real. El fallback mantiene el
+    # CI verde sin que ninguna credencial quede versionada.
+    #
+    # El sufijo `_aB!` cumple la política de complejidad de SQL Server
+    # (mayúscula, minúscula, dígito y símbolo), que el motor exige para `sa`
+    # aunque el resto se genere solo.
     env:
       MSSQL_SERVER: localhost,1433
       MSSQL_DB: ami
-      MSSQL_SA_PASSWORD: Dev_CI_Only_2026!
+      MSSQL_SA_PASSWORD: ${{ secrets.CI_MSSQL_SA_PASSWORD || format('Ci_{0}_{1}_aB!', github.run_id, github.run_attempt) }}
       MSSQL_APP_USER: ami_reader
-      MSSQL_APP_PASSWORD: Reader_Local_2026!
+      MSSQL_APP_PASSWORD: ${{ secrets.CI_MSSQL_APP_PASSWORD || format('Rd_{0}_{1}_aB!', github.run_id, github.run_attempt) }}
 
     services:
       sqlserver:
@@ -112,11 +139,11 @@ jobs:
         env:
           ACCEPT_EULA: Y
           MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: Dev_CI_Only_2026!
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_MSSQL_SA_PASSWORD || format('Ci_{0}_{1}_aB!', github.run_id, github.run_attempt) }}
         ports:
           - 127.0.0.1:1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Dev_CI_Only_2026!' -C -Q 'SELECT 1' || exit 1"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${{ secrets.CI_MSSQL_SA_PASSWORD || format('Ci_{0}_{1}_aB!', github.run_id, github.run_attempt) }}' -C -Q 'SELECT 1' || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
@@ -160,7 +187,12 @@ jobs:
           docker cp infra/sql/01_schema.sql "${SQL_CONTAINER}:/tmp/01_schema.sql"
           docker cp infra/sql/02_readonly_user.sql "${SQL_CONTAINER}:/tmp/02_readonly_user.sql"
           docker exec "${SQL_CONTAINER}" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -i /tmp/01_schema.sql
-          docker exec "${SQL_CONTAINER}" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -i /tmp/02_readonly_user.sql
+          # -v APP_PASSWORD: el script ya no trae la contraseña adentro.
+          # -b: aborta con exit code != 0 si la variable falta, en vez de
+          # seguir y dejar el job rojo recién en el test de guardrails.
+          docker exec "${SQL_CONTAINER}" \
+            /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b \
+            -v APP_PASSWORD="$MSSQL_APP_PASSWORD" -i /tmp/02_readonly_user.sql
 
       - name: Guardrails de permisos SQL
         run: uv run pytest tests/test_db_guardrails.py -m db -q

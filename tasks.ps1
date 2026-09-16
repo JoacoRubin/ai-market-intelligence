@@ -92,6 +92,20 @@ function Require-SaPassword {
     }
 }
 
+function Require-AppPassword {
+    # `db-init` crea el login read-only con esta contraseña. Antes vivía dentro
+    # de 02_readonly_user.sql; ahora entra como variable de sqlcmd, así que si
+    # falta hay que decirlo ACÁ y no dejar que sqlcmd falle con
+    # "variable not defined", que no explica de dónde tiene que salir.
+    if ([string]::IsNullOrWhiteSpace($env:MSSQL_APP_PASSWORD)) {
+        Write-Host "  MSSQL_APP_PASSWORD no está definida en el proceso ni en .env." `
+            -ForegroundColor Red
+        Write-Host "  Copiá env.example a .env, o definila en esta consola." `
+            -ForegroundColor Yellow
+        exit 1
+    }
+}
+
 function Require-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Host "  No se encontró docker en PATH." -ForegroundColor Red
@@ -234,12 +248,17 @@ switch ($Tarea.ToLower()) {
         Require-Docker
         Import-ProjectEnv
         Require-SaPassword
+        Require-AppPassword
         Titulo "Creando esquema y usuario read-only"
         $env:MSYS_NO_PATHCONV = "1"
         docker exec ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -i /scripts/01_schema.sql
+            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -b -i /scripts/01_schema.sql
+        # -v APP_PASSWORD: la contraseña del login read-only ya no está escrita
+        # en el .sql. -b: exit code != 0 si algo falla, para que un error no
+        # quede sepultado en la salida de sqlcmd.
         docker exec ami-sqlserver /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -i /scripts/02_readonly_user.sql
+            -S localhost -U sa -P $env:MSSQL_SA_PASSWORD -C -b `
+            -v APP_PASSWORD="$env:MSSQL_APP_PASSWORD" -i /scripts/02_readonly_user.sql
     }
 
     "db-down" {

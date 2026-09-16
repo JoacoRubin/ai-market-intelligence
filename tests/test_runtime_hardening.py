@@ -121,3 +121,82 @@ def test_admin_requiere_credencial_explicita(
 
     with pytest.raises(RuntimeError, match="MSSQL_SA_PASSWORD no está definida"):
         db.conectar_admin()
+
+
+# --- secretos fuera de la configuración versionada ---------------------------
+#
+# Mismo criterio que el resto de este archivo: se inspecciona configuración como
+# TEXTO. No hace falta un daemon de Docker ni una corrida de Actions, y una
+# credencial que vuelva a aparecer rompe el test en el commit que la introduce
+# —no seis meses después, cuando alguien audite el repo.
+
+CREDENCIALES_QUE_NO_DEBEN_VOLVER = (
+    "Reader_Local_2026!",
+    "Dev_Local_2026!",
+    "Dev_CI_Only_2026!",
+)
+
+
+def test_el_compose_no_trae_credenciales_por_defecto() -> None:
+    """`:-` daba un arranque silencioso con una contraseña versionada.
+
+    Con `:?` el stack falla y dice qué falta. Un sistema que levanta con una
+    credencial que cualquiera que leyó el repo conoce es peor que uno que no
+    levanta: el segundo se arregla en dos minutos, el primero no se nota.
+    """
+    compose = (RAIZ / "docker-compose.yml").read_text(encoding="utf-8")
+
+    for credencial in CREDENCIALES_QUE_NO_DEBEN_VOLVER:
+        assert credencial not in compose
+
+    assert "${MSSQL_SA_PASSWORD:?" in compose
+    assert "${MSSQL_APP_PASSWORD:?" in compose
+
+
+def test_el_script_del_usuario_readonly_no_trae_la_password_adentro() -> None:
+    """La contraseña entra por `-v APP_PASSWORD`, no versionada en el .sql."""
+    script = (RAIZ / "infra" / "sql" / "02_readonly_user.sql").read_text(
+        encoding="utf-8"
+    )
+
+    for credencial in CREDENCIALES_QUE_NO_DEBEN_VOLVER:
+        assert credencial not in script
+
+    assert "$(APP_PASSWORD)" in script
+    # Sin `:setvar` con default: si la variable no se pasa, sqlcmd aborta en vez
+    # de crear el login con un valor de relleno.
+    assert ":setvar APP_PASSWORD" not in script
+
+
+def test_el_workflow_de_ci_no_trae_credenciales_literales() -> None:
+    ci = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    for credencial in CREDENCIALES_QUE_NO_DEBEN_VOLVER:
+        assert credencial not in ci
+
+    assert "secrets.CI_MSSQL_SA_PASSWORD" in ci
+    assert "secrets.CI_MSSQL_APP_PASSWORD" in ci
+
+
+def test_el_workflow_de_ci_declara_permisos_minimos() -> None:
+    """Sin este bloque el GITHUB_TOKEN hereda lo que diga la config del repo.
+
+    En repositorios creados antes del cambio de default de GitHub eso es
+    read-and-write sobre todos los scopes, para un workflow que solo lee el
+    código y corre tests.
+    """
+    ci = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "\npermissions:\n  contents: read\n" in ci
+
+
+def test_el_workflow_de_ci_no_usa_pull_request_target() -> None:
+    """El disparador que corre con el token del repo base sobre código ajeno.
+
+    Combinado con un checkout de la rama del PR es la vía clásica de
+    exfiltración de secretos en Actions. Hoy no se usa; este test lo mantiene
+    así.
+    """
+    ci = (RAIZ / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "pull_request_target:" not in ci

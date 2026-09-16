@@ -22,13 +22,34 @@
    existe.
    ============================================================================ */
 
+/* La contraseña NO está escrita en este archivo: entra como variable de
+   sqlcmd y sale del entorno de quien corre el script.
+
+       sqlcmd ... -v APP_PASSWORD="$env:MSSQL_APP_PASSWORD" -i 02_readonly_user.sql
+
+   `:setvar` NO define un valor por defecto acá a propósito. Si la variable no
+   se pasa, sqlcmd aborta con "variable not defined" y el usuario no se crea —
+   que es mejor que crearlo con una contraseña conocida y versionada, como
+   pasaba antes. Un script que se completa con una credencial pública es peor
+   que uno que falla.
+
+   `-b` en la invocación hace que ese fallo devuelva un exit code distinto de
+   cero, para que no pase inadvertido en un pipeline. */
+:on error exit
+GO
+
 USE master;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.sql_logins WHERE name = 'ami_reader')
 BEGIN
+    /* CHECK_POLICY se deja en OFF de forma deliberada y acotada: este login
+       existe solo en bases locales y efímeras (desarrollo y el job de CI), y
+       la política de Windows rechazaría contraseñas generadas por corrida.
+       No aplica a ningún entorno persistente — si alguna vez lo hiciera, esta
+       línea es lo primero que hay que sacar. */
     CREATE LOGIN ami_reader
-        WITH PASSWORD = 'Reader_Local_2026!',
+        WITH PASSWORD = '$(APP_PASSWORD)',
              CHECK_POLICY = OFF,
              DEFAULT_DATABASE = ami;
 END

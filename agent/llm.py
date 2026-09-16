@@ -29,6 +29,32 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 TIMEOUT_SEGUNDOS = 300
 
+# Reintentos del transporte contra Ollama. Deliberadamente chico: con una
+# corrida de 60 a 120 segundos, tres intentos pueden ser seis minutos, y el
+# objetivo NO es insistir hasta que salga — es sobrevivir al fallo transitorio
+# que sí existe en la práctica.
+#
+# El caso medido es el arranque: Ollama descarga el modelo a memoria en la
+# primera consulta después de estar ocioso, y mientras tanto la conexión puede
+# cortarse. Un reintento tapa eso; tres no tapan nada más y solo alargan la
+# espera cuando el servicio está realmente caído.
+#
+# NO se agrega `tenacity` para esto. Es la misma disciplina que ya declara
+# core/edgar.py: una dependencia nueva tiene que ganarse el lugar, y un backoff
+# de cuatro líneas no lo justifica.
+MAX_INTENTOS_LLM = int(os.getenv("LLM_MAX_INTENTOS", "2"))
+ESPERA_BASE_REINTENTO_S = float(os.getenv("LLM_ESPERA_REINTENTO", "1.0"))
+
+# Qué se reintenta y qué no. Un timeout o una conexión cortada son transitorios
+# por definición. Un 4xx —modelo inexistente, payload mal formado— es un bug de
+# este código: reintentarlo es gastar minutos para obtener el mismo error.
+EXCEPCIONES_TRANSITORIAS = (
+    httpx.TimeoutException,
+    httpx.ConnectError,
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+)
+
 
 def ollama_responde(host: str = OLLAMA_HOST) -> bool:
     """Indica si hay un Ollama escuchando en `host`.
@@ -68,13 +94,36 @@ class ClienteOllama:
         self._host = host
 
     def _chat(self, payload: dict[str, Any]) -> dict[str, Any]:
-        r = httpx.post(f"{self._host}/api/chat", json=payload,
-                       timeout=TIMEOUT_SEGUNDOS)
-        r.raise_for_status()
-        # /api/chat siempre devuelve un objeto; la anotación deja escrita la
-        # suposición, que si no queda implícita en un `Any` que se propaga.
-        cuerpo: dict[str, Any] = r.json()
-        return cuerpo
+        """Una consulta al modelo, con reintento acotado ante fallo transitorio.
+
+        El backoff es exponencial y arranca en un segundo. No hay jitter a
+        propósito: acá hay UN cliente contra UN Ollama local, así que no existe
+        el estampido sincronizado que el jitter viene a evitar.
+
+        Un fallo que agota los intentos se propaga tal cual. Los nodos ya saben
+        degradar cuando el modelo no responde —el router cae a
+        `fuera_de_alcance`, el sintetizador arma el informe determinístico—, y
+        tragarse la excepción acá les sacaría la información que necesitan para
+        hacerlo.
+        """
+        ultimo: Exception | None = None
+        for intento in range(1, max(1, MAX_INTENTOS_LLM) + 1):
+            try:
+                r = httpx.post(f"{self._host}/api/chat", json=payload,
+                               timeout=TIMEOUT_SEGUNDOS)
+                r.raise_for_status()
+                # /api/chat siempre devuelve un objeto; la anotación deja escrita
+                # la suposición, que si no queda implícita en un `Any` que se
+                # propaga.
+                cuerpo: dict[str, Any] = r.json()
+                return cuerpo
+            except EXCEPCIONES_TRANSITORIAS as e:
+                ultimo = e
+                if intento >= max(1, MAX_INTENTOS_LLM):
+                    break
+                time.sleep(ESPERA_BASE_REINTENTO_S * (2 ** (intento - 1)))
+        assert ultimo is not None
+        raise ultimo
 
     # run_type="llm" es lo que hace que LangSmith dibuje esto como una llamada
     # a modelo (con su ícono propio) y no como una función genérica. Es el

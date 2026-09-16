@@ -34,6 +34,23 @@ TTL_RESULTADO_SEGUNDOS = 3600
 REINTENTOS_JOB = int(os.getenv("JOBS_RETRIES", "3"))
 INTERVALOS_REINTENTO_SEGUNDOS = [10, 30, 60]
 
+# Techo de análisis aceptados que todavía no terminaron. Por encima de este
+# número `POST /analyses` devuelve 429 en vez de encolar.
+#
+# Existe porque un análisis es CARO y ASIMÉTRICO: emitir el pedido cuesta un
+# request, atenderlo cuesta entre 70 y 95 segundos de CPU en el hardware de
+# referencia (ADR-003). Sin techo, un cliente —o un script con un bug— llena
+# la cola en segundos y deja al worker ocupado durante horas.
+#
+# El default de 10 no es arbitrario: con una corrida de ~90 s, diez análisis
+# son unos 15 minutos de trabajo pendiente. Más que eso ya no es una cola, es
+# una espera que nadie va a mirar.
+MAX_ANALISIS_EN_VUELO = int(os.getenv("MAX_ANALISIS_EN_VUELO", "10"))
+
+# Cuántos análisis recientes se miran para contar los que siguen en vuelo,
+# cuando el backend es `memoria`. Ver `analisis_en_vuelo`.
+VENTANA_CONTEO_EN_MEMORIA = 200
+
 
 def usa_redis() -> bool:
     """Indica si el despacho va a la cola de Redis.
@@ -73,6 +90,59 @@ def _crear_retry() -> Any:
         max=REINTENTOS_JOB,
         interval=INTERVALOS_REINTENTO_SEGUNDOS,
     )
+
+
+def analisis_en_vuelo(almacen: Any) -> int:
+    """Cuántos análisis fueron aceptados y todavía no terminaron.
+
+    Se cuenta distinto en cada backend porque cada uno tiene una primitiva
+    barata distinta, y forzar una sola implementación empeoraría las dos:
+
+    - **redis**: RQ ya sabe la profundidad de la cola y cuáles están corriendo.
+      Las dos son O(1) contra Redis, y son literalmente "lo encolado".
+    - **memoria**: no hay cola — el análisis corre en el proceso de la API con
+      `BackgroundTasks`. Lo que se cuenta es el estado persistido, sobre una
+      ventana acotada de los más recientes.
+
+    La ventana es deliberada: `listar` devuelve del más nuevo al más viejo, y
+    un análisis en vuelo siempre es reciente, así que mirar los primeros
+    doscientos los encuentra a todos en cualquier escenario realista. Si aun
+    así se quedara corto, el error es contar de MENOS y dejar pasar un pedido
+    —nunca rechazar uno legítimo—, que es la dirección correcta para
+    equivocarse en un control de admisión.
+    """
+    if usa_redis():
+        from rq.registry import StartedJobRegistry
+
+        cola = obtener_cola()
+        return len(cola) + len(StartedJobRegistry(queue=cola))
+
+    from application.models import EstadoAnalisis
+
+    _, recientes = almacen.listar(limite=VENTANA_CONTEO_EN_MEMORIA, offset=0)
+    return sum(
+        1 for a in recientes
+        if a.estado in (EstadoAnalisis.PENDIENTE, EstadoAnalisis.PROCESANDO)
+    )
+
+
+def hay_capacidad(almacen: Any, maximo: int = MAX_ANALISIS_EN_VUELO) -> bool:
+    """Indica si se puede aceptar un análisis más.
+
+    Un `maximo` de 0 o negativo desactiva el control, para que un entorno que
+    necesite ejecutar una tanda grande —el golden set, por ejemplo— no tenga
+    que tocar código. Se configura con `MAX_ANALISIS_EN_VUELO`.
+    """
+    if maximo <= 0:
+        return True
+    try:
+        return analisis_en_vuelo(almacen) < maximo
+    except Exception:
+        # Un fallo contando NO puede volverse un fallo sirviendo. Si Redis no
+        # responde, el despacho de abajo va a fallar igual y con un error que
+        # describe el problema real; rechazar acá con un 429 diría "estoy
+        # ocupado" sobre un sistema que en realidad está caído.
+        return True
 
 
 def despachar(analysis_id: str, tareas: Any, cliente: Any, almacen: Any) -> str:

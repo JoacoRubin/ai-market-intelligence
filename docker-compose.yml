@@ -4,7 +4,12 @@ services:
     container_name: ami-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Dev_Local_2026!}
+      # `:?` y no `:-`: sin .env el stack NO levanta con una credencial
+      # conocida, falla con este mensaje. Un arranque silencioso sobre una
+      # contraseña versionada parece una red de seguridad y es lo contrario —
+      # el sistema queda corriendo con una credencial que cualquiera que haya
+      # leído el repo conoce.
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?definí MSSQL_SA_PASSWORD en .env (copiá env.example)}
       # Developer es gratuita para desarrollo y test no productivo.
       MSSQL_PID: Developer
       MSSQL_COLLATION: SQL_Latin1_General_CP1_CI_AS
@@ -20,8 +25,12 @@ services:
       # problema de red cuando en realidad es una carrera de arranque.
       test:
         - CMD-SHELL
+        # `$$` escapa la interpolación de Compose: esto lo expande la shell
+        # DENTRO del container, donde MSSQL_SA_PASSWORD ya está en el entorno
+        # del servicio (ver `environment` arriba). Por eso no necesita default:
+        # si la variable no existiera, el servicio ni siquiera habría arrancado.
         - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa
-          -P "$${MSSQL_SA_PASSWORD:-Dev_Local_2026!}" -C -Q "SELECT 1" || exit 1
+          -P "$${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 5s
       retries: 12
@@ -53,7 +62,7 @@ services:
       MSSQL_SERVER: sqlserver,1433
       MSSQL_DB: "${MSSQL_DB:-ami}"
       MSSQL_APP_USER: "${MSSQL_APP_USER:-ami_reader}"
-      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:-Reader_Local_2026!}"
+      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:?definí MSSQL_APP_PASSWORD en .env (copiá env.example)}"
       # Ollama NO entra a este compose (ver README y ADR-010): es un
       # requisito de la máquina host, no un servicio del sistema.
       # host.docker.internal es cómo Docker expone el host al container.
@@ -134,7 +143,7 @@ services:
       MSSQL_SERVER: sqlserver,1433
       MSSQL_DB: "${MSSQL_DB:-ami}"
       MSSQL_APP_USER: "${MSSQL_APP_USER:-ami_reader}"
-      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:-Reader_Local_2026!}"
+      MSSQL_APP_PASSWORD: "${MSSQL_APP_PASSWORD:?definí MSSQL_APP_PASSWORD en .env (copiá env.example)}"
       OLLAMA_HOST: http://host.docker.internal:11434
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen3:4b}"
       LLM_BACKEND: "${LLM_BACKEND:-httpx}"

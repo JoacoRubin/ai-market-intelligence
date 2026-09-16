@@ -130,6 +130,33 @@ histórica — que es exactamente lo que le pasó a las tres corridas anteriores
 | `reporta_magnitudes_absolutas` | 100% (15/15) | 75% |
 | `usa_la_evidencia_documental` | 100% (15/15) | 90% |
 
+> **Re-medición sobre árbol de trabajo (2026-09-16):** después de `241a221` se
+> endurecieron el ejecutor del agente (una tool que revienta ya no tumba el
+> grafo — antes `product_metrics`, `search_documents` y `forecast_sales` no
+> tenían ni un `except`, a diferencia de `research_company`), el `EvidenceGate`
+> (distingue replanificar de rendirse cuando el fallo es de infraestructura, no
+> de datos), se persiste `groundedness` en el estado (el validador ya lo
+> calculaba y se descartaba), y se corrigieron ocho hallazgos de seguridad
+> (credenciales hardcodeadas, cadena ODBC sin escapar, `TrustServerCertificate`
+> incondicional, API sin autenticación ni límite de cola, secretos en CI y en
+> el script SQL). **Se volvió a correr el golden set completo contra este
+> código** — `eval/corridas/20260916T154820.json`, `qwen3:4b`, commit `d68cfe1`,
+> **árbol sucio** (los cambios de arriba estaban sin commitear en el momento de
+> la corrida) — y las cinco métricas dieron exactamente el mismo resultado que
+> la tabla de abajo: **100% en las cinco, 15/15 casos** (`no_invierte_el_
+> sentido_del_error` sobre 3/15, los únicos casos de proyección). El router
+> también se re-midió en el mismo movimiento: 100% intención, 100% entidades,
+> 100% holdout (23/23). La corrida tardó 34m52s — comparable a los ~44 minutos
+> de referencia, pese a competir por CPU con otros procesos de la máquina
+> durante buena parte de la corrida.
+>
+> El árbol sucio significa que esta corrida es evidencia de que los cambios
+> **no regresionaron nada**, no una recertificación formal de la tabla: la
+> disciplina del propio proyecto pide medir sobre un commit limpio para que
+> el registro pueda decir "esto certifica ese commit y no otro". Correr
+> `.\tasks.ps1 eval` una vez más después de commitear estos cambios convierte
+> esta re-medición en la certificación oficial.
+
 **Las cinco superan su umbral por primera vez.** Las dos que faltaban no se
 arreglaron bajando la vara:
 

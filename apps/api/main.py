@@ -21,12 +21,23 @@ los consumidores. Se fija ahora, mientras no cuesta nada.
 
 from __future__ import annotations
 
+import hmac
+import os
 import uuid
 from datetime import date, datetime
 from io import BytesIO
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Security,
+)
 from fastapi.responses import JSONResponse, Response
+from fastapi.security import APIKeyHeader
 
 from agent.llm import ClienteLLM, crear_cliente
 from apps.api.schemas import (
@@ -39,7 +50,7 @@ from apps.api.schemas import (
     SolicitudAnalisis,
 )
 from apps.api.store import almacen
-from apps.jobs.cola import despachar
+from apps.jobs.cola import MAX_ANALISIS_EN_VUELO, despachar, hay_capacidad
 from core.db import cursor_lectura, hay_base_disponible
 
 # En runtime, y no bajo `TYPE_CHECKING`. `metricas_de_un_producto` no declara
@@ -70,6 +81,51 @@ app = FastAPI(
         "consulta SQL; ningún número proviene de un modelo de lenguaje."
     ),
 )
+
+
+# --- credencial --------------------------------------------------------------
+
+NOMBRE_HEADER_CLAVE = "X-API-Key"
+
+# `auto_error=False`: sin esto FastAPI rechaza con 403 cuando el header falta,
+# antes de que este módulo pueda decidir si la clave hace falta. La decisión es
+# de `requiere_clave`, no del esquema.
+_esquema_clave = APIKeyHeader(name=NOMBRE_HEADER_CLAVE, auto_error=False)
+
+
+def requiere_clave(clave: str | None = Security(_esquema_clave)) -> None:
+    """Exige `X-API-Key` **solo si** `API_KEY` está configurada.
+
+    Con `API_KEY` sin definir la API se comporta exactamente como antes: es el
+    modo local, donde el único control es el bind a `127.0.0.1` del compose y
+    agregar una credencial obligatoria solo rompería `tasks.ps1`, la suite y el
+    dashboard sin proteger nada que ya no esté protegido.
+
+    En cuanto la variable existe, el control es real y aplica a todo lo que no
+    sea un health check. Los health quedan afuera a propósito: el `HEALTHCHECK`
+    del Dockerfile le pega a `/health` sin credencial, y pedírsela dejaría el
+    container `unhealthy` para siempre.
+
+    La comparación es de tiempo constante. Un `==` sobre un secreto filtra por
+    cuánto tarda en fallar cuántos caracteres del prefijo eran correctos, y
+    escribir la versión insegura acá invita a copiarla a un lugar donde sí
+    importe.
+    """
+    esperada = os.getenv("API_KEY", "").strip()
+    if not esperada:
+        return
+    if clave is None or not hmac.compare_digest(clave, esperada):
+        raise HTTPException(
+            401,
+            f"credencial inválida o ausente: se espera el header {NOMBRE_HEADER_CLAVE}",
+        )
+
+
+# Se declara ruta por ruta y no como dependencia global de la app: una global
+# alcanzaría también a los health, y la excepción quedaría escondida en un
+# `if` sobre el path. Así la asimetría se ve en el decorador de cada endpoint
+# —mismo criterio que `core/db.py` con las dos conexiones.
+PROTEGIDO = [Depends(requiere_clave)]
 
 
 # --- helpers -----------------------------------------------------------------
@@ -143,7 +199,8 @@ def salud() -> Salud:
 
 # --- recurso: products -------------------------------------------------------
 
-@app.get("/products", response_model=ListaProductos, tags=["productos"])
+@app.get("/products", response_model=ListaProductos, tags=["productos"],
+         dependencies=PROTEGIDO)
 def listar_productos(
     limite: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -171,7 +228,8 @@ def listar_productos(
     )
 
 
-@app.get("/products/{product_id}", response_model=Producto, tags=["productos"])
+@app.get("/products/{product_id}", response_model=Producto, tags=["productos"],
+         dependencies=PROTEGIDO)
 def obtener_producto(product_id: str) -> Producto:
     with cursor_lectura() as cur:
         fila = cur.execute(
@@ -184,7 +242,8 @@ def obtener_producto(product_id: str) -> Producto:
                     price=float(fila[3]), cost=float(fila[4]), launch_date=fila[5])
 
 
-@app.get("/products/{product_id}/metrics", tags=["productos"])
+@app.get("/products/{product_id}/metrics", tags=["productos"],
+         dependencies=PROTEGIDO)
 def metricas_de_un_producto(
     product_id: str,
     rango: tuple[date, date] = Depends(rango_validado),
@@ -217,7 +276,9 @@ def obtener_cliente_llm() -> ClienteLLM:
 # hacerlo. Lo que queda en este módulo es lo que atiende HTTP.
 
 
-@app.post("/analyses", response_model=Analisis, status_code=202, tags=["análisis"])
+@app.post("/analyses", response_model=Analisis, status_code=202, tags=["análisis"],
+          dependencies=PROTEGIDO,
+          responses={429: {"description": "Demasiados análisis sin terminar"}})
 def crear_analisis(
     solicitud: SolicitudAnalisis,
     tareas: BackgroundTasks,
@@ -235,6 +296,20 @@ def crear_analisis(
     # verificador de tipos no puede leerlo. Se liga a una variable local para
     # que la garantía quede escrita donde se usa: si algún día el validador
     # cambia, esto falla acá y no con un AttributeError en producción.
+    # Control de admisión ANTES de validar productos y de crear el recurso: si
+    # el sistema no tiene capacidad, no tiene sentido gastar consultas a la base
+    # ni dejar un análisis pendiente que nadie va a poder atender.
+    #
+    # 429 y no 503: el servicio está sano, lo que falta es capacidad ahora. Un
+    # 503 le diría al cliente que el sistema está caído y que reintente contra
+    # otro lado; un 429 le dice la verdad — esperá y volvé a pedir.
+    if not hay_capacidad(almacen):
+        raise HTTPException(
+            429,
+            f"hay {MAX_ANALISIS_EN_VUELO} análisis o más sin terminar. "
+            "Esperá a que la cola se vacíe y reintentá.",
+        )
+
     product_ids = solicitud.product_ids
     if product_ids:
         faltantes = [p for p in product_ids if not _producto_existe(p)]
@@ -270,7 +345,8 @@ def crear_analisis(
     return registro
 
 
-@app.get("/analyses", response_model=ListaAnalisis, tags=["análisis"])
+@app.get("/analyses", response_model=ListaAnalisis, tags=["análisis"],
+         dependencies=PROTEGIDO)
 def listar_analisis(
     limite: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)
 ) -> ListaAnalisis:
@@ -308,7 +384,7 @@ def _pdf_de(registro: Analisis) -> Response:
 
 # La ruta con extensión se declara ANTES que la genérica: si no, `{analysis_id}`
 # capturaría "abc.pdf" como un id y nunca llegaría acá.
-@app.get("/analyses/{analysis_id}.pdf", tags=["análisis"],
+@app.get("/analyses/{analysis_id}.pdf", tags=["análisis"], dependencies=PROTEGIDO,
          response_class=Response, responses={200: {"content": {"application/pdf": {}}}})
 def descargar_pdf(analysis_id: str) -> Response:
     """Atajo por extensión.
@@ -320,7 +396,7 @@ def descargar_pdf(analysis_id: str) -> Response:
     return _pdf_de(_obtener_o_404(analysis_id))
 
 
-@app.get("/analyses/{analysis_id}", tags=["análisis"],
+@app.get("/analyses/{analysis_id}", tags=["análisis"], dependencies=PROTEGIDO,
          responses={200: {"content": {"application/json": {},
                                       "application/pdf": {}}}})
 def obtener_analisis(analysis_id: str, request: Request) -> Response:
@@ -343,7 +419,8 @@ def obtener_analisis(analysis_id: str, request: Request) -> Response:
     )
 
 
-@app.delete("/analyses/{analysis_id}", status_code=204, tags=["análisis"])
+@app.delete("/analyses/{analysis_id}", status_code=204, tags=["análisis"],
+            dependencies=PROTEGIDO)
 def eliminar_analisis(analysis_id: str) -> Response:
     if not almacen.eliminar(analysis_id):
         raise HTTPException(404, f"no existe el análisis {analysis_id}")

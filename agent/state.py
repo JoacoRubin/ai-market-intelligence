@@ -97,6 +97,11 @@ class AnalysisState(BaseModel):
     ya_ejecutado: bool = False
     resultados_tools: dict[str, Any] = Field(default_factory=dict)
     evidencia: list[dict[str, Any]] = Field(default_factory=list)
+    # Tools que levantaron una excepción en esta corrida. Es distinto de "no
+    # devolvió nada": una tool que devuelve vacío puede devolver algo con otro
+    # plan, una que revienta por la base caída va a reventar igual. El
+    # EvidenceGate usa esa diferencia para no replanificar al pedo.
+    tools_fallidas: list[str] = Field(default_factory=list)
 
     # --- presupuesto ---
     reintentos: int = 0
@@ -109,6 +114,16 @@ class AnalysisState(BaseModel):
     advertencias: list[str] = Field(default_factory=list)
     trace: list[PasoTrace] = Field(default_factory=list)
     error: str | None = None
+    # Qué proporción de las afirmaciones CON CIFRAS superó la validación.
+    #
+    # El validador ya lo medía y el grafo lo descartaba: `validar_informe`
+    # devuelve `ResultadoValidacion(groundedness=...)` y `nodo_validator` se
+    # quedaba solo con el informe. La métrica que dice qué tan respaldado está
+    # lo que se entrega existía y no llegaba a ningún lado.
+    #
+    # `None` mientras el validador no corrió, que es distinto de 0.0 — "no se
+    # midió" y "se midió y dio pésimo" no pueden verse igual.
+    groundedness: float | None = None
 
     # --- presupuesto de herramientas ------------------------------------
 
@@ -157,6 +172,30 @@ class AnalysisState(BaseModel):
         encuentra algo para decir.
         """
         return any(bool(r) for r in self.resultados_tools.values())
+
+    def replanificar_puede_ayudar(self) -> bool:
+        """¿Tiene sentido volver a planificar, o el problema es de otra capa?
+
+        Replanificar sirve cuando la tool CORRIÓ y no encontró nada: con otro
+        período, otro producto u otra herramienta puede aparecer evidencia.
+
+        No sirve cuando la tool REVENTÓ. Si SQL Server está caído, el segundo
+        plan va a pedirle lo mismo a la misma base caída y fallar igual — solo
+        que habiendo gastado otra vuelta de planner y ejecutor, que en CPU son
+        segundos reales por iteración.
+
+        Esa distinción no existía: el gate solo miraba si había resultados, así
+        que una base caída producía dos replanificaciones inútiles antes de
+        rendirse. El informe final era el mismo; lo que cambiaba era cuánto
+        tardaba en llegar.
+
+        El criterio es conservador a propósito: solo se corta si TODOS los pasos
+        del plan fallaron. Con un fallo parcial el replan puede conseguir lo que
+        falta, y cortar ahí sería perder un intento legítimo.
+        """
+        if not self.plan or not self.tools_fallidas:
+            return True
+        return not all(str(p.tool) in self.tools_fallidas for p in self.plan)
 
     # --- trazabilidad ---------------------------------------------------
 

@@ -85,6 +85,12 @@ def construir_grafo(
                                     state.evidencia)
         state.informe = resultado.informe
         state.advertencias = list(state.informe.advertencias)
+        # `groundedness` se calculaba acá y se tiraba. Es la única medida de
+        # cuánto de lo que se entrega está respaldado por las herramientas, y
+        # sin persistirla el eval y el replay no tenían de dónde leerla —
+        # quedaba solo el texto de las advertencias, que dice QUÉ se descartó
+        # pero no sobre cuánto.
+        state.groundedness = resultado.groundedness
         return state
 
     # --- ramas condicionales ---
@@ -112,7 +118,12 @@ def construir_grafo(
         """
         if estado.hay_evidencia_suficiente():
             return "sintetizar"
-        if estado.puede_reintentar():
+        # `replanificar_puede_ayudar` distingue "la tool no encontró nada" de
+        # "la tool reventó". Lo primero puede cambiar con otro plan; lo segundo
+        # no: si la base está caída, el segundo plan le pide lo mismo a la
+        # misma base caída. Sin esta pregunta el grafo gastaba sus dos
+        # reintentos para llegar al mismo informe, solo que más tarde.
+        if estado.puede_reintentar() and estado.replanificar_puede_ayudar():
             return "replanificar"
         # Agotados los intentos, el sintetizador deja constancia de que no hubo
         # datos. Cortar en seco dejaría al usuario sin ninguna explicación.
