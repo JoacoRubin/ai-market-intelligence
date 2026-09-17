@@ -179,3 +179,29 @@ def test_conftest_carga_el_env_para_pytest_invocado_directo() -> None:
         "conftest no carga .env: correr pytest fuera de tasks.ps1 falla por "
         "variables de entorno ausentes"
     )
+
+
+def test_las_tareas_que_tocan_la_base_cargan_el_entorno() -> None:
+    """Regresión: `api` servía con la password read-only hardcodeada.
+
+    Mientras `conectar_lectura` tenía `"Reader_Local_2026!"` como valor por
+    defecto, estas tareas funcionaban sin cargar `.env` — el default tapaba la
+    omisión. Al exigir la variable (que es lo correcto), la API arrancaba y
+    respondía `estado: degradado` sobre una base que estaba perfectamente sana.
+
+    El síntoma es especialmente malo: el proceso levanta, `/health` contesta
+    200, y nada dice que el problema es una variable que nunca se leyó.
+
+    `rag-build` y `dataset` quedan afuera a propósito: generan corpus y dataset
+    sintéticos en memoria y no abren una conexión. `api-demo` también: habla
+    HTTP contra una API ya levantada, que es la que necesita las credenciales.
+    """
+    tasks = _leer("tasks.ps1")
+
+    for tarea in ("worker", "api", "agente", "replay", "demo"):
+        bloque = re.search(rf'^\s*"{tarea}"\s*\{{(.*?)^\s*\}}', tasks, re.M | re.S)
+        assert bloque is not None, f"no se encontró la tarea {tarea!r}"
+        assert "Import-ProjectEnv" in bloque.group(1), (
+            f"la tarea {tarea!r} ejecuta código que llega a core/db.py y no "
+            "carga el .env: va a fallar con MSSQL_APP_PASSWORD no definida"
+        )

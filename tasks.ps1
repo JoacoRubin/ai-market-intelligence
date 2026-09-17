@@ -341,6 +341,7 @@ services:
     }
 
     "worker" {
+        Import-ProjectEnv
         Titulo "Worker de analisis (Ctrl+C para detener)"
         # JOBS_BACKEND=redis solo para ESTA consola: el worker no tiene
         # sentido en el modo memoria, donde el analisis corre dentro de la
@@ -389,6 +390,7 @@ print(f'  terminados    {c.finished_job_registry.count}')
     }
 
     "api" {
+        Import-ProjectEnv
         Titulo "API en http://localhost:8000"
         Write-Host "  Documentacion interactiva: http://localhost:8000/docs" -ForegroundColor Green
         Write-Host "  Ctrl+C para detener"
@@ -412,6 +414,7 @@ print(f'  terminados    {c.finished_job_registry.count}')
     }
 
     "agente" {
+        Import-ProjectEnv
         Titulo "Agente completo con el modelo real (lento: minutos en CPU)"
         Invoke-Uv run python -m agent.demo @args
     }
@@ -451,6 +454,7 @@ print(f'  MLflow run    {resultado.run_id or "no disponible"}')
     }
 
     "replay" {
+        Import-ProjectEnv
         Titulo "Capturando ejecuciones para el replay estatico (lento: minutos)"
         Write-Host "  Requiere SQL Server levantado y Ollama respondiendo." -ForegroundColor Yellow
         Write-Host ""
@@ -507,6 +511,7 @@ print(ds['ground_truth'][['tipo','product_id','fecha']].to_string(index=False))
     }
 
     "demo" {
+        Import-ProjectEnv
         Titulo "Guardrails de seguridad en vivo"
         Invoke-Uv run python -m core.demo_guardrails
     }
