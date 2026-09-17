@@ -61,13 +61,27 @@ backend, serializers configurables y un vocabulario entero para resolver lo
 mismo. Es literalmente el criterio que fija ADR-001: **la arquitectura
 justifica el framework, no al revés.**
 
-**`SpawnWorker`, no el `Worker` por defecto.** El worker clásico de RQ hace
-`os.fork()` por job, y `fork()` no existe en Windows — la máquina de
-desarrollo de este proyecto. `SpawnWorker` usa `multiprocessing.spawn` y
-corre en los dos sistemas. Se usa **siempre**, no solo en Windows: un worker
-que se comporta distinto según el sistema operativo es uno que se prueba en
-un lado y se rompe en el otro. Cada job dura minutos, así que el costo extra
-de arrancar el proceso es ruido.
+**`SimpleWorker`, no el `Worker` por defecto — y no `SpawnWorker` tampoco.**
+El worker clásico de RQ hace `os.fork()` por job, y `fork()` no existe en
+Windows — la máquina de desarrollo de este proyecto. La elección original
+fue `SpawnWorker`, documentada acá como la que "corre en los dos sistemas".
+Esa afirmación no se había verificado corriendo el worker de verdad contra
+Windows, y era falsa: `SpawnWorker` de `rq==2.11.0` en Windows falla por dos
+vías independientes — el padre espera al hijo con `os.wait4()` (no existe en
+Windows) y el hijo se lanza con `os.spawnv()` pasándole el script inline,
+cuyo escapado de línea de comandos en Windows rompe el código fuente antes
+de que llegue a ejecutarse. El síntoma es silencioso: `POST /analyses` sigue
+devolviendo 202, y el análisis queda en `pendiente` para siempre. Detalle
+completo en `apps/jobs/worker.py`.
+
+Se pasó a `SimpleWorker`: corre el job en el mismo proceso del worker, sin
+fork ni spawn, así que ningún llamado POSIX-only queda en el camino. Sigue
+el mismo principio que ya motivaba la elección original — un worker que se
+comporta distinto según el sistema operativo es uno que se prueba en un
+lado y se rompe en el otro — solo que ahora el comportamiento común es sin
+aislamiento por proceso, no con él. Se pierde ese aislamiento a cambio de
+un worker que efectivamente corre en los dos sistemas, que es lo que esta
+sección siempre dijo buscar.
 
 ## Cómo quedó repartido el código
 

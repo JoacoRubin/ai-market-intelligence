@@ -7,18 +7,44 @@ en un `BackgroundTask`, los 70-95 segundos de una corrida (ADR-003) se
 gastaban dentro del proceso que atiende HTTP, y un reinicio en el medio
 perdía el trabajo sin dejar rastro.
 
-## Por qué SpawnWorker y no el Worker por defecto
+## Por qué SimpleWorker y no SpawnWorker
 
-El `Worker` clásico de RQ hace `os.fork()` por cada job — y `fork()` **no
-existe en Windows**, que es la máquina de desarrollo de este proyecto. RQ
-trae `SpawnWorker`, que usa `multiprocessing.spawn` y funciona en los dos
-sistemas.
+Se probó `SpawnWorker` primero — la elección documentada originalmente en
+este archivo y en ADR-012 — con el razonamiento de que `os.fork()` no existe
+en Windows y `SpawnWorker` sí corre en los dos sistemas. Resultó ser falso:
+verificado en vivo, `SpawnWorker` de `rq==2.11.0` falla en Windows por DOS
+vías independientes, ninguna cosmética.
 
-Se elige SIEMPRE, no solo en Windows, y es deliberado: un worker que se
-comporta distinto según el sistema operativo es un worker que se prueba en
-uno y se rompe en el otro. Que el contenedor corra lo mismo que la máquina
-de desarrollo vale más que la eficiencia de `fork`, sobre todo cuando cada
-job dura minutos y el costo de arrancar el proceso es ruido al lado.
+1. El proceso padre espera al hijo con `os.wait4()` (heredado de la clase
+   `Worker` base, no reimplementado): `AttributeError: module 'os' has no
+   attribute 'wait4'` — esa función no existe en Windows.
+2. El hijo se lanza con `os.spawnv()` pasándole el script como un string
+   multilínea inline. En Windows, `os.spawnv()` arma la línea de comandos
+   concatenando argumentos, y el escapado rompe el script: `import os`
+   llegaba partido en dos (`SyntaxError: Expected one or more names after
+   'import'`), así que el hijo moría antes de ejecutar una sola línea del
+   análisis.
+
+Ninguno de los dos aparece en Linux (Docker, CI): `os.fork()`, `os.wait4()`
+y el spawn de `multiprocessing` sí existen ahí. Pero este worker está
+documentado para correr a mano contra el `.venv` local en la máquina de
+desarrollo, que es Windows — y ahí un `POST /analyses` con `JOBS_BACKEND=redis`
+quedaba en `pendiente` para siempre, sin error, sin ninguna señal de que el
+worker había muerto en el primer job.
+
+`SimpleWorker` corre el job en el mismo proceso del worker, sin fork ni
+spawn: ningún llamado POSIX-only en el camino. Sostiene el mismo principio
+que ya motivaba `SpawnWorker` — el mismo comportamiento en Windows y en
+Linux, no un worker que se prueba en un sistema y se rompe en otro — solo
+que ahora ese comportamiento común es "un proceso, sin aislamiento por job"
+en los dos lados, no "un proceso por job" en los dos lados. Se pierde el
+aislamiento (un job que reviente el intérprete se lleva puesto al worker
+entero), que en este proyecto es un riesgo bajo: `ejecutar_analisis` es
+Python síncrono que llama a SQL, FAISS y HTTP a Ollama, no código que
+debería segfaultear al intérprete. El límite de tiempo por job lo sigue
+imponiendo `death_penalty_class` de RQ (ya con `TimerDeathPenalty` en
+Windows, sin depender de señales), independiente de qué clase de worker
+ejecute el trabajo.
 """
 
 from __future__ import annotations
@@ -46,7 +72,7 @@ def main() -> int:
         )
         return 1
 
-    from rq import SpawnWorker
+    from rq import SimpleWorker
 
     from apps.api.store_redis import REDIS_URL, _cliente, hay_redis_disponible
 
@@ -62,7 +88,7 @@ def main() -> int:
     # `apps/api/store_redis.py::_cliente` — con el cliente equivocado el
     # worker arranca, dice "Listening on ..." y recién se cae cuando entra
     # el primer job.
-    SpawnWorker(
+    SimpleWorker(
         [NOMBRE_COLA], connection=_cliente(decodificar=False)
     # Los retries con intervalo quedan en ScheduledJobRegistry. Sin scheduler
     # el primer fallo se persiste, pero NUNCA vuelve a la cola.

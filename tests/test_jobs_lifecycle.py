@@ -96,7 +96,7 @@ def test_el_worker_activa_scheduler_para_los_reintentos_diferidos(
 
     llamadas: list[bool] = []
 
-    class SpawnWorkerFalso:
+    class SimpleWorkerFalso:
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:
             pass
 
@@ -104,7 +104,7 @@ def test_el_worker_activa_scheduler_para_los_reintentos_diferidos(
             llamadas.append(with_scheduler)
 
     rq_falso = ModuleType("rq")
-    rq_falso.SpawnWorker = SpawnWorkerFalso  # type: ignore[attr-defined]
+    rq_falso.SimpleWorker = SimpleWorkerFalso  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "rq", rq_falso)
     monkeypatch.setattr(worker, "usa_redis", lambda: True)
     monkeypatch.setattr(store_redis, "hay_redis_disponible", lambda: True)
@@ -112,3 +112,55 @@ def test_el_worker_activa_scheduler_para_los_reintentos_diferidos(
 
     assert worker.main() == 0
     assert llamadas == [True]
+
+
+def test_el_worker_usa_simpleworker_y_no_spawnworker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regresión: SpawnWorker de rq==2.11.0 no funciona en Windows.
+
+    Verificado en vivo, no leído de la documentación de RQ: falla por dos
+    vías independientes. El padre espera al hijo con `os.wait4()`, que no
+    existe en Windows (`AttributeError`). El hijo se lanza con `os.spawnv()`
+    pasándole el script inline, y el escapado de línea de comandos de
+    Windows lo rompe antes de que llegue a ejecutarse (`SyntaxError` en
+    `import os`) — el hijo muere sin correr una sola línea del análisis.
+
+    El síntoma en la API es silencioso: `POST /analyses` sigue devolviendo
+    202, y el análisis queda en `pendiente` para siempre, sin error visible.
+    Ese silencio es la razón para tener este test — nada más en la suite lo
+    detectaría, porque el worker real no corre en CI (`ubuntu-latest`, donde
+    `os.fork()` sí existe y el bug no aparece).
+
+    `SimpleWorker` corre el job en el mismo proceso: sin fork ni spawn, así
+    que ningún llamado POSIX-only queda en el camino en ninguna plataforma.
+    """
+    from apps.api import store_redis
+    from apps.jobs import worker
+
+    construido: list[type] = []
+
+    class SimpleWorkerFalso:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            construido.append(type(self))
+
+        def work(self, *, with_scheduler: bool) -> None:
+            pass
+
+    rq_falso = ModuleType("rq")
+    rq_falso.SimpleWorker = SimpleWorkerFalso  # type: ignore[attr-defined]
+
+    def spawn_worker_prohibido(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError(
+            "el worker no debe instanciar SpawnWorker: falla en Windows "
+            "(ver docstring de apps/jobs/worker.py)"
+        )
+
+    rq_falso.SpawnWorker = spawn_worker_prohibido  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "rq", rq_falso)
+    monkeypatch.setattr(worker, "usa_redis", lambda: True)
+    monkeypatch.setattr(store_redis, "hay_redis_disponible", lambda: True)
+    monkeypatch.setattr(store_redis, "_cliente", lambda **_kwargs: object())
+
+    assert worker.main() == 0
+    assert construido == [SimpleWorkerFalso]
