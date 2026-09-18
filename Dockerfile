@@ -111,7 +111,18 @@ ENV PATH="/app/.venv/bin:$PATH"
 # .dockerignore no es la única defensa contra copiar basura (.venv local,
 # data/, mlruns/) — si alguien la rompe, esta lista sigue siendo explícita
 # sobre qué entra a la imagen y qué no.
+#
+# `application/` faltó acá hasta que se corrió `docker-up` contra el stack
+# completo por primera vez: `apps/api/schemas.py` y `apps/api/store_redis.py`
+# importan `application.models` y `application.lifecycle` en el import de
+# módulo, así que tanto la API como el worker (misma imagen, ver más abajo)
+# morían con `ModuleNotFoundError: No module named 'application'` antes de
+# levantar una sola ruta. `replay/` se queda afuera a propósito — nada bajo
+# `agent/`, `apps/`, `core/` o `application/` lo importa en runtime,
+# verificado con grep y no supuesto; es la herramienta de captura del sitio
+# estático, no algo que la API sirva.
 COPY agent/ agent/
+COPY application/ application/
 COPY apps/ apps/
 COPY core/ core/
 COPY eval/ eval/

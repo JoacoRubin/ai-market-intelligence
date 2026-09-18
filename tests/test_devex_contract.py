@@ -205,3 +205,46 @@ def test_las_tareas_que_tocan_la_base_cargan_el_entorno() -> None:
             f"la tarea {tarea!r} ejecuta código que llega a core/db.py y no "
             "carga el .env: va a fallar con MSSQL_APP_PASSWORD no definida"
         )
+
+
+def test_el_dockerfile_copia_todo_paquete_que_el_runtime_importa() -> None:
+    """Regresión: `application/` faltaba en el COPY del Dockerfile.
+
+    Verificado en vivo contra el stack containerizado completo, no en
+    abstracto: `apps/api/schemas.py` y `apps/api/store_redis.py` importan
+    `application.models` y `application.lifecycle` al cargar el módulo, así
+    que tanto la API como el worker morían con `ModuleNotFoundError` antes
+    de atender una sola ruta — `docker-up` nunca llegaba a healthy.
+
+    El test no fija la lista a mano (eso es exactamente lo que se olvidó una
+    vez): recorre el código real bajo los paquetes que si viajan al runtime y
+    exige que cada import de primer nivel encontrado tenga su propio `COPY
+    <paquete>/ <paquete>/` en el Dockerfile. `eval/`, `replay/` y `seeds/`
+    quedan fuera del barrido — son herramientas offline (harness de
+    evaluación, captura del replay, generador del dataset), no lo que la API
+    o el worker importan para atender una petición.
+    """
+    raiz = RAIZ
+    paquetes_runtime = ("agent", "apps", "core", "application")
+
+    encontrados: set[str] = set()
+    patron = re.compile(
+        r"^\s*(?:from|import)\s+"
+        r"(agent|application|apps|core|eval|ml|rag|replay|seeds)\b"
+    )
+    for paquete in paquetes_runtime:
+        for archivo in (raiz / paquete).rglob("*.py"):
+            for linea in archivo.read_text(encoding="utf-8").splitlines():
+                m = patron.match(linea)
+                if m:
+                    encontrados.add(m.group(1))
+
+    dockerfile = _leer("Dockerfile")
+    copiados = set(re.findall(r"^COPY\s+(\w+)/\s+\1/", dockerfile, re.M))
+
+    faltantes = encontrados - copiados
+    assert not faltantes, (
+        f"el Dockerfile no copia {faltantes}, pero el código bajo "
+        f"{paquetes_runtime} lo importa en runtime: el contenedor va a morir "
+        "con ModuleNotFoundError apenas arranque"
+    )
