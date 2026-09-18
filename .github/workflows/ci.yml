@@ -142,8 +142,14 @@ jobs:
           MSSQL_SA_PASSWORD: ${{ secrets.CI_MSSQL_SA_PASSWORD || format('Ci_{0}_{1}_aB!', github.run_id, github.run_attempt) }}
         ports:
           - 127.0.0.1:1433:1433
+        # El health-cmd NO puede repetir la expresión de secrets de arriba:
+        # `services.<id>.options` no tiene el contexto `secrets` disponible
+        # (a diferencia de `services.<id>.env`), y usarlo ahí rompe el
+        # parseo del workflow entero (falla en 0s, antes de correr nada).
+        # En vez de eso, lee $MSSQL_SA_PASSWORD, que ya está seteada DENTRO
+        # del contenedor por el `env:` de arriba.
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${{ secrets.CI_MSSQL_SA_PASSWORD || format('Ci_{0}_{1}_aB!', github.run_id, github.run_attempt) }}' -C -Q 'SELECT 1' || exit 1"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
